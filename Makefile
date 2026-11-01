@@ -1,15 +1,21 @@
-.PHONY: build run backend dev frontend db up
+.PHONY: build run backend dev server frontend db up template-registry
 
-build:
+build: template-registry
 	cd apps/backend && go build -o build/api ./cmd/api
 
 run: backend
 
-backend: db
+backend: db template-registry
 	cd apps/backend && go run ./cmd/api
 
-dev: db
+server: template-registry
+	cd apps/backend && go run ./cmd/server
+
+dev: db template-registry
 	cd apps/backend && go tool air
+
+template-registry:
+	cd apps/backend && go run ./cmd/template-registry
 
 frontend:
 	cd apps/frontend && pnpm install && pnpm dev

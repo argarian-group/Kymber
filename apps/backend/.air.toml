@@ -2,7 +2,7 @@ root = "."
 tmp_dir = "build/air"
 
 [build]
-cmd = "go build -o ./build/air/api ./cmd/api"
+cmd = "go run ./cmd/template-registry && go build -o ./build/air/api ./cmd/api"
 entrypoint = ["./build/air/api"]
 include_ext = ["go", "sql"]
 exclude_dir = ["build", "vendor"]

@@ -39,6 +39,7 @@ func New(db *sql.DB) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.Handle("GET /api/database-templates", auth.Authenticate(h.db, http.HandlerFunc(h.listDatabaseTemplates)))
 	mux.Handle("GET /api/workspaces", auth.Authenticate(h.db, http.HandlerFunc(h.listWorkspaces)))
 	mux.Handle("POST /api/workspaces", auth.Authenticate(h.db, http.HandlerFunc(h.createWorkspace)))
 	mux.Handle("GET /api/workspaces/{workspaceID}", auth.Authenticate(h.db, http.HandlerFunc(h.getWorkspace)))
@@ -54,4 +55,12 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/workspaces/{workspaceID}/projects/{projectID}", auth.Authenticate(h.db, http.HandlerFunc(h.getProject)))
 	mux.Handle("PUT /api/workspaces/{workspaceID}/projects/{projectID}", auth.Authenticate(h.db, http.HandlerFunc(h.updateProject)))
 	mux.Handle("DELETE /api/workspaces/{workspaceID}/projects/{projectID}", auth.Authenticate(h.db, http.HandlerFunc(h.deleteProject)))
+	mux.Handle("GET /api/workspaces/{workspaceID}/projects/{projectID}/services", auth.Authenticate(h.db, http.HandlerFunc(h.listServices)))
+	mux.Handle("POST /api/workspaces/{workspaceID}/projects/{projectID}/services", auth.Authenticate(h.db, http.HandlerFunc(h.createService)))
+	mux.Handle("GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}", auth.Authenticate(h.db, http.HandlerFunc(h.getService)))
+	mux.Handle("PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}", auth.Authenticate(h.db, http.HandlerFunc(h.updateService)))
+	mux.Handle("POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/{action}", auth.Authenticate(h.db, http.HandlerFunc(h.serviceAction)))
+	mux.Handle("DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}", auth.Authenticate(h.db, http.HandlerFunc(h.deleteService)))
+	mux.Handle("GET /api/servers", auth.Authenticate(h.db, http.HandlerFunc(h.listServers)))
+	mux.Handle("POST /api/servers", auth.Authenticate(h.db, http.HandlerFunc(h.createServer)))
 }

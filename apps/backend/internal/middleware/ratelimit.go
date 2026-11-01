@@ -63,6 +63,8 @@ func sensitivePolicy(r *http.Request) (policy, bool) {
 		return policy{name: "platform-settings", burst: 5, period: time.Minute}, true
 	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/invitations"):
 		return policy{name: "send-invitation", burst: 10, period: time.Minute}, true
+	case strings.HasPrefix(r.URL.Path, "/api/agent/"):
+		return policy{name: "agent", burst: 180, period: time.Minute}, true
 	case isWorkspaceMembersPath(r.URL.Path) && (r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodDelete):
 		return policy{name: "workspace-members", burst: 10, period: time.Minute}, true
 	case r.Method == http.MethodDelete && isWorkspacePath(r.URL.Path):
