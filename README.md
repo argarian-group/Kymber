@@ -16,7 +16,7 @@
 </div>
 
 > [!NOTE]
-> Kymber is in early development. Accounts, workspaces, members and projects run on the API. Apps run as Docker containers on the servers you register. The overview and each project's tasks still show sample data.
+> Kymber is in early development. Accounts, workspaces, members and projects run on the API. Apps run as Docker containers on the servers you register. The workspace overview still shows sample data.
 
 ## Why Kymber
 
@@ -31,11 +31,12 @@ Knowing how a project is doing usually means checking one tool for tasks, anothe
 - **Team:** owner, admin and member roles, and invite links.
 - **Projects:** create, edit and delete projects inside a workspace, each with an optional logo.
 - **Apps:** create MySQL and Redis apps from templates, then deploy, start, stop and restart them in Docker.
+- **Tasks:** create, edit, assign and move tasks across board, list and calendar views.
 - **Appearance:** theme, accent color and density, saved in the browser.
 
 **In preview, with sample data**
 
-- **Tasks:** board, list and calendar views.
+- **Overview:** workspace dashboard with projects, deadlines and deploys.
 
 ## Getting started
 
@@ -156,7 +157,6 @@ assets/                  # Logo, banner and background
 - [x] Projects
 - [x] Connect accounts, workspaces and projects to the API
 - [x] Database apps deployed to local and remote servers
-- [x] Project pages with sample tasks
 - [ ] Application apps and deploy history
-- [ ] Tasks in the API
+- [x] Tasks in the API
 - [ ] Collaboration and progress tracking

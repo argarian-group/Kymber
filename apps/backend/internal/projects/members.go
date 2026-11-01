@@ -180,7 +180,17 @@ func (h *Handler) deleteMember(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "workspace creator cannot be removed")
 		return
 	}
-	result, err := h.db.ExecContext(r.Context(), "DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?", workspaceID, userID)
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not remove workspace member")
+		return
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(r.Context(), "UPDATE project_tasks t JOIN projects p ON p.id = t.project_id SET t.assignee_id = NULL WHERE p.workspace_id = ? AND t.assignee_id = ?", workspaceID, userID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not unassign workspace member")
+		return
+	}
+	result, err := tx.ExecContext(r.Context(), "DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?", workspaceID, userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not remove workspace member")
 		return
@@ -192,6 +202,10 @@ func (h *Handler) deleteMember(w http.ResponseWriter, r *http.Request) {
 	}
 	if deleted == 0 {
 		writeError(w, http.StatusNotFound, "workspace member not found")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not remove workspace member")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

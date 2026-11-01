@@ -1,32 +1,25 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { CalendarTask, type DatedTask } from "@/features/projects/components/tasks/CalendarTask";
+import { CalendarTask } from "@/features/projects/components/tasks/CalendarTask";
 import { TaskAssignee } from "@/features/projects/components/tasks/TaskAssignee";
 import { TaskPriority } from "@/features/projects/components/tasks/TaskPriority";
-import { sampleColumns } from "@/features/projects/sampleData";
-
-function datedTasks(today: Date): DatedTask[] {
-  return sampleColumns.flatMap((column) =>
-    column.tasks.map((task) => ({
-      ...task,
-      done: column.name === "Done",
-      date: new Date(today.getFullYear(), today.getMonth(), today.getDate() + task.dueOffset),
-    })),
-  );
-}
+import { dueDay, type Task } from "@/features/projects/tasks";
 
 function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-export function TaskCalendar() {
+export function TaskCalendar({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: Task) => void }) {
   const today = new Date();
   const [month, setMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
-  const tasks = datedTasks(today);
   const year = month.getFullYear();
   const days = Array.from({ length: new Date(year, month.getMonth() + 1, 0).getDate() }, (_, index) => new Date(year, month.getMonth(), index + 1));
   const weekdays = Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(new Date(2023, 0, 1 + index)));
-  const tasksOn = (day: Date) => tasks.filter((task) => sameDay(task.date, day));
+  const tasksOn = (day: Date) => tasks.filter((task) => {
+    const due = dueDay(task);
+    return due !== null && sameDay(due, day);
+  });
+  const undated = tasks.filter(({ due_date }) => !due_date).length;
   const daysWithTasks = days.filter((day) => tasksOn(day).length > 0);
   const step = (offset: number) => setMonth(new Date(year, month.getMonth() + offset, 1));
 
@@ -65,7 +58,7 @@ export function TaskCalendar() {
                 <span className={`mb-1 flex size-6 items-center justify-center rounded-full text-xs tabular-nums ${isToday ? "bg-seafoam font-semibold text-on-accent" : "text-ink-soft"}`}>{day.getDate()}</span>
                 <div className="grid grid-cols-1 gap-1">
                   {tasksOn(day).map((task) => (
-                    <CalendarTask task={task} key={task.id} />
+                    <CalendarTask task={task} onOpen={() => onOpen(task)} key={task.id} />
                   ))}
                 </div>
               </li>
@@ -84,10 +77,12 @@ export function TaskCalendar() {
                 <span className={`flex size-7 flex-none items-center justify-center rounded-full text-xs tabular-nums ${sameDay(day, today) ? "bg-seafoam font-semibold text-on-accent" : "bg-raised text-ink-soft"}`}>{day.getDate()}</span>
                 <ul className="grid min-w-0 flex-1 gap-1.5">
                   {tasksOn(day).map((task) => (
-                    <li className={`flex items-center gap-2 ${task.done ? "text-ink-faint line-through" : ""}`} key={task.id}>
-                      <TaskPriority task={task} />
-                      <span className="min-w-0 flex-1 wrap-break-word">{task.title}</span>
-                      <TaskAssignee name={task.assignee} />
+                    <li key={task.id}>
+                      <button className={`focus-ring flex min-h-9 w-full cursor-pointer items-center gap-2 text-left ${task.status === "done" ? "text-ink-faint line-through" : ""}`} type="button" onClick={() => onOpen(task)}>
+                        <TaskPriority task={task} />
+                        <span className="min-w-0 flex-1 wrap-break-word">{task.title}</span>
+                        {task.assignee && <TaskAssignee name={task.assignee.username} />}
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -96,6 +91,7 @@ export function TaskCalendar() {
           </ol>
         )}
       </div>
+      {undated > 0 && <p className="mt-3 text-meta text-ink-soft">{undated === 1 ? "1 task has" : `${undated} tasks have`} no due date.</p>}
     </section>
   );
 }

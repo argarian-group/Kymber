@@ -67,7 +67,7 @@ func isSVG(data []byte) bool {
 	}
 }
 
-func (h *Handler) authorizeLogo(w http.ResponseWriter, r *http.Request, write bool) (string, string, bool) {
+func (h *Handler) authorizeProjectAccess(w http.ResponseWriter, r *http.Request, write bool) (string, string, bool) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
 	if !ok || !h.authorize(w, r, user, workspaceID, write) {
@@ -81,7 +81,7 @@ func (h *Handler) authorizeLogo(w http.ResponseWriter, r *http.Request, write bo
 }
 
 func (h *Handler) uploadProjectLogo(w http.ResponseWriter, r *http.Request) {
-	workspaceID, projectID, ok := h.authorizeLogo(w, r, true)
+	workspaceID, projectID, ok := h.authorizeProjectAccess(w, r, true)
 	if !ok {
 		return
 	}
@@ -118,7 +118,7 @@ func (h *Handler) uploadProjectLogo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getProjectLogo(w http.ResponseWriter, r *http.Request) {
-	_, projectID, ok := h.authorizeLogo(w, r, false)
+	_, projectID, ok := h.authorizeProjectAccess(w, r, false)
 	if !ok {
 		return
 	}
@@ -141,7 +141,7 @@ func (h *Handler) getProjectLogo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) deleteProjectLogo(w http.ResponseWriter, r *http.Request) {
-	workspaceID, projectID, ok := h.authorizeLogo(w, r, true)
+	workspaceID, projectID, ok := h.authorizeProjectAccess(w, r, true)
 	if !ok {
 		return
 	}

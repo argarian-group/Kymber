@@ -1,11 +1,10 @@
-import { type SampleTask } from "@/features/projects/sampleData";
+import { isLate, type Task } from "@/features/projects/tasks";
 
-export type DatedTask = SampleTask & { done: boolean; date: Date };
-
-export function CalendarTask({ task }: { task: DatedTask }) {
+export function CalendarTask({ task, onOpen }: { task: Task; onOpen: () => void }) {
+  const done = task.status === "done";
   return (
-    <span className={`flex items-center gap-1.5 rounded-sm bg-raised px-1.5 py-1 text-xs ${task.done ? "text-ink-faint line-through" : task.late ? "text-ember" : ""}`} title={task.title}>
+    <button className={`focus-ring flex w-full cursor-pointer items-center gap-1.5 rounded-sm bg-raised px-1.5 py-1 text-left text-xs hover:bg-white/10 ${done ? "text-ink-faint line-through" : isLate(task) ? "text-ember" : ""}`} type="button" title={task.title} onClick={onOpen}>
       <span className="min-w-0 truncate">{task.title}</span>
-    </span>
+    </button>
   );
 }
