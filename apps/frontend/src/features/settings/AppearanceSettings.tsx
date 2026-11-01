@@ -45,7 +45,7 @@ export function AppearanceSettings() {
 
   return (
     <>
-      <SettingsSection title="Preview" description="Changes apply right away and stay saved in this browser.">
+      <SettingsSection title="Preview" description="Changes apply right away.">
         <div className="p-4">
           <Preview />
           <div className="mt-3 flex justify-end">
