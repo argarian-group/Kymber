@@ -30,6 +30,46 @@ type dockerHubImage struct {
 	Official    bool   `json:"official"`
 	Stars       int    `json:"stars"`
 	LogoURL     string `json:"logo_url,omitempty"`
+	Category    string `json:"category"`
+}
+
+const (
+	categoryApplication = "application"
+	categoryDatabase    = "database"
+	categoryService     = "service"
+)
+
+// Docker Hub categories that run as infrastructure for other apps; everything else is an application.
+var dockerServiceCategories = map[string]bool{
+	"api-management":               true,
+	"integration-and-delivery":     true,
+	"message-queues":               true,
+	"monitoring-and-observability": true,
+	"networking":                   true,
+	"security":                     true,
+	"web-analytics":                true,
+	"web-servers":                  true,
+}
+
+func dockerImageCategory(slugs []string) string {
+	category := categoryApplication
+	for _, slug := range slugs {
+		if slug == "databases-and-storage" {
+			return categoryDatabase
+		}
+		if dockerServiceCategories[slug] {
+			category = categoryService
+		}
+	}
+	return category
+}
+
+// serviceCategory also covers apps stored before categories existed.
+func serviceCategory(stored string) string {
+	if stored == categoryDatabase || stored == categoryService {
+		return stored
+	}
+	return categoryApplication
 }
 
 // dockerLogoURL keeps only Docker Hub's logo hosts, because browsers of every workspace member load this URL.
@@ -67,9 +107,12 @@ func (h *Handler) searchDockerHub(w http.ResponseWriter, r *http.Request) {
 			LogoURL          struct {
 				Small string `json:"small"`
 			} `json:"logo_url"`
+			Categories []struct {
+				Slug string `json:"slug"`
+			} `json:"categories"`
 		} `json:"results"`
 	}
-	target := dockerHubBaseURL + "/api/search/v4?size=15&type=image&query=" + url.QueryEscape(query)
+	target := dockerHubBaseURL + "/api/search/v4?size=25&type=image&query=" + url.QueryEscape(query)
 	if err := fetchJSON(r.Context(), target, "", &response); err != nil {
 		writeError(w, http.StatusBadGateway, "could not search Docker Hub")
 		return
@@ -80,7 +123,11 @@ func (h *Handler) searchDockerHub(w http.ResponseWriter, r *http.Request) {
 		if result.Type != "image" {
 			continue
 		}
-		images = append(images, dockerHubImage{Repository: result.Slug, Description: result.ShortDescription, Official: result.Badge == "official", Stars: result.StarCount, LogoURL: dockerLogoURL(result.LogoURL.Small)})
+		slugs := make([]string, 0, len(result.Categories))
+		for _, category := range result.Categories {
+			slugs = append(slugs, category.Slug)
+		}
+		images = append(images, dockerHubImage{Repository: result.Slug, Description: result.ShortDescription, Official: result.Badge == "official", Stars: result.StarCount, LogoURL: dockerLogoURL(result.LogoURL.Small), Category: dockerImageCategory(slugs)})
 	}
 	writeJSON(w, http.StatusOK, map[string][]dockerHubImage{"images": images})
 }

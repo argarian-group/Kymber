@@ -44,6 +44,8 @@ type Template struct {
 	Connection     Connection `json:"connection"`
 	// Custom templates take their image, port and data path from each service.
 	Custom bool `json:"custom,omitempty"`
+	// Category groups the template in the UI; custom images get theirs from Docker Hub.
+	Category string `json:"category,omitempty"`
 }
 
 var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)

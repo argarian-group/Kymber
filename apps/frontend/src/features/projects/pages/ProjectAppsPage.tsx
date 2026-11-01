@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadError } from "@/components/ui/LoadError";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { ServiceCard } from "@/features/projects/components/apps/ServiceCard";
+import { appCategories } from "@/features/projects/engines";
 import { useProjects } from "@/features/projects/ProjectsContext";
 import { useServices } from "@/features/projects/useServices";
 
@@ -42,11 +43,25 @@ export function ProjectAppsPage() {
       ) : visible.length === 0 ? (
         <EmptyState title={`No apps match "${query.trim()}"`} />
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {visible.map((service) => (
-            <ServiceCard service={service} to={service.id} key={service.id} />
-          ))}
-        </ul>
+        <div className="grid gap-6">
+          {appCategories.map(({ id, label }) => {
+            const group = visible.filter((service) => service.category === id);
+            return (
+              group.length > 0 && (
+                <section className="grid gap-3" aria-label={label} key={id}>
+                  <h3 className="text-meta font-medium text-ink-soft">
+                    {label} <span className="text-ink-faint">{group.length}</span>
+                  </h3>
+                  <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {group.map((service) => (
+                      <ServiceCard service={service} to={service.id} key={service.id} />
+                    ))}
+                  </ul>
+                </section>
+              )
+            );
+          })}
+        </div>
       )}
     </div>
   );

@@ -1,8 +1,10 @@
 import { CheckCircle2, CircleAlert, CircleDashed, CircleStop, LoaderCircle, type LucideIcon } from "lucide-react";
 
+import type { AppCategory } from "@/features/projects/engines";
+
 export type TemplateField = { name: string; label: string; type: string; required?: boolean; secret?: boolean; default?: string; generate?: boolean; min?: number; max?: number; pattern?: string };
 
-export type DatabaseTemplate = { engine: string; image: string; default_version: string; port: number; data_path: string; fields: TemplateField[]; custom?: boolean };
+export type DatabaseTemplate = { engine: string; image: string; default_version: string; port: number; data_path: string; fields: TemplateField[]; custom?: boolean; category?: AppCategory };
 
 export type Service = {
   id: string;
@@ -20,6 +22,7 @@ export type Service = {
   port?: number;
   data_path?: string;
   logo_url?: string;
+  category: AppCategory;
   connection_url?: string;
   environment?: Record<string, string>;
 };

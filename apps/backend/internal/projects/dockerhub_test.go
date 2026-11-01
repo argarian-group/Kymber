@@ -81,7 +81,7 @@ func TestSearchDockerHubKeepsOnlyPullableImages(t *testing.T) {
 			t.Errorf("request = %s", r.URL)
 		}
 		w.Write([]byte(`{"results":[
-			{"type":"image","slug":"postgres","short_description":"DB","badge":"official","star_count":5,"logo_url":{"small":"https://djeqr6to3dedg.cloudfront.net/l.png"}},
+			{"type":"image","slug":"postgres","short_description":"DB","badge":"official","star_count":5,"categories":[{"slug":"databases-and-storage"}],"logo_url":{"small":"https://djeqr6to3dedg.cloudfront.net/l.png"}},
 			{"type":"dhi","slug":"dhi/postgres","badge":"hardened"},
 			{"type":"image","slug":"acme/postgres","badge":"open_source","logo_url":{"small":"https://evil.example/l.png"}}
 		]}`))
@@ -97,8 +97,8 @@ func TestSearchDockerHubKeepsOnlyPullableImages(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []dockerHubImage{
-		{Repository: "postgres", Description: "DB", Official: true, Stars: 5, LogoURL: "https://djeqr6to3dedg.cloudfront.net/l.png"},
-		{Repository: "acme/postgres"},
+		{Repository: "postgres", Description: "DB", Official: true, Stars: 5, LogoURL: "https://djeqr6to3dedg.cloudfront.net/l.png", Category: "database"},
+		{Repository: "acme/postgres", Category: "application"},
 	}
 	if len(response.Images) != 2 || response.Images[0] != want[0] || response.Images[1] != want[1] {
 		t.Errorf("images = %+v", response.Images)
@@ -129,5 +129,35 @@ func TestDockerImageDetailsPrefersLatestOutsideRecentTags(t *testing.T) {
 	}
 	if response.DefaultVersion != "latest" || len(response.Tags) != 3 || response.Tags[0] != "latest" {
 		t.Errorf("response = %+v", response)
+	}
+}
+
+func TestDockerImageCategory(t *testing.T) {
+	cases := []struct {
+		slugs []string
+		want  string
+	}{
+		{[]string{"databases-and-storage"}, "database"},
+		{[]string{"web-servers"}, "service"},
+		{[]string{"message-queues"}, "service"},
+		{[]string{"content-management-system"}, "application"},
+		{[]string{"languages-and-frameworks"}, "application"},
+		{nil, "application"},
+		{[]string{"web-servers", "databases-and-storage"}, "database"},
+		{[]string{"developer-tools", "monitoring-and-observability"}, "service"},
+	}
+	for _, c := range cases {
+		if got := dockerImageCategory(c.slugs); got != c.want {
+			t.Errorf("dockerImageCategory(%v) = %q, want %q", c.slugs, got, c.want)
+		}
+	}
+}
+
+func TestStoredServiceCategory(t *testing.T) {
+	cases := map[string]string{"database": "database", "service": "service", "application": "application", "": "application", "evil": "application"}
+	for input, want := range cases {
+		if got := serviceCategory(input); got != want {
+			t.Errorf("serviceCategory(%q) = %q, want %q", input, got, want)
+		}
 	}
 }

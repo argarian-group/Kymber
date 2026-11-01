@@ -1,15 +1,16 @@
 import { Plus, Search, Star, X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { EngineMark } from "@/features/projects/components/apps/EngineMark";
+import { appCategories, type AppCategory } from "@/features/projects/engines";
 import type { Service } from "@/features/projects/services";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
 
-type HubImage = { repository: string; description: string; official: boolean; stars: number; logo_url?: string };
+type HubImage = { repository: string; description: string; official: boolean; stars: number; logo_url?: string; category: AppCategory };
 type ImageDetails = { tags: string[]; default_version: string; port: number; data_path: string };
 type Variable = { id: number; name: string; value: string };
 
@@ -18,6 +19,9 @@ function ImageSearch({ onPick }: { onPick: (image: HubImage) => void }) {
   const [query, setQuery] = useState("");
   const [images, setImages] = useState<HubImage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [params] = useSearchParams();
+  const category = appCategories.find(({ id }) => id === params.get("category"));
+  const shown = category ? images?.filter((image) => image.category === category.id) : images;
 
   useEffect(() => {
     const timer = setTimeout(() => setQuery(text.trim()), 300);
@@ -37,17 +41,26 @@ function ImageSearch({ onPick }: { onPick: (image: HubImage) => void }) {
   return (
     <div className="mx-auto grid w-full max-w-xl gap-4">
       <label className="block">
-        <span className="mb-1 block text-meta font-medium">Search Docker Hub</span>
+        <span className="mb-1 block text-meta font-medium">Search Docker Hub{category ? ` for ${category.label.toLowerCase()}` : ""}</span>
         <span className="relative block">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" aria-hidden="true" size={16} />
           <input className="field pl-9" type="search" autoFocus maxLength={100} placeholder="postgres, nginx, bitnami/redis…" value={text} onChange={(event) => setText(event.target.value)} />
         </span>
       </label>
       <FormError message={error} />
-      {images?.length === 0 && <p className="text-meta text-ink-soft">No images match “{query}”.</p>}
-      {images && images.length > 0 && (
+      {shown?.length === 0 && (
+        <p className="text-meta text-ink-soft">
+          No {category?.label.toLowerCase() ?? "images"} match “{query}”.{" "}
+          {category && (
+            <Link className="text-button" to="?template=docker">
+              Search all categories
+            </Link>
+          )}
+        </p>
+      )}
+      {shown && shown.length > 0 && (
         <ul className="grid gap-2">
-          {images.map((image) => (
+          {shown.map((image) => (
             <li className="min-w-0" key={image.repository}>
               <button className="row-link flex w-full items-center gap-3 rounded-panel bg-raised p-3 text-left" type="button" onClick={() => onPick(image)}>
                 <EngineMark engine="docker" logo={image.logo_url} />
@@ -73,7 +86,7 @@ function ImageSearch({ onPick }: { onPick: (image: HubImage) => void }) {
 }
 
 function ImageSettings({ image, path, onChange }: { image: HubImage; path: string; onChange: () => void }) {
-  const { repository, logo_url } = image;
+  const { repository, logo_url, category } = image;
   const navigate = useNavigate();
   const [details, setDetails] = useState<ImageDetails | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -104,7 +117,7 @@ function ImageSettings({ image, path, onChange }: { image: HubImage; path: strin
     event.preventDefault();
     await run(async () => {
       const environment = Object.fromEntries(variables.filter(({ name }) => name).map(({ name, value }) => [name, value]));
-      const service = await api<Service>(path, { method: "POST", body: { engine: "docker", repository, name, image_version: version, port: Number(port), data_path: dataPath, logo_url, environment } });
+      const service = await api<Service>(path, { method: "POST", body: { engine: "docker", repository, name, image_version: version, port: Number(port), data_path: dataPath, logo_url, category, environment } });
       navigate(`../apps/${service.id}`);
     });
   }

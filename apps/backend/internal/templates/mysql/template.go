@@ -4,7 +4,7 @@ import "kymber/backend/internal/templates"
 
 func Definition() templates.Template {
 	return templates.Template{
-		Engine: "mysql", Image: "docker.io/library/mysql", DefaultVersion: "latest", Port: 3306, DataPath: "/var/lib/mysql",
+		Engine: "mysql", Category: "database", Image: "docker.io/library/mysql", DefaultVersion: "latest", Port: 3306, DataPath: "/var/lib/mysql",
 		HealthCmd: `mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent`,
 		Fields: []templates.Field{
 			{Name: "MYSQL_DATABASE", Label: "Database", Type: "text", Required: true, Default: "kymber", Max: 64, Pattern: `^[A-Za-z0-9_]+$`},
