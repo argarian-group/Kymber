@@ -31,7 +31,7 @@ Knowing how a project is doing usually means checking one tool for tasks, anothe
 - **Workspaces:** create, rename and delete workspaces, and switch between them.
 - **Team:** owner, admin and member roles, and invite links.
 - **Projects:** create, edit and delete projects inside a workspace, each with an optional logo.
-- **Apps:** create MySQL and Redis apps from templates, then deploy, start, stop and restart them in Docker.
+- **Apps:** create MySQL and Redis apps from templates, or any public Docker Hub image, then deploy, start, stop and restart them in Docker.
 - **Tasks:** boards with editable lists, draggable cards, a rich text editor for descriptions and comments, checklists, labels, multiple assignees and filters, across board, list and calendar views.
 - **Appearance:** theme, accent color and density, saved in the browser.
 
@@ -138,7 +138,7 @@ apps/
 │       ├── routes/      # HTTP routes
 │       ├── secrets/     # Encryption of app settings
 │       ├── server/      # HTTP server
-│       └── templates/   # MySQL and Redis templates
+│       └── templates/   # MySQL, Redis and Docker Hub image templates
 └── frontend/src/        # React app (Vite, Tailwind CSS)
     ├── components/      # Shared layout and UI components
     ├── features/        # One folder per product area, with pages and components

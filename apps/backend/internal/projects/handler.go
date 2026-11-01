@@ -41,6 +41,8 @@ func New(db *sql.DB) *Handler {
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/database-templates", auth.Authenticate(h.db, http.HandlerFunc(h.listDatabaseTemplates)))
+	mux.Handle("GET /api/docker-hub/search", auth.Authenticate(h.db, http.HandlerFunc(h.searchDockerHub)))
+	mux.Handle("GET /api/docker-hub/image", auth.Authenticate(h.db, http.HandlerFunc(h.dockerImageDetails)))
 	mux.Handle("GET /api/workspaces", auth.Authenticate(h.db, http.HandlerFunc(h.listWorkspaces)))
 	mux.Handle("POST /api/workspaces", auth.Authenticate(h.db, http.HandlerFunc(h.createWorkspace)))
 	mux.Handle("GET /api/workspaces/{workspaceID}", auth.Authenticate(h.db, http.HandlerFunc(h.getWorkspace)))

@@ -2,7 +2,7 @@ import { CheckCircle2, CircleAlert, CircleDashed, CircleStop, LoaderCircle, type
 
 export type TemplateField = { name: string; label: string; type: string; required?: boolean; secret?: boolean; default?: string; generate?: boolean; min?: number; max?: number; pattern?: string };
 
-export type DatabaseTemplate = { engine: string; image: string; default_version: string; port: number; data_path: string; fields: TemplateField[] };
+export type DatabaseTemplate = { engine: string; image: string; default_version: string; port: number; data_path: string; fields: TemplateField[]; custom?: boolean };
 
 export type Service = {
   id: string;
@@ -18,6 +18,7 @@ export type Service = {
   last_error?: string;
   internal_host?: string;
   port?: number;
+  data_path?: string;
   connection_url?: string;
   environment?: Record<string, string>;
 };

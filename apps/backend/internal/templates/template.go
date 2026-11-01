@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path"
 	"regexp"
 	"strings"
 )
@@ -41,14 +42,48 @@ type Template struct {
 	HealthCmd      string     `json:"-"`
 	Fields         []Field    `json:"fields"`
 	Connection     Connection `json:"connection"`
+	// Custom templates take their image, port and data path from each service.
+	Custom bool `json:"custom,omitempty"`
 }
 
 var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 var imageVersionPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`)
 
+const repositoryPattern = `[a-z0-9]+(?:[_-]+[a-z0-9]+)*/[a-z0-9]+(?:[._-]+[a-z0-9]+)*`
+
+var repositoryRegexp = regexp.MustCompile(`^` + repositoryPattern + `$`)
+var imageRegexp = regexp.MustCompile(`^docker\.io/` + repositoryPattern + `$`)
+var dataPathRegexp = regexp.MustCompile(`^(?:/[A-Za-z0-9_.-]+)+$`)
+
+// ParseRepository returns the namespaced Docker Hub path of a repository; official images live under library/.
+func ParseRepository(repository string) (string, error) {
+	if !strings.Contains(repository, "/") {
+		repository = "library/" + repository
+	}
+	if len(repository) > 255 || !repositoryRegexp.MatchString(repository) {
+		return "", errors.New("invalid Docker Hub repository")
+	}
+	return repository, nil
+}
+
+// ValidDataPath accepts an empty path (no volume) or a clean absolute path; a colon would change the --volume meaning.
+func ValidDataPath(dataPath string) bool {
+	return dataPath == "" || len(dataPath) <= 255 && dataPathRegexp.MatchString(dataPath) && path.Clean(dataPath) == dataPath
+}
+
+func (t Template) ForService(image string, port int, dataPath string) Template {
+	if t.Custom {
+		t.Image, t.Port, t.DataPath = image, port, dataPath
+	}
+	return t
+}
+
 func (t Template) ImageRef(version string) (string, error) {
 	if !imageVersionPattern.MatchString(version) {
 		return "", errors.New("invalid image version")
+	}
+	if !imageRegexp.MatchString(t.Image) {
+		return "", errors.New("invalid image")
 	}
 	return t.Image + ":" + version, nil
 }
@@ -81,6 +116,9 @@ func (t Template) ConnectionURL(serviceID string, config Config) string {
 }
 
 func Normalize(t Template, config Config) (Config, error) {
+	if t.Custom {
+		return normalizeCustom(config)
+	}
 	values := make(Config, len(t.Fields))
 	known := make(map[string]Field, len(t.Fields))
 	for _, field := range t.Fields {
@@ -126,6 +164,22 @@ func Normalize(t Template, config Config) (Config, error) {
 		}
 		if value != "" {
 			values[field.Name] = value
+		}
+	}
+	return values, nil
+}
+
+func normalizeCustom(config Config) (Config, error) {
+	values := make(Config, len(config))
+	for name, value := range config {
+		if !environmentNamePattern.MatchString(name) {
+			return nil, fmt.Errorf("invalid environment variable name %q", name)
+		}
+		if strings.ContainsAny(value, "\r\n\x00") {
+			return nil, fmt.Errorf("%s cannot contain a line break", name)
+		}
+		if value != "" {
+			values[name] = value
 		}
 	}
 	return values, nil

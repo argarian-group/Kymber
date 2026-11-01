@@ -4,6 +4,7 @@ import { Link, Navigate, useSearchParams } from "react-router";
 import { LoadError } from "@/components/ui/LoadError";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { CreateServiceForm } from "@/features/projects/components/apps/CreateServiceForm";
+import { DockerImageForm } from "@/features/projects/components/apps/DockerImageForm";
 import { TemplateGallery } from "@/features/projects/components/apps/TemplateGallery";
 import { useProjects } from "@/features/projects/ProjectsContext";
 import { servicesPath, type DatabaseTemplate } from "@/features/projects/services";
@@ -41,7 +42,9 @@ export function ProjectNewAppPage() {
         <ArrowLeft aria-hidden="true" size={14} />
         All apps
       </Link>
-      {template ? (
+      {template?.custom ? (
+        <DockerImageForm path={servicesPath(workspace.id, project.id)} />
+      ) : template ? (
         <CreateServiceForm template={template} path={servicesPath(workspace.id, project.id)} key={template.engine} />
       ) : (
         <>

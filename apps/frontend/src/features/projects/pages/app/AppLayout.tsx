@@ -16,6 +16,12 @@ import { useServices } from "@/features/projects/useServices";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
 
+// Custom images have no declared fields, so the saved variables are the fields.
+function appTemplate(template: DatabaseTemplate | null, detail: Service | null): DatabaseTemplate | null {
+  if (!template?.custom) return template;
+  return { ...template, fields: Object.keys(detail?.environment ?? {}).sort().map((name) => ({ name, label: name, type: "password", secret: true })) };
+}
+
 export function AppLayout() {
   const { appId } = useParams();
   const { canWrite } = useProjects();
@@ -73,7 +79,7 @@ export function AppLayout() {
   const context: AppOutlet = {
     service,
     detail,
-    template: templates.find(({ engine }) => engine === service.engine) ?? null,
+    template: appTemplate(templates.find(({ engine }) => engine === service.engine) ?? null, detail),
     path,
     canWrite,
     appsPath: `/projects/${project.id}/apps`,
