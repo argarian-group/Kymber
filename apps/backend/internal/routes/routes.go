@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"kymber/backend/internal/auth"
+	"kymber/backend/internal/middleware"
 	"kymber/backend/internal/projects"
 )
 
@@ -14,7 +15,7 @@ func New(db *sql.DB, secureOnboard bool) http.Handler {
 	mux.HandleFunc("GET /health", health)
 	auth.New(db, secureOnboard).RegisterRoutes(mux)
 	projects.New(db).RegisterRoutes(mux)
-	return mux
+	return middleware.RateLimit(mux)
 }
 
 func health(w http.ResponseWriter, r *http.Request) {
