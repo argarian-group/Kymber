@@ -149,6 +149,11 @@
   padding-inline: 10px;
   font-size: var(--text-base);
 
+  @media (min-width: 47.5rem) {
+    min-height: 36px;
+    font-size: var(--text-sm);
+  }
+
   &:focus-visible {
     outline: 2px solid var(--color-seafoam);
     outline-offset: 1px;

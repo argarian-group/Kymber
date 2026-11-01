@@ -43,7 +43,7 @@ export function Sidebar() {
 
   return (
     <aside className="sticky top-0 hidden h-dvh flex-col self-start bg-sunken md:flex">
-      <div className="flex h-14 flex-none items-center gap-2 px-5 font-display text-base font-semibold tracking-[-0.01em]">
+      <div className="flex h-14 flex-none items-center justify-center gap-2 font-display text-base font-semibold tracking-[-0.01em]">
         <img className="-mx-2 -my-2 size-10 -translate-y-px" src={logo} alt="" width="40" height="40" />
         <span>Kymber</span>
       </div>

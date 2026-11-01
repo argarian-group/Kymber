@@ -1,8 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { Navigate, NavLink } from "react-router";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Panel } from "@/components/ui/Panel";
 import { useAuth, useCurrentUser, type User } from "@/features/auth/AuthContext";
 import { Field, FormError } from "@/features/auth/AuthScreen";
 import { api, errorMessage } from "@/lib/api";
@@ -11,6 +10,33 @@ const tabs = [
   { label: "Account", to: "/settings" },
   { label: "System", to: "/settings/system" },
 ];
+
+function SettingsSection({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+  const titleId = useId();
+  return (
+    <section className="grid gap-x-10 gap-y-3 px-4 py-6 md:px-6 lg:grid-cols-[220px_minmax(0,1fr)]" aria-labelledby={titleId}>
+      <div>
+        <h2 id={titleId} className="font-display text-base font-semibold">
+          {title}
+        </h2>
+        <p className="mt-1 text-meta text-ink-soft">{description}</p>
+      </div>
+      <div className="max-w-2xl min-w-0 rounded-panel bg-raised">{children}</div>
+    </section>
+  );
+}
+
+function FormFooter({ error, saved, children }: { error: string | null; saved: string | null; children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t border-line px-4 py-3">
+      <div className="mr-auto min-w-0">
+        <FormError message={error} />
+        {!error && <Saved message={saved} />}
+      </div>
+      {children}
+    </div>
+  );
+}
 
 function Saved({ message }: { message: string | null }) {
   return (
@@ -52,20 +78,20 @@ function ProfileForm() {
   }
 
   return (
-    <Panel title="Profile">
-      <form className="grid max-w-md gap-4 px-4 md:px-6" onSubmit={submit}>
-        <Field label="Username" autoComplete="username" required minLength={3} maxLength={32} hint="3 to 32 letters, numbers, _ or -." value={username} onChange={(event) => setUsername(event.target.value)} />
-        <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
-        <Field label="Current password" type="password" autoComplete="current-password" required value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
-        <FormError message={error} />
-        <div className="flex items-center gap-3">
+    <SettingsSection title="Profile" description="How you appear in Kymber and the email you log in with.">
+      <form onSubmit={submit}>
+        <div className="grid items-start gap-4 p-4 sm:grid-cols-2">
+          <Field label="Username" autoComplete="username" required minLength={3} maxLength={32} hint="3 to 32 letters, numbers, _ or -." value={username} onChange={(event) => setUsername(event.target.value)} />
+          <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
+          <Field label="Current password" type="password" autoComplete="current-password" required hint="Needed to confirm these changes." value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+        </div>
+        <FormFooter error={error} saved={saved}>
           <button className="btn btn-primary" type="submit" disabled={pending}>
             {pending ? "Saving…" : "Save profile"}
           </button>
-          <Saved message={saved} />
-        </div>
+        </FormFooter>
       </form>
-    </Panel>
+    </SettingsSection>
   );
 }
 
@@ -97,20 +123,22 @@ function PasswordForm() {
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: event.target.value });
 
   return (
-    <Panel title="Password">
-      <form className="grid max-w-md gap-4 px-4 md:px-6" onSubmit={submit}>
-        <Field label="Current password" type="password" autoComplete="current-password" required value={form.current} onChange={update("current")} />
-        <Field label="New password" type="password" autoComplete="new-password" required minLength={8} maxLength={128} hint="8 to 128 characters." value={form.next} onChange={update("next")} />
-        <Field label="Confirm new password" type="password" autoComplete="new-password" required value={form.confirm} onChange={update("confirm")} />
-        <FormError message={error} />
-        <div className="flex flex-wrap items-center gap-3">
+    <SettingsSection title="Password" description="Changing it logs you out on your other devices.">
+      <form onSubmit={submit}>
+        <div className="grid items-start gap-4 p-4 sm:grid-cols-2">
+          <div className="sm:col-span-2 sm:max-w-[calc(50%-0.5rem)]">
+            <Field label="Current password" type="password" autoComplete="current-password" required value={form.current} onChange={update("current")} />
+          </div>
+          <Field label="New password" type="password" autoComplete="new-password" required minLength={8} maxLength={128} hint="8 to 128 characters." value={form.next} onChange={update("next")} />
+          <Field label="Confirm new password" type="password" autoComplete="new-password" required value={form.confirm} onChange={update("confirm")} />
+        </div>
+        <FormFooter error={error} saved={saved}>
           <button className="btn btn-primary" type="submit" disabled={pending}>
             {pending ? "Changing…" : "Change password"}
           </button>
-          <Saved message={saved} />
-        </div>
+        </FormFooter>
       </form>
-    </Panel>
+    </SettingsSection>
   );
 }
 
@@ -165,27 +193,33 @@ function SystemSettings() {
   }
 
   return (
-    <Panel title="Access">
-      <div className="max-w-2xl px-4 md:px-6">
-        <label className="flex cursor-pointer items-start justify-between gap-6 rounded-panel bg-raised p-4">
-          <span>
-            <span className="block font-medium">Allow new registrations</span>
-            <span className="mt-0.5 block text-meta text-ink-soft">When this is off, new accounts cannot be created. Existing accounts keep working.</span>
-          </span>
+    <SettingsSection title="Access" description="Who can get into this server.">
+      <label className="flex cursor-pointer items-center justify-between gap-6 p-4">
+        <span>
+          <span className="block font-medium">Allow new registrations</span>
+          <span className="mt-0.5 block text-meta text-ink-soft">When this is off, new accounts cannot be created. Existing accounts keep working.</span>
+        </span>
+        <span className="relative flex-none">
           <input
-            className="mt-0.5 size-5 flex-none cursor-pointer accent-seafoam disabled:cursor-not-allowed"
+            className="peer sr-only"
             type="checkbox"
             role="switch"
             checked={enabled ?? false}
             disabled={enabled === null || pending}
             onChange={(event) => toggle(event.target.checked)}
           />
-        </label>
-        <div className="mt-2">
+          <span
+            className="block h-6 w-10 rounded-full bg-white/20 transition-colors duration-150 peer-checked:bg-seafoam peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-seafoam peer-disabled:opacity-60 after:absolute after:top-0.5 after:left-0.5 after:size-5 after:rounded-full after:bg-ink after:transition-transform after:duration-150 peer-checked:after:translate-x-4 motion-reduce:after:transition-none"
+            aria-hidden="true"
+          />
+        </span>
+      </label>
+      {error && (
+        <div className="border-t border-line px-4 py-3">
           <FormError message={error} />
         </div>
-      </div>
-    </Panel>
+      )}
+    </SettingsSection>
   );
 }
 
@@ -197,11 +231,11 @@ export function SettingsPage({ section }: { section: "account" | "system" }) {
     <>
       <PageHeader title="Settings" description={section === "account" ? "Your profile and password." : "Options for everyone on this server."} />
       {user.is_root && (
-        <nav className="mt-3 flex gap-0.5 px-4 md:px-6" aria-label="Settings sections">
+        <nav className="mt-4 flex gap-5 border-b border-line px-4 md:px-6" aria-label="Settings sections">
           {tabs.map(({ label, to }) => (
             <NavLink
               className={({ isActive }) =>
-                `focus-ring flex min-h-9 items-center rounded-control px-3 text-meta font-medium transition-colors duration-100 md:min-h-8 ${isActive ? "bg-white/10 text-ink" : "text-ink-soft hover:bg-white/5 hover:text-ink"}`
+                `focus-ring -mb-px flex min-h-10 items-center border-b-2 text-meta font-medium transition-colors duration-100 ${isActive ? "border-seafoam text-ink" : "border-transparent text-ink-soft hover:text-ink"}`
               }
               to={to}
               end
