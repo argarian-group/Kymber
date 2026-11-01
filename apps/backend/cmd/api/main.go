@@ -1,12 +1,11 @@
 package main
 
 import (
-	"net/http"
 	"os"
 
 	"github.com/joho/godotenv"
 	"kymber/backend/internal/logger"
-	"kymber/backend/internal/routes"
+	"kymber/backend/internal/server"
 )
 
 func main() {
@@ -15,15 +14,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	port := os.Getenv("SERVER_PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	addr := ":" + port
-	logger.Info("Kymber API started")
-	logger.Info("Listening at http://localhost%s", addr)
-	if err := http.ListenAndServe(addr, routes.New()); err != nil {
+	if err := server.Run(os.Getenv("SERVER_PORT")); err != nil {
 		logger.Error("server stopped: %v", err)
 		os.Exit(1)
 	}
