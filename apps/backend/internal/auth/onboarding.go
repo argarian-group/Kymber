@@ -45,7 +45,7 @@ func (h *Handler) onboard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "onboarding is already complete")
 		return
 	}
-	userID, err := createUser(r, tx, input.Email, passwordHash, true)
+	userID, err := createUser(r, tx, input.Username, input.Email, passwordHash, true)
 	if err != nil {
 		writeUserError(w, err)
 		return
@@ -64,5 +64,5 @@ func (h *Handler) onboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setSessionCookie(w, token, expiresAt)
-	writeJSON(w, http.StatusCreated, map[string]any{"user": User{ID: userID, Email: input.Email, IsRoot: true}, "restart_required": h.secureOnboard})
+	writeJSON(w, http.StatusCreated, map[string]any{"user": User{ID: userID, Username: input.Username, Email: input.Email, IsRoot: true}, "restart_required": h.secureOnboard})
 }

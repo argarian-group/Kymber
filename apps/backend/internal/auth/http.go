@@ -13,16 +13,38 @@ import (
 )
 
 type credentials struct {
+	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 func validateCredentials(input *credentials) error {
+	input.Username = normalizeUsername(input.Username)
+	if !validUsername(input.Username) {
+		return errors.New("username must be 3-32 characters, start with a letter or number, and contain only letters, numbers, _ or -")
+	}
 	input.Email = normalizeEmail(input.Email)
 	if !validEmail(input.Email) {
 		return errors.New("valid email is required")
 	}
 	return validatePassword(input.Password)
+}
+
+func normalizeUsername(username string) string {
+	return strings.ToLower(strings.TrimSpace(username))
+}
+
+func validUsername(username string) bool {
+	if len(username) < 3 || len(username) > 32 {
+		return false
+	}
+	for i, char := range []byte(username) {
+		valid := char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || i > 0 && (char == '_' || char == '-')
+		if !valid {
+			return false
+		}
+	}
+	return true
 }
 
 func normalizeEmail(email string) string {
@@ -56,8 +78,8 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, value any) bool {
 	return true
 }
 
-func createUser(r *http.Request, tx *sql.Tx, email, passwordHash string, root bool) (uint64, error) {
-	result, err := tx.ExecContext(r.Context(), "INSERT INTO users (email, password_hash, is_root) VALUES (?, ?, ?)", email, passwordHash, root)
+func createUser(r *http.Request, tx *sql.Tx, username, email, passwordHash string, root bool) (uint64, error) {
+	result, err := tx.ExecContext(r.Context(), "INSERT INTO users (username, email, password_hash, is_root) VALUES (?, ?, ?, ?)", username, email, passwordHash, root)
 	if err != nil {
 		return 0, err
 	}
@@ -81,7 +103,7 @@ func createWorkspace(r *http.Request, tx *sql.Tx, userID uint64) error {
 func writeUserError(w http.ResponseWriter, err error) {
 	var mysqlErr *mysql.MySQLError
 	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
-		writeError(w, http.StatusConflict, "email is already registered")
+		writeError(w, http.StatusConflict, "email or username is already registered")
 		return
 	}
 	writeError(w, http.StatusInternalServerError, "could not create user")

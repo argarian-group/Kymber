@@ -46,7 +46,7 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "registration is disabled")
 		return
 	}
-	userID, err := createUser(r, tx, input.Email, passwordHash, false)
+	userID, err := createUser(r, tx, input.Username, input.Email, passwordHash, false)
 	if err != nil {
 		writeUserError(w, err)
 		return
@@ -65,7 +65,7 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setSessionCookie(w, token, expiresAt)
-	writeJSON(w, http.StatusCreated, map[string]User{"user": {ID: userID, Email: input.Email}})
+	writeJSON(w, http.StatusCreated, map[string]User{"user": {ID: userID, Username: input.Username, Email: input.Email}})
 }
 
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +80,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	}
 	var user User
 	var passwordHash string
-	err := h.db.QueryRowContext(r.Context(), "SELECT id, email, is_root, password_hash FROM users WHERE email = ?", input.Email).Scan(&user.ID, &user.Email, &user.IsRoot, &passwordHash)
+	err := h.db.QueryRowContext(r.Context(), "SELECT id, username, email, is_root, password_hash FROM users WHERE email = ?", input.Email).Scan(&user.ID, &user.Username, &user.Email, &user.IsRoot, &passwordHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusUnauthorized, "invalid email or password")
 		return
@@ -145,7 +145,7 @@ func (h *Handler) currentUser(w http.ResponseWriter, r *http.Request) (User, boo
 	}
 	digest := sha256.Sum256(token)
 	var user User
-	err = h.db.QueryRowContext(r.Context(), `SELECT u.id, u.email, u.is_root FROM users u JOIN user_sessions s ON s.user_id = u.id WHERE s.token_hash = ? AND s.expires_at > UTC_TIMESTAMP(6)`, digest[:]).Scan(&user.ID, &user.Email, &user.IsRoot)
+	err = h.db.QueryRowContext(r.Context(), `SELECT u.id, u.username, u.email, u.is_root FROM users u JOIN user_sessions s ON s.user_id = u.id WHERE s.token_hash = ? AND s.expires_at > UTC_TIMESTAMP(6)`, digest[:]).Scan(&user.ID, &user.Username, &user.Email, &user.IsRoot)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return User{}, false
