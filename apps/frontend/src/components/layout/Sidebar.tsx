@@ -20,7 +20,7 @@ function NavGroup({ title, items, hints = {} }: { title: string; items: { label:
                 `${rowClass} min-h-8 ${isActive ? "bg-white/8 font-medium text-ink" : "font-medium text-ink-soft hover:bg-white/5 hover:text-ink"}`
               }
               to={to}
-              end
+              end={to === "/"}
             >
               {({ isActive }) => (
                 <>

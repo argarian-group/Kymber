@@ -9,6 +9,7 @@ import { LoginPage } from "@/features/auth/LoginPage";
 import { OnboardingPage } from "@/features/auth/OnboardingPage";
 import { ProjectsProvider } from "@/features/projects/ProjectsContext";
 import { ProjectsPage } from "@/features/projects/ProjectsPage";
+import { SettingsPage } from "@/features/settings/SettingsPage";
 
 const DashboardPage = lazy(() => import("@/features/dashboard/DashboardPage").then((module) => ({ default: module.DashboardPage })));
 
@@ -42,6 +43,8 @@ function AuthGate() {
                   <Route path="tasks" element={<PlaceholderPage title="Tasks" description="Plan the work and follow it through." />} />
                   <Route path="deploys" element={<PlaceholderPage title="Deploys" description="What shipped, where and when." />} />
                   <Route path="team" element={<PlaceholderPage title="Team" description="The people behind the work." />} />
+                  <Route path="settings" element={<SettingsPage section="account" />} />
+                  <Route path="settings/system" element={<SettingsPage section="system" />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Suspense>
