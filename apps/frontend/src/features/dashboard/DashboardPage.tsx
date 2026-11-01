@@ -1,4 +1,6 @@
+import { Link } from "react-router";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { AttentionPanel } from "./components/AttentionPanel";
 import { DeadlinesPanel } from "./components/DeadlinesPanel";
 import { DeploysPanel } from "./components/DeploysPanel";
 import { ProjectsPanel } from "./components/ProjectsPanel";
@@ -7,19 +9,36 @@ import { deploys, dueTasks, projects, stages } from "./data";
 
 export function DashboardPage() {
   const onTrack = projects.filter((project) => project.health === "on-track").length;
-  const needAttention = projects.length - onTrack;
+  const focus = projects.find((project) => project.health === "late") ?? projects.find((project) => project.health === "at-risk");
 
   return (
     <>
       <PageHeader
         title="Overview"
-        description={`${onTrack} of ${projects.length} projects on track, ${needAttention} need attention.`}
+        description={`Sample data, ${onTrack} of ${projects.length} projects on track`}
+        actions={
+          <>
+            <Link className="btn" to="/deploys">
+              View deploys
+            </Link>
+            {focus && (
+              <Link className="btn btn-primary" to="/projects">
+                Review {focus.name}
+              </Link>
+            )}
+          </>
+        }
       />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
-        <ProjectsPanel projects={projects} className="lg:row-span-2" />
-        <DeploysPanel deploys={deploys} className="lg:col-start-2 lg:row-start-1" />
-        <TaskFlowPanel stages={stages} className="lg:col-span-2 lg:row-start-3" />
-        <DeadlinesPanel tasks={dueTasks} className="lg:col-start-2 lg:row-start-2" />
+      <div className="grid flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0">
+          <AttentionPanel projects={projects} deploys={deploys} tasks={dueTasks} />
+          <ProjectsPanel projects={projects} />
+        </div>
+        <aside className="min-w-0 bg-sunken lg:grid lg:grid-cols-2 xl:block" aria-label="Delivery">
+          <DeploysPanel deploys={deploys} />
+          <DeadlinesPanel tasks={dueTasks} />
+          <TaskFlowPanel stages={stages} />
+        </aside>
       </div>
     </>
   );

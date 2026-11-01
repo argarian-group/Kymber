@@ -1,32 +1,23 @@
 import { Panel } from "@/components/ui/Panel";
 import type { Stage } from "../data";
 
-const stageFills = ["bg-white/22", "bg-pine", "bg-jade", "bg-seafoam"];
+const stageFills = ["bg-white/25", "bg-pine", "bg-jade", "bg-seafoam"];
 
-export function TaskFlowPanel({ stages, className }: { stages: Stage[]; className?: string }) {
+export function TaskFlowPanel({ stages }: { stages: Stage[] }) {
   const totalTasks = stages.reduce((sum, stage) => sum + stage.count, 0);
 
   return (
-    <Panel title="Task flow" className={className}>
-      <div className="mb-4 flex h-5 gap-1" aria-hidden="true">
+    <Panel title="Task flow" className="lg:col-span-2" aside={<span className="text-meta text-ink-soft tabular-nums">{totalTasks} total</span>}>
+      <div className="mx-4 mb-3 flex h-2 gap-0.5 md:mx-6" aria-hidden="true">
         {stages.map((stage, index) => (
-          <span
-            className={`basis-0 rounded-lg shadow-[inset_0_1px_0_rgb(255_255_255/0.3)] ${stageFills[index]}`}
-            key={stage.name}
-            style={{ flexGrow: stage.count }}
-          />
+          <span className={`rounded-xs ${stageFills[index]}`} style={{ flexGrow: stage.count }} key={stage.name} />
         ))}
       </div>
-      <dl className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <dl className="grid grid-cols-4 gap-2 px-4 md:px-6">
         {stages.map((stage) => (
-          <div key={stage.name}>
-            <dt className="text-meta text-ink-soft">{stage.name}</dt>
-            <dd className="text-xl font-[650] tracking-[-0.02em] tabular-nums">
-              {stage.count}
-              <small className="ml-1 text-xs font-medium tracking-normal text-ink-faint">
-                {Math.round((stage.count / totalTasks) * 100)}%
-              </small>
-            </dd>
+          <div className="min-w-0" key={stage.name}>
+            <dt className="truncate text-xs text-ink-soft">{stage.name}</dt>
+            <dd className="font-display text-lg font-semibold tabular-nums">{stage.count}</dd>
           </div>
         ))}
       </dl>

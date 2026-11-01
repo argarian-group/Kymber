@@ -1,21 +1,61 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { PlaceholderPage } from "@/components/layout/PlaceholderPage";
-import { DashboardPage } from "@/features/dashboard/DashboardPage";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { AuthProvider, useAuth } from "@/features/auth/AuthContext";
+import { AuthScreen } from "@/features/auth/AuthScreen";
+import { LoginPage } from "@/features/auth/LoginPage";
+import { OnboardingPage } from "@/features/auth/OnboardingPage";
+import { ProjectsProvider } from "@/features/projects/ProjectsContext";
+import { ProjectsPage } from "@/features/projects/ProjectsPage";
+
+const DashboardPage = lazy(() => import("@/features/dashboard/DashboardPage").then((module) => ({ default: module.DashboardPage })));
+
+function AuthGate() {
+  const { state, retry } = useAuth();
+
+  switch (state.status) {
+    case "loading":
+      return <PageSkeleton />;
+    case "error":
+      return (
+        <AuthScreen title="Kymber is unavailable" description={state.message}>
+          <button className="btn" type="button" onClick={retry}>
+            Try again
+          </button>
+        </AuthScreen>
+      );
+    case "onboarding":
+      return <OnboardingPage />;
+    case "anonymous":
+      return <LoginPage />;
+    case "authenticated":
+      return (
+        <ProjectsProvider key={state.user.id}>
+          <BrowserRouter>
+            <AppShell>
+              <Suspense fallback={<PageSkeleton />}>
+                <Routes>
+                  <Route index element={<DashboardPage />} />
+                  <Route path="projects" element={<ProjectsPage />} />
+                  <Route path="tasks" element={<PlaceholderPage title="Tasks" description="Plan the work and follow it through." />} />
+                  <Route path="deploys" element={<PlaceholderPage title="Deploys" description="What shipped, where and when." />} />
+                  <Route path="team" element={<PlaceholderPage title="Team" description="The people behind the work." />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Suspense>
+            </AppShell>
+          </BrowserRouter>
+        </ProjectsProvider>
+      );
+  }
+}
 
 export function App() {
   return (
-    <BrowserRouter>
-      <AppShell>
-        <Routes>
-          <Route index element={<DashboardPage />} />
-          <Route path="projects" element={<PlaceholderPage title="Projects" description="Every project in one place." />} />
-          <Route path="tasks" element={<PlaceholderPage title="Tasks" description="Plan the work and follow it through." />} />
-          <Route path="deploys" element={<PlaceholderPage title="Deploys" description="What shipped, where and when." />} />
-          <Route path="team" element={<PlaceholderPage title="Team" description="The people behind the work." />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AppShell>
-    </BrowserRouter>
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
   );
 }

@@ -20,7 +20,8 @@ export type Deploy = {
   status: DeployStatus;
 };
 
-export type DueTask = { title: string; project: string; due: string; late: boolean };
+export type Priority = "urgent" | "high" | "normal";
+export type DueTask = { title: string; project: string; due: string; late: boolean; priority: Priority };
 
 export const projects: Project[] = [
   { name: "Customer portal", phase: "Staging", progress: 82, health: "on-track", tasksLeft: 9, nextDeploy: "Today, 6:00 PM" },
@@ -44,8 +45,8 @@ export const deploys: Deploy[] = [
 ];
 
 export const dueTasks: DueTask[] = [
-  { title: "Review checkout flow", project: "Payments API", due: "2 days late", late: true },
-  { title: "Fix SSO login", project: "Mobile app", due: "Today", late: false },
-  { title: "Check homepage copy", project: "Company website", due: "Today", late: false },
-  { title: "Publish release notes", project: "Customer portal", due: "Tomorrow", late: false },
+  { title: "Review checkout flow", project: "Payments API", due: "2 days late", late: true, priority: "urgent" },
+  { title: "Fix SSO login", project: "Mobile app", due: "Today", late: false, priority: "high" },
+  { title: "Check homepage copy", project: "Company website", due: "Today", late: false, priority: "normal" },
+  { title: "Publish release notes", project: "Customer portal", due: "Tomorrow", late: false, priority: "normal" },
 ];

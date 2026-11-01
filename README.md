@@ -38,14 +38,24 @@ Knowing how a project is doing usually means checking one tool for tasks, anothe
 - Make
 - [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/) for the frontend
 
+### Run everything
+
+```bash
+cp .env.example .env
+make up
+```
+
+This starts MariaDB in Docker, then the API with live reload and the dashboard. Press `Ctrl+C` to stop the API and the dashboard. MariaDB keeps running until you run `docker compose stop`.
+
 ### Run the API
 
 ```bash
-cp apps/backend/.env.example apps/backend/.env
+cp .env.example .env
+docker compose up -d mariadb
 make run
 ```
 
-The API reads `SERVER_PORT` from `apps/backend/.env` and listens on port `8080` when it is not set. To check that it is running:
+The API reads `SERVER_PORT` from `.env` and listens on port `8080` when it is not set. To check that it is running:
 
 ```bash
 curl http://localhost:8080/health
@@ -63,7 +73,7 @@ To compile a binary to `apps/backend/build/api`, run `make build`.
 make frontend
 ```
 
-Vite prints the local URL. The dashboard is not connected to the API yet.
+Vite prints the local URL and forwards `/api` to the API on `SERVER_PORT`. Login and projects use the API; the overview still shows sample data.
 
 ## Project structure
 
