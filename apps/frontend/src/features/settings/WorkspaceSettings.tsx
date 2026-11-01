@@ -31,7 +31,7 @@ function RenameWorkspace({ workspace }: { workspace: Workspace }) {
   }
 
   return (
-    <SettingsSection title="General" description={canWrite ? "The name everyone in this workspace sees." : "Only admins and owners can rename this workspace."}>
+    <SettingsSection title="General" description={`${canWrite ? "The name everyone in this workspace sees." : "Only admins and owners can rename this workspace."}${workspace.created_by ? ` Created by ${workspace.created_by.username}.` : ""}`}>
       <form onSubmit={submit}>
         <div className="p-4 sm:max-w-sm">
           <Field label="Workspace name" required maxLength={120} disabled={!canWrite} value={name} onChange={(event) => setName(event.target.value)} />
@@ -67,7 +67,7 @@ function DeleteWorkspace({ workspace }: { workspace: Workspace }) {
   }
 
   return (
-    <SettingsSection title="Delete workspace" description="Only its creator or root can delete it. Delete its projects first.">
+    <SettingsSection title="Delete workspace" description="Delete its projects first.">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4">
         <p className="min-w-0 wrap-break-word">
           {confirming ? `Delete ${workspace.name}? This cannot be undone.` : `Permanently delete ${workspace.name}.`}
@@ -133,7 +133,7 @@ function CreateWorkspace() {
 
 export function WorkspaceSettings() {
   const user = useCurrentUser();
-  const { state, canManageMembers, retry } = useProjects();
+  const { state, canDelete, retry } = useProjects();
 
   if (state.status === "loading") return <PageSkeleton />;
   if (state.status === "error") {
@@ -155,7 +155,7 @@ export function WorkspaceSettings() {
       {state.workspace ? (
         <>
           <RenameWorkspace workspace={state.workspace} key={`rename-${state.workspace.id}`} />
-          {canManageMembers && <DeleteWorkspace workspace={state.workspace} key={`delete-${state.workspace.id}`} />}
+          {canDelete && <DeleteWorkspace workspace={state.workspace} key={`delete-${state.workspace.id}`} />}
         </>
       ) : (
         !user.is_root && <EmptyState title="No workspace yet" description="Ask an administrator to add you to a workspace." />

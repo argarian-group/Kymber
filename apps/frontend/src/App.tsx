@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/features/auth/AuthContext";
 import { AuthScreen } from "@/features/auth/AuthScreen";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { OnboardingPage } from "@/features/auth/OnboardingPage";
+import { InviteAcceptPage, InviteSignupPage } from "@/features/workspaces/InvitePages";
 import { ProjectsProvider } from "@/features/projects/ProjectsContext";
 import { ProjectsPage } from "@/features/projects/ProjectsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
@@ -31,7 +32,7 @@ function AuthGate() {
     case "onboarding":
       return <OnboardingPage />;
     case "anonymous":
-      return <LoginPage />;
+      return window.location.pathname === "/invite" ? <InviteSignupPage /> : <LoginPage />;
     case "authenticated":
       return (
         <ProjectsProvider key={state.user.id}>
@@ -44,6 +45,7 @@ function AuthGate() {
                   <Route path="tasks" element={<PlaceholderPage title="Tasks" description="Plan the work and follow it through." />} />
                   <Route path="deploys" element={<PlaceholderPage title="Deploys" description="What shipped, where and when." />} />
                   <Route path="team" element={<TeamPage />} />
+                  <Route path="invite" element={<InviteAcceptPage />} />
                   <Route path="settings" element={<SettingsPage section="account" />} />
                   <Route path="settings/workspace" element={<SettingsPage section="workspace" />} />
                   <Route path="settings/system" element={<SettingsPage section="system" />} />

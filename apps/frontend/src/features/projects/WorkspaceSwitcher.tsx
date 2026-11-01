@@ -2,7 +2,8 @@ import { useProjects, type Workspace } from "./ProjectsContext";
 
 export function workspaceLabel(workspace: Workspace, workspaces: Workspace[]) {
   const duplicated = workspaces.filter(({ name }) => name === workspace.name).length > 1;
-  return duplicated && workspace.role === "root" ? `${workspace.name} …${workspace.id.slice(-4)}` : workspace.name;
+  if (!duplicated || workspace.role !== "root") return workspace.name;
+  return `${workspace.name} (${workspace.created_by?.username ?? `…${workspace.id.slice(-4)}`})`;
 }
 
 export function WorkspaceSwitcher() {

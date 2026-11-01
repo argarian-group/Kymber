@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -14,14 +14,14 @@ type MembersState = { status: "loading" } | { status: "error"; message: string }
 const roles = ["owner", "admin", "member"];
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
-function RoleSelect({ id, label, value, disabled, onChange }: { id: string; label: string; value: string; disabled?: boolean; onChange: (role: string) => void }) {
+function RoleSelect({ id, label, value, options = roles, disabled, onChange }: { id: string; label: string; value: string; options?: string[]; disabled?: boolean; onChange: (role: string) => void }) {
   return (
     <>
       <label className="sr-only" htmlFor={id}>
         {label}
       </label>
       <select className="field cursor-pointer" id={id} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
-        {roles.map((role) => (
+        {options.map((role) => (
           <option value={role} key={role}>
             {role}
           </option>
@@ -31,14 +31,31 @@ function RoleSelect({ id, label, value, disabled, onChange }: { id: string; labe
   );
 }
 
-function AddMemberForm({ workspaceId, onAdded, onClose }: { workspaceId: string; onAdded: () => void; onClose: () => void }) {
+function InviteForm({ workspaceId, canAddDirectly, onAdded, onClose }: { workspaceId: string; canAddDirectly: boolean; onAdded: () => void; onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("member");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [invite, setInvite] = useState<{ email: string; link: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const linkRef = useRef<HTMLInputElement>(null);
 
-  async function submit(event: FormEvent) {
+  async function createInvite(event: FormEvent) {
     event.preventDefault();
+    setPending(true);
+    setError(null);
+    try {
+      const { invitation } = await api<{ invitation: { email: string; token: string } }>(`/workspaces/${workspaceId}/invitations`, { method: "POST", body: { email, role } });
+      setInvite({ email: invitation.email, link: `${window.location.origin}/invite#${invitation.token}` });
+    } catch (failure) {
+      setError(errorMessage(failure));
+    }
+    setPending(false);
+  }
+
+  async function addDirectly() {
+    if (!formRef.current?.reportValidity()) return;
     setPending(true);
     setError(null);
     try {
@@ -51,24 +68,60 @@ function AddMemberForm({ workspaceId, onAdded, onClose }: { workspaceId: string;
     }
   }
 
+  async function copyLink() {
+    if (!invite) return;
+    try {
+      await navigator.clipboard.writeText(invite.link);
+      setCopied(true);
+    } catch {
+      linkRef.current?.select();
+    }
+  }
+
+  if (invite) {
+    return (
+      <div className="mx-4 mt-4 rounded-panel bg-raised p-4 md:mx-6" role="status">
+        <p className="font-medium wrap-break-word">Invite link for {invite.email}</p>
+        <p className="mt-1 text-meta text-ink-soft">Kymber does not send this by email. Copy it now, because it will not be shown again. It expires in 7 days.</p>
+        <label className="mt-3 block">
+          <span className="sr-only">Invite link</span>
+          <input className="field" ref={linkRef} readOnly value={invite.link} onFocus={(event) => event.target.select()} />
+        </label>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button className="btn btn-primary" type="button" onClick={copyLink}>
+            {copied ? "Copied" : "Copy link"}
+          </button>
+          <button className="btn" type="button" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <form className="mx-4 mt-4 rounded-panel bg-raised p-4 md:mx-6" onSubmit={submit} aria-label="Add member">
+    <form className="mx-4 mt-4 rounded-panel bg-raised p-4 md:mx-6" ref={formRef} onSubmit={createInvite} aria-label="Invite member">
       <div className="grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
-        <Field label="Email" type="email" required autoFocus hint="The person needs an existing Kymber account." value={email} onChange={(event) => setEmail(event.target.value)} />
+        <Field label="Email" type="email" required autoFocus value={email} onChange={(event) => setEmail(event.target.value)} />
         <div className="sm:self-start">
           <span className="mb-1 block text-meta font-medium" aria-hidden="true">
             Role
           </span>
-          <RoleSelect id="new-member-role" label="Role" value={role} onChange={setRole} />
+          <RoleSelect id="new-member-role" label="Role" value={role} options={canAddDirectly ? roles : roles.filter((item) => item !== "owner")} onChange={setRole} />
         </div>
       </div>
       <div className="mt-3">
         <FormError message={error} />
       </div>
-      <div className="mt-2 flex gap-2">
+      <div className="mt-2 flex flex-wrap gap-2">
         <button className="btn btn-primary" type="submit" disabled={pending}>
-          {pending ? "Adding…" : "Add member"}
+          {pending ? "Creating…" : "Create invite link"}
         </button>
+        {canAddDirectly && (
+          <button className="btn" type="button" onClick={addDirectly} disabled={pending}>
+            Add existing account
+          </button>
+        )}
         <button className="btn" type="button" onClick={onClose} disabled={pending}>
           Cancel
         </button>
@@ -77,7 +130,7 @@ function AddMemberForm({ workspaceId, onAdded, onClose }: { workspaceId: string;
   );
 }
 
-function MemberRow({ member, workspaceId, canManage, onChanged }: { member: Member; workspaceId: string; canManage: boolean; onChanged: (member: Member, removed: boolean) => void }) {
+function MemberRow({ member, workspaceId, isCreator, canManage, onChanged }: { member: Member; workspaceId: string; isCreator: boolean; canManage: boolean; onChanged: (member: Member, removed: boolean) => void }) {
   const user = useCurrentUser();
   const isSelf = member.user_id === user.id;
   const [confirming, setConfirming] = useState(false);
@@ -115,12 +168,13 @@ function MemberRow({ member, workspaceId, canManage, onChanged }: { member: Memb
         <p className="font-medium wrap-break-word">
           {member.username}
           {isSelf && <span className="ml-2 text-xs font-normal text-ink-soft">You</span>}
+          {isCreator && <span className="ml-2 text-xs font-normal text-ink-soft">Creator</span>}
         </p>
         <p className="text-meta wrap-break-word text-ink-soft">{member.email}</p>
         <FormError message={error} />
       </div>
       <span className="text-meta text-ink-soft tabular-nums">Joined {dateFormat.format(new Date(member.created_at))}</span>
-      {canManage ? (
+      {canManage && !isCreator ? (
         <>
           <div className="w-28">
             <RoleSelect id={`role-${member.user_id}`} label={`Role of ${member.username}`} value={member.role} disabled={pending} onChange={changeRole} />
@@ -149,7 +203,7 @@ function MemberRow({ member, workspaceId, canManage, onChanged }: { member: Memb
 
 function Members({ workspace }: { workspace: Workspace }) {
   const user = useCurrentUser();
-  const { workspaces, canManageMembers, retry: reloadWorkspaces } = useProjects();
+  const { workspaces, canManageMembers, canInvite, retry: reloadWorkspaces } = useProjects();
   const [state, setState] = useState<MembersState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [adding, setAdding] = useState(false);
@@ -188,15 +242,15 @@ function Members({ workspace }: { workspace: Workspace }) {
         title="Team"
         description={count === null ? workspaceLabel(workspace, workspaces) : `${workspaceLabel(workspace, workspaces)}, ${count} ${count === 1 ? "member" : "members"}`}
         actions={
-          canManageMembers &&
+          canInvite &&
           !adding && (
             <button className="btn btn-primary" type="button" onClick={() => setAdding(true)}>
-              Add member
+              Invite member
             </button>
           )
         }
       />
-      {adding && <AddMemberForm workspaceId={workspace.id} onAdded={reload} onClose={() => setAdding(false)} />}
+      {adding && <InviteForm workspaceId={workspace.id} canAddDirectly={canManageMembers} onAdded={reload} onClose={() => setAdding(false)} />}
       {state.status === "loading" && <PageSkeleton />}
       {state.status === "error" && (
         <EmptyState
@@ -211,11 +265,11 @@ function Members({ workspace }: { workspace: Workspace }) {
       )}
       {state.status === "ready" &&
         (state.members.length === 0 ? (
-          <EmptyState title="No members yet" description={canManageMembers ? "Add someone with an existing Kymber account." : "A workspace owner can add members."} />
+          <EmptyState title="No members yet" description={canInvite ? "Invite someone to this workspace." : "A workspace owner or admin can invite members."} />
         ) : (
           <ul className="mt-4 border-t border-line">
             {state.members.map((member) => (
-              <MemberRow member={member} workspaceId={workspace.id} canManage={canManageMembers} onChanged={handleChanged} key={member.user_id} />
+              <MemberRow member={member} workspaceId={workspace.id} isCreator={workspace.created_by?.id === member.user_id} canManage={canManageMembers} onChanged={handleChanged} key={member.user_id} />
             ))}
           </ul>
         ))}

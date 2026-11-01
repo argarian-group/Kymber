@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useCurrentUser } from "@/features/auth/AuthContext";
 import { api, errorMessage } from "@/lib/api";
 
-export type Workspace = { id: string; name: string; role: string; created_at: string };
+export type Workspace = { id: string; name: string; role: string; created_at: string; created_by: { id: string; username: string; email: string } | null };
 export type Project = { id: string; workspace_id: string; name: string; slug: string; created_at: string };
 
 type ProjectsState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; workspace: Workspace | null; projects: Project[] };
@@ -13,6 +13,8 @@ type ProjectsContextValue = {
   selectedWorkspaceId: string | null;
   canWrite: boolean;
   canManageMembers: boolean;
+  canInvite: boolean;
+  canDelete: boolean;
   retry: () => void;
   selectWorkspace: (id: string) => void;
   createWorkspace: (name: string) => Promise<void>;
@@ -42,9 +44,13 @@ function readStoredWorkspace(key: string) {
   }
 }
 
-function storeWorkspace(key: string, id: string) {
+function storageKeyFor(userId: string) {
+  return `kymber.workspace.${userId}`;
+}
+
+export function rememberWorkspace(userId: string, id: string) {
   try {
-    localStorage.setItem(key, id);
+    localStorage.setItem(storageKeyFor(userId), id);
   } catch {
     return;
   }
@@ -52,7 +58,7 @@ function storeWorkspace(key: string, id: string) {
 
 export function ProjectsProvider({ children }: { children: ReactNode }) {
   const user = useCurrentUser();
-  const storageKey = `kymber.workspace.${user.id}`;
+  const storageKey = storageKeyFor(user.id);
   const [state, setState] = useState<ProjectsState>({ status: "loading" });
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [requestedWorkspaceId, setRequestedWorkspaceId] = useState(() => readStoredWorkspace(storageKey));
@@ -89,17 +95,19 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const selectWorkspace = useCallback(
     (id: string) => {
       if (id === selectedWorkspaceId) return;
-      storeWorkspace(storageKey, id);
+      rememberWorkspace(user.id, id);
       setState({ status: "loading" });
       setRequestedWorkspaceId(id);
     },
-    [selectedWorkspaceId, storageKey],
+    [selectedWorkspaceId, user.id],
   );
 
   const workspaceId = workspace?.id;
   const canWrite = workspace !== null && (user.is_root || workspace.role === "owner" || workspace.role === "admin");
 
   const canManageMembers = workspace !== null && (user.is_root || workspace.role === "owner");
+  const canInvite = workspace !== null && (user.is_root || workspace.role === "owner" || workspace.role === "admin");
+  const canDelete = workspace !== null && (user.is_root || workspace.created_by?.id === user.id);
 
   const createWorkspace = useCallback(
     async (name: string) => {
@@ -141,8 +149,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, deleteProject }),
-    [state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, deleteProject],
+    () => ({ state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, canInvite, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, deleteProject }),
+    [state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, canInvite, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, deleteProject],
   );
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;
 }
