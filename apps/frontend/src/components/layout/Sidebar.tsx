@@ -1,5 +1,5 @@
 import logo from "@assets/logo.svg";
-import { NavLink } from "react-router";
+import { Link, NavLink } from "react-router";
 import { NavGroup, rowClass } from "@/components/layout/NavGroup";
 import { SidebarProfile } from "@/components/layout/SidebarProfile";
 import { organizationItems, workspaceItems } from "@/components/layout/navItems";
@@ -15,9 +15,11 @@ export function Sidebar() {
 
   return (
     <aside className="sticky top-0 hidden h-dvh flex-col self-start bg-sunken md:flex">
-      <div className="flex h-14 flex-none items-center justify-center gap-2 font-display text-base font-semibold tracking-[-0.01em]">
-        <img className="-mx-2 -my-2 size-10 -translate-y-px" src={logo} alt="" width="40" height="40" />
-        <span>Kymber</span>
+      <div className="flex h-14 flex-none items-center justify-center">
+        <Link className="focus-ring flex items-center gap-2 rounded-sm font-display text-base font-semibold tracking-[-0.01em]" to="/" aria-label="Kymber overview">
+          <img className="-mx-2 -my-2 size-10 -translate-y-px" src={logo} alt="" width="40" height="40" />
+          <span>Kymber</span>
+        </Link>
       </div>
       <div className="flex-none px-3 pb-2 [&>p]:px-2.5">
         <WorkspaceSwitcher />
