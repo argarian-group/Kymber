@@ -10,14 +10,15 @@ import { useLoadEffect } from "@/lib/useLoadEffect";
 const available: Record<string, { action: ServiceAction; label: string; primary?: boolean }[]> = {
   draft: [{ action: "deploy", label: "Deploy", primary: true }],
   running: [
+    { action: "deploy", label: "Deploy", primary: true },
     { action: "restart", label: "Restart" },
     { action: "stop", label: "Stop" },
   ],
   stopped: [
     { action: "start", label: "Start", primary: true },
-    { action: "deploy", label: "Deploy again" },
+    { action: "deploy", label: "Deploy" },
   ],
-  failed: [{ action: "deploy", label: "Deploy again", primary: true }],
+  failed: [{ action: "deploy", label: "Deploy", primary: true }],
 };
 
 export function ServiceActions({ service, path, workspaceId, onChanged }: { service: Service; path: string; workspaceId: string; onChanged: () => void }) {
