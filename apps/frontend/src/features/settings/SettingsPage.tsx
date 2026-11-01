@@ -56,8 +56,11 @@ function ProfileForm() {
   const [saved, setSaved] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  const changed = username !== user.username || email !== user.email;
+
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (!changed) return;
     setPending(true);
     setError(null);
     setSaved(null);
@@ -83,10 +86,12 @@ function ProfileForm() {
         <div className="grid items-start gap-4 p-4 sm:grid-cols-2">
           <Field label="Username" autoComplete="username" required minLength={3} maxLength={32} hint="3 to 32 letters, numbers, _ or -." value={username} onChange={(event) => setUsername(event.target.value)} />
           <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
-          <Field label="Current password" type="password" autoComplete="current-password" required hint="Needed to confirm these changes." value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+          {changed && (
+            <Field label="Confirm with your password" type="password" autoComplete="current-password" required hint="Needed to save these changes." value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+          )}
         </div>
         <FormFooter error={error} saved={saved}>
-          <button className="btn btn-primary" type="submit" disabled={pending}>
+          <button className="btn btn-primary" type="submit" disabled={pending || !changed}>
             {pending ? "Saving…" : "Save profile"}
           </button>
         </FormFooter>
