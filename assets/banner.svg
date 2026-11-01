@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 674 170">
+  <defs>
+    <style>
+      .cls-1{fill:url(#linear-gradient-1)}
+      .cls-2{fill:#087852;opacity:0.17}
+      .cls-3{fill:url(#linear-gradient-2);opacity:0.7}
+      .cls-4{fill:#ffffff}
+      .cls-5{fill:url(#linear-gradient-3)}
+      .cls-6{fill:url(#linear-gradient-4)}
+      .cls-7{fill:url(#linear-gradient-5)}
+      .cls-8{font-family:&apos;URW Gothic&apos;, sans-serif;font-size:24px;fill:#ffffff}
+      .cls-9{font-family:&apos;URW Gothic&apos;, sans-serif;font-size:9px;fill:#ffffff}
+    </style>
+    <linearGradient id="linear-gradient-1" x1="0" y1="85" x2="674" y2="85" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#01ae81"/>
+      <stop offset="1" stop-color="#04927e"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-2" x1="0" y1="93.114" x2="17.316" y2="244.911" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#008759"/>
+      <stop offset="1" stop-color="#103f36"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-3" x1="160.725" y1="33.39" x2="218.43" y2="56.002" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#24c8b4"/>
+      <stop offset="0.58" stop-color="#00a58e"/>
+      <stop offset="1" stop-color="#006d61"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-4" x1="205.271" y1="131.906" x2="244.519" y2="64.571" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#006759"/>
+      <stop offset="0.57" stop-color="#009f8c"/>
+      <stop offset="1" stop-color="#19bda6"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-5" x1="166.594" y1="123.291" x2="262.358" y2="22.112" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00a28d"/>
+      <stop offset="0.5" stop-color="#08b7a4"/>
+      <stop offset="1" stop-color="#47cbb7"/>
+    </linearGradient>
+  </defs>
+  <title>Artboard 1</title>
+  <g id="Layer_3" data-name="Layer 3">
+    <rect x="0" y="0" width="674" height="170" class="cls-1"/>
+    <path d="M0 101.664 C135.819 75.571 237.683 115.331 365.013 92.966 C492.343 70.601 568.741 104.148 674 78.056 L674 170 L0 170 Z" class="cls-2"/>
+    <path d="M0 112.529 C118.841 93.89 207.972 131.168 331.058 114.859 C454.144 98.55 526.297 111.753 674 93.114 L674 170 L0 170 Z" class="cls-3"/>
+    <path d="M292.908 24.206 L292.908 24.206 C293.432 24.206 293.857 24.631 293.857 25.155 L293.857 130.957 C293.857 131.482 293.432 131.906 292.908 131.906 L292.908 131.906 C292.384 131.906 291.959 131.482 291.959 130.957 L291.959 25.155 C291.959 24.631 292.384 24.206 292.908 24.206 Z" class="cls-4"/>
+  </g>
+  <g id="Layer_1" data-name="Layer 1">
+    <path d="M159.528 50.308 C159.528 44.631 161.321 40.598 166.55 37.909 L193.739 24.762 C197.026 23.268 199.416 24.911 199.416 28.198 L199.416 76.004 L159.678 116.042 Z" class="cls-5"/>
+    <path d="M197.269 98.741 L217.586 80.515 C223.263 77.826 228.94 79.619 233.422 83.503 L274.954 123.839 C279.436 127.723 276.746 131.906 272.862 131.906 L235.813 131.906 C231.629 131.906 229.239 129.815 225.654 126.528 Z" class="cls-6"/>
+    <path d="M159.827 101.592 L227.652 32.274 C232.134 27.194 236.616 24.206 243.488 24.206 L273.366 24.206 C277.251 24.206 278.446 26.895 276.056 29.584 L174.766 128.782 C168.492 135.057 159.528 131.172 159.528 123.404 Z" class="cls-7"/>
+  </g>
+  <g id="Layer_2" data-name="Layer 2">
+    <text transform="matrix(2.319 0 0 2.319 308.53 93.202)" x="0" y="0" xml:space="preserve" class="cls-8"><tspan x="0" y="0">Kymber</tspan></text>
+    <text transform="matrix(1.548 0 0 1.548 308.53 118.023)" x="0" y="0" xml:space="preserve" class="cls-9"><tspan x="0" y="0">Project management platform</tspan></text>
+  </g>
+</svg>
