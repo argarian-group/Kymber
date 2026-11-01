@@ -57,5 +57,9 @@ func generate() error {
 	if err != nil {
 		return fmt.Errorf("format generated template registry: %w", err)
 	}
-	return os.WriteFile(filepath.Join(root, "catalog", "catalog_gen.go"), formatted, 0644)
+	output := filepath.Join(root, "catalog", "catalog_gen.go")
+	if current, err := os.ReadFile(output); err == nil && bytes.Equal(current, formatted) {
+		return nil
+	}
+	return os.WriteFile(output, formatted, 0644)
 }
