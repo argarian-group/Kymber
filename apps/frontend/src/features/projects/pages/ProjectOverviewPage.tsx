@@ -1,3 +1,4 @@
+import { CheckCircle2 } from "lucide-react";
 import { ServiceCard } from "@/features/projects/components/apps/ServiceCard";
 import { ProjectDetail } from "@/features/projects/components/overview/ProjectDetail";
 import { SectionHeading } from "@/features/projects/components/overview/SectionHeading";
@@ -6,14 +7,15 @@ import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
 import { useBoard } from "@/features/projects/useBoard";
 import { formatDate } from "@/lib/format";
 
-const columnFills = ["bg-white/25", "bg-pine", "bg-jade", "bg-seafoam"];
-
 export function ProjectOverviewPage() {
   const { project, workspace } = useProjectOutlet();
   const { services, error } = useServices();
   const { board, error: tasksError } = useBoard();
   const tasks = board?.tasks;
-  const columns = [...(board?.lists ?? [])].sort((a, b) => a.position - b.position).map(({ id, name }) => ({ id, name, count: tasks?.filter(({ list_id }) => list_id === id).length ?? 0 }));
+  const columns = [...(board?.lists ?? [])].sort((a, b) => a.position - b.position).map(({ id, name, is_done }) => ({ id, name, is_done, count: tasks?.filter(({ list_id }) => list_id === id).length ?? 0 }));
+  const done = columns.filter(({ is_done }) => is_done).reduce((sum, { count }) => sum + count, 0);
+  const total = tasks?.length ?? 0;
+  const percent = total ? Math.round((done / total) * 100) : 0;
 
   return (
     <div className="grid flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -36,20 +38,26 @@ export function ProjectOverviewPage() {
           {tasks?.length === 0 && <p className="text-meta text-ink-soft">No tasks yet.</p>}
           {tasks && tasks.length > 0 && (
             <>
-              <div className="flex h-2 gap-0.5" aria-hidden="true">
-                {columns.map((column, index) => (
-                  <span className={`rounded-xs ${columnFills[index % columnFills.length]}`} style={{ flexGrow: column.count }} key={column.id} />
-                ))}
+              <p className="flex items-baseline justify-between gap-3 text-meta text-ink-soft">
+                <span>
+                  <span className="font-display text-lg font-semibold text-ink tabular-nums">{done}</span> of {total} done
+                </span>
+                <span className="tabular-nums">{percent}%</span>
+              </p>
+              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-label="Tasks done" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
+                <div className="h-full rounded-full bg-seafoam" style={{ width: `${percent}%` }} />
               </div>
-              <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <ul className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(min(100%,13rem),1fr))] gap-x-6 border-t border-line">
                 {columns.map((column) => (
-                  <div key={column.id}>
-                    <dt className="text-xs text-ink-soft">{column.name}</dt>
-                    <dd className="font-display text-lg font-semibold tabular-nums">{column.count}</dd>
-                  </div>
+                  <li className="flex min-h-9 items-center gap-2 border-b border-line text-meta" key={column.id}>
+                    {column.is_done && <CheckCircle2 className="flex-none text-seafoam" aria-label="Done list" size={14} />}
+                    <span className="min-w-0 flex-1 truncate" title={column.name}>
+                      {column.name}
+                    </span>
+                    <span className={`tabular-nums ${column.count ? "font-medium" : "text-ink-faint"}`}>{column.count}</span>
+                  </li>
                 ))}
-              </dl>
-              <p className="sr-only">{tasks.length} tasks in total</p>
+              </ul>
             </>
           )}
         </section>
