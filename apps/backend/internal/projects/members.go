@@ -198,23 +198,32 @@ func (h *Handler) deleteMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) requireWorkspaceOwner(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID uint64) bool {
+	_, ok := h.requireWorkspaceRole(w, r, user, workspaceID, false)
+	return ok
+}
+
+func (h *Handler) requireWorkspaceRole(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID uint64, allowAdmin bool) (string, bool) {
 	if !h.authorize(w, r, user, workspaceID, false) {
-		return false
+		return "", false
 	}
 	if user.IsRoot {
-		return true
+		return "root", true
 	}
 	var role string
 	err := h.db.QueryRowContext(r.Context(), "SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?", workspaceID, user.ID).Scan(&role)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not verify workspace ownership")
-		return false
+		return "", false
 	}
-	if role != "owner" {
-		writeError(w, http.StatusForbidden, "workspace owner access required")
-		return false
+	if role != "owner" && !(allowAdmin && role == "admin") {
+		message := "workspace owner access required"
+		if allowAdmin {
+			message = "workspace owner or admin access required"
+		}
+		writeError(w, http.StatusForbidden, message)
+		return "", false
 	}
-	return true
+	return role, true
 }
 
 func (h *Handler) findMember(r *http.Request, workspaceID, userID uint64) (WorkspaceMember, error) {

@@ -31,6 +31,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/onboarding", h.onboardingStatus)
 	mux.HandleFunc("POST /api/onboarding", h.onboard)
 	mux.HandleFunc("POST /api/auth/register", h.register)
+	mux.HandleFunc("POST /api/invitations/accept", h.acceptInvitation)
 	mux.HandleFunc("POST /api/auth/login", h.login)
 	mux.HandleFunc("POST /api/auth/logout", h.logout)
 	mux.HandleFunc("GET /api/auth/me", h.me)
