@@ -6,12 +6,14 @@ import (
 	"net/http"
 
 	"kymber/backend/internal/auth"
+	"kymber/backend/internal/projects"
 )
 
 func New(db *sql.DB, secureOnboard bool) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
 	auth.New(db, secureOnboard).RegisterRoutes(mux)
+	projects.New(db).RegisterRoutes(mux)
 	return mux
 }
 

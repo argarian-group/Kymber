@@ -133,20 +133,8 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (h *Handler) currentUser(w http.ResponseWriter, r *http.Request) (User, bool) {
-	cookie, err := r.Cookie(sessionCookie)
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, "authentication required")
-		return User{}, false
-	}
-	token, err := base64.RawURLEncoding.DecodeString(cookie.Value)
-	if err != nil || len(token) != 32 {
-		writeError(w, http.StatusUnauthorized, "authentication required")
-		return User{}, false
-	}
-	digest := sha256.Sum256(token)
-	var user User
-	err = h.db.QueryRowContext(r.Context(), `SELECT u.id, u.username, u.email, u.is_root FROM users u JOIN user_sessions s ON s.user_id = u.id WHERE s.token_hash = ? AND s.expires_at > UTC_TIMESTAMP(6)`, digest[:]).Scan(&user.ID, &user.Username, &user.Email, &user.IsRoot)
-	if errors.Is(err, sql.ErrNoRows) {
+	user, err := userFromSession(h.db, r)
+	if errors.Is(err, errUnauthenticated) {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return User{}, false
 	}

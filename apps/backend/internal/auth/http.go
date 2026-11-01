@@ -96,7 +96,7 @@ func createWorkspace(r *http.Request, tx *sql.Tx, userID uint64) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(r.Context(), "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, 'owner')", workspaceID, userID)
+	_, err = tx.ExecContext(r.Context(), "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, 'admin')", workspaceID, userID)
 	return err
 }
 
