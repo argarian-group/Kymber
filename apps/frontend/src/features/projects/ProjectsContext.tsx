@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, errorMessage } from "@/lib/api";
 
-export type Workspace = { id: number; name: string; role: string; created_at: string };
-export type Project = { id: number; workspace_id: number; name: string; slug: string; created_at: string };
+export type Workspace = { id: string; name: string; role: string; created_at: string };
+export type Project = { id: string; workspace_id: string; name: string; slug: string; created_at: string };
 
 type ProjectsState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; workspace: Workspace | null; projects: Project[] };
 
@@ -10,7 +10,7 @@ type ProjectsContextValue = {
   state: ProjectsState;
   retry: () => void;
   createProject: (input: { name: string; slug: string }) => Promise<void>;
-  deleteProject: (id: number) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
 };
 
 const ProjectsContext = createContext<ProjectsContextValue | null>(null);
@@ -59,7 +59,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   );
 
   const deleteProject = useCallback(
-    async (id: number) => {
+    async (id: string) => {
       await api(`/workspaces/${workspaceId}/projects/${id}`, { method: "DELETE" });
       setState((previous) => (previous.status === "ready" ? { ...previous, projects: previous.projects.filter((project) => project.id !== id) } : previous));
     },

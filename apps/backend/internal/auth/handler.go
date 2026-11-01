@@ -11,7 +11,7 @@ type Handler struct {
 }
 
 type User struct {
-	ID       uint64 `json:"id"`
+	ID       uint64 `json:"id,string"`
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	IsRoot   bool   `json:"is_root"`

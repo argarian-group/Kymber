@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, ApiError, errorMessage, unauthorizedEvent } from "@/lib/api";
 
-export type User = { id: number; username: string; email: string; is_root: boolean };
+export type User = { id: string; username: string; email: string; is_root: boolean };
 
 type AuthState =
   | { status: "loading" }
