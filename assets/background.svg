@@ -1,42 +1,17 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
-  <title>Kymber background</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 1071 602" preserveAspectRatio="xMidYMid slice">
+  <title>Fundo abstrato verde escuro — 4K</title>
   <defs>
-    <radialGradient id="glow-top" cx="1408" cy="-80" r="960" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#24c8b4" stop-opacity="0.85"/>
-      <stop offset="0.68" stop-color="#24c8b4" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="glow-left" cx="-96" cy="340" r="880" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#00a58e" stop-opacity="0.8"/>
-      <stop offset="0.7" stop-color="#00a58e" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="glow-bottom" cx="1152" cy="1050" r="800" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#47cbb7" stop-opacity="0.55"/>
-      <stop offset="0.7" stop-color="#47cbb7" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="linear-gradient-1" x1="462.277" y1="628.256" x2="1027.321" y2="849.671" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#24c8b4"/>
-      <stop offset="0.58" stop-color="#00a58e"/>
-      <stop offset="1" stop-color="#006d61"/>
-    </linearGradient>
-    <linearGradient id="linear-gradient-2" x1="898.466" y1="1592.925" x2="1282.78" y2="933.578" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#006759"/>
-      <stop offset="0.57" stop-color="#009f8c"/>
-      <stop offset="1" stop-color="#19bda6"/>
-    </linearGradient>
-    <linearGradient id="linear-gradient-3" x1="519.745" y1="1508.558" x2="1457.467" y2="517.825" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#00a28d"/>
-      <stop offset="0.5" stop-color="#08b7a4"/>
-      <stop offset="1" stop-color="#47cbb7"/>
-    </linearGradient>
+    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#011f1a"/><stop offset="1" stop-color="#001b16"/></linearGradient>
+    <linearGradient id="band1" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#002e25"/><stop offset="1" stop-color="#00281f"/></linearGradient>
+    <linearGradient id="band2" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#003b2f"/><stop offset="1" stop-color="#003528"/></linearGradient>
+    <linearGradient id="band3" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#004638"/><stop offset="1" stop-color="#003f32"/></linearGradient>
+    <linearGradient id="band4" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#005243"/><stop offset="1" stop-color="#004a3a"/></linearGradient>
+    <linearGradient id="band5" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#005e4c"/><stop offset="1" stop-color="#005647"/></linearGradient>
   </defs>
-  <rect width="1600" height="1000" fill="#03231f"/>
-  <rect width="1600" height="1000" fill="url(#glow-top)"/>
-  <rect width="1600" height="1000" fill="url(#glow-left)"/>
-  <rect width="1600" height="1000" fill="url(#glow-bottom)"/>
-  <g transform="translate(416 -12) scale(0.5)" opacity="0.38">
-    <path d="M450.56 793.921 C450.56 738.332 468.114 698.835 519.314 672.504 L785.554 543.772 C817.737 529.144 841.143 545.235 841.143 577.418 L841.143 1045.532 L452.023 1437.578 Z" fill="url(#linear-gradient-1)"/>
-    <path d="M820.114 1268.171 L1019.063 1089.702 C1074.651 1063.371 1130.24 1080.925 1174.125 1118.959 L1580.8 1513.931 C1624.685 1551.965 1598.354 1592.925 1560.32 1592.925 L1197.531 1592.925 C1156.571 1592.925 1133.165 1572.445 1098.057 1540.262 Z" fill="url(#linear-gradient-2)"/>
-    <path d="M453.486 1296.091 L1117.623 617.326 C1161.509 567.589 1205.394 538.331 1272.686 538.331 L1565.257 538.331 C1603.291 538.331 1614.994 564.663 1591.589 590.994 L599.771 1562.331 C538.331 1623.771 450.56 1585.737 450.56 1509.669 Z" fill="url(#linear-gradient-3)"/>
-  </g>
+  <path fill="url(#base)" d="M0 0H1071V602H0Z"/>
+  <path fill="url(#band1)" d="M203 0H1071V602H472C468 565 445 548 399 538C336 523 233 519 166 501C115 488 96 469 108 414C137 286 172 137 203 0Z"/>
+  <path fill="url(#band2)" d="M400 0H1071V602H729C731 561 727 543 699 522C658 491 566 477 480 461C402 447 352 433 337 405C325 383 335 344 344 294L400 0Z"/>
+  <path fill="url(#band3)" d="M568 0H1071V602H914C905 558 891 513 872 477C843 426 767 411 668 383C594 362 564 342 555 304C544 262 554 155 560 94Z"/>
+  <path fill="url(#band4)" d="M754 0H1071V444C1047 402 1010 345 977 316C946 289 910 282 865 268C785 246 742 221 743 142C742 100 748 42 754 0Z"/>
+  <path fill="url(#band5)" d="M921 0H1071V294C1047 240 1018 188 980 143C943 97 928 60 921 0Z"/>
 </svg>
