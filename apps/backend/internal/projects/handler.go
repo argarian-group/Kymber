@@ -32,6 +32,7 @@ type Project struct {
 	Name        string    `json:"name"`
 	Slug        string    `json:"slug"`
 	CreatedAt   time.Time `json:"created_at"`
+	LogoVersion string    `json:"logo_version,omitempty"`
 }
 
 func New(db *sql.DB) *Handler {
@@ -56,6 +57,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/workspaces/{workspaceID}/projects/{projectID}", auth.Authenticate(h.db, http.HandlerFunc(h.getProject)))
 	mux.Handle("PUT /api/workspaces/{workspaceID}/projects/{projectID}", auth.Authenticate(h.db, http.HandlerFunc(h.updateProject)))
 	mux.Handle("DELETE /api/workspaces/{workspaceID}/projects/{projectID}", auth.Authenticate(h.db, http.HandlerFunc(h.deleteProject)))
+	mux.Handle("GET /api/workspaces/{workspaceID}/projects/{projectID}/logo", auth.Authenticate(h.db, http.HandlerFunc(h.getProjectLogo)))
+	mux.Handle("PUT /api/workspaces/{workspaceID}/projects/{projectID}/logo", auth.Authenticate(h.db, http.HandlerFunc(h.uploadProjectLogo)))
+	mux.Handle("DELETE /api/workspaces/{workspaceID}/projects/{projectID}/logo", auth.Authenticate(h.db, http.HandlerFunc(h.deleteProjectLogo)))
 	mux.Handle("GET /api/workspaces/{workspaceID}/projects/{projectID}/services", auth.Authenticate(h.db, http.HandlerFunc(h.listServices)))
 	mux.Handle("POST /api/workspaces/{workspaceID}/projects/{projectID}/services", auth.Authenticate(h.db, http.HandlerFunc(h.createService)))
 	mux.Handle("GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}", auth.Authenticate(h.db, http.HandlerFunc(h.getService)))

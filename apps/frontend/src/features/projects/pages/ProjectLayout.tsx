@@ -76,7 +76,7 @@ export function ProjectLayout() {
             </span>
           </nav>
           <div className="mt-3 flex items-start gap-3">
-            <ProjectMark name={project.name} />
+            <ProjectMark project={project} />
             <div className="min-w-0">
               <h1 className="page-title leading-tight wrap-break-word">{project.name}</h1>
               <p className="text-meta wrap-break-word text-ink-soft">{project.slug}</p>
@@ -87,7 +87,7 @@ export function ProjectLayout() {
       <div className={`flex items-center gap-4 border-b border-line px-4 md:px-6 ${collapsed ? "" : "mt-4"}`}>
         {collapsed && (
           <div className="flex max-w-40 min-w-0 flex-none items-center gap-2 md:max-w-64">
-            <ProjectMark name={project.name} size="xs" />
+            <ProjectMark project={project} size="xs" />
             <h1 className="min-w-0 truncate font-display font-semibold">{project.name}</h1>
           </div>
         )}

@@ -9,13 +9,13 @@ export class ApiError extends Error {
 
 export const unauthorizedEvent = "kymber:unauthorized";
 
-export async function api<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
+export async function api<T>(path: string, options: { method?: string; body?: unknown; file?: Blob } = {}): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`/api${path}`, {
       method: options.method ?? "GET",
       headers: options.body === undefined ? undefined : { "Content-Type": "application/json" },
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body: options.file ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
     });
   } catch {
     throw new ApiError(0, "Could not reach the server. Check your connection and try again.");

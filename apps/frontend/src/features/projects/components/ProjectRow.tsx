@@ -8,7 +8,7 @@ export function ProjectRow({ project }: { project: Project }) {
   return (
     <li className="border-b border-line">
       <Link className="row-link flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 md:px-6" to={project.id}>
-        <ProjectMark name={project.name} size="sm" />
+        <ProjectMark project={project} size="sm" />
         <span className="min-w-0 flex-1 basis-40">
           <span className="block font-medium wrap-break-word">{project.name}</span>
           <span className="block text-meta wrap-break-word text-ink-soft">{project.slug}</span>

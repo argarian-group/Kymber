@@ -14,7 +14,7 @@ func (h *Handler) listProjects(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.authorize(w, r, user, workspaceID, false) {
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), "SELECT id, workspace_id, name, slug, created_at FROM projects WHERE workspace_id = ? ORDER BY id", workspaceID)
+	rows, err := h.db.QueryContext(r.Context(), "SELECT p.id, p.workspace_id, p.name, p.slug, p.created_at, COALESCE(l.version, '') FROM projects p LEFT JOIN project_logos l ON l.project_id = p.id WHERE p.workspace_id = ? ORDER BY p.id", workspaceID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list projects")
 		return
@@ -23,7 +23,7 @@ func (h *Handler) listProjects(w http.ResponseWriter, r *http.Request) {
 	projects := make([]Project, 0)
 	for rows.Next() {
 		var project Project
-		if err := rows.Scan(&project.ID, &project.WorkspaceID, &project.Name, &project.Slug, &project.CreatedAt); err != nil {
+		if err := rows.Scan(&project.ID, &project.WorkspaceID, &project.Name, &project.Slug, &project.CreatedAt, &project.LogoVersion); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read projects")
 			return
 		}
@@ -60,6 +60,6 @@ func (h *Handler) getProject(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) findProject(r *http.Request, workspaceID, projectID string) (Project, error) {
 	var project Project
-	err := h.db.QueryRowContext(r.Context(), "SELECT id, workspace_id, name, slug, created_at FROM projects WHERE id = ? AND workspace_id = ?", projectID, workspaceID).Scan(&project.ID, &project.WorkspaceID, &project.Name, &project.Slug, &project.CreatedAt)
+	err := h.db.QueryRowContext(r.Context(), "SELECT p.id, p.workspace_id, p.name, p.slug, p.created_at, COALESCE(l.version, '') FROM projects p LEFT JOIN project_logos l ON l.project_id = p.id WHERE p.id = ? AND p.workspace_id = ?", projectID, workspaceID).Scan(&project.ID, &project.WorkspaceID, &project.Name, &project.Slug, &project.CreatedAt, &project.LogoVersion)
 	return project, err
 }

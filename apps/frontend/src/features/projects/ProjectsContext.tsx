@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
 
 export type Workspace = { id: string; name: string; role: string; created_at: string; created_by: { id: string; username: string; email: string } | null };
-export type Project = { id: string; workspace_id: string; name: string; slug: string; created_at: string };
+export type Project = { id: string; workspace_id: string; name: string; slug: string; created_at: string; logo_version?: string };
 
 type ProjectsState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; workspace: Workspace | null; projects: Project[] };
 
@@ -24,6 +24,8 @@ type ProjectsContextValue = {
   createProject: (input: { name: string; slug: string }) => Promise<void>;
   updateProject: (id: string, input: { name: string; slug: string }) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  uploadProjectLogo: (id: string, file: File) => Promise<void>;
+  removeProjectLogo: (id: string) => Promise<void>;
 };
 
 const ProjectsContext = createContext<ProjectsContextValue | null>(null);
@@ -158,9 +160,25 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     [workspaceId],
   );
 
+  const uploadProjectLogo = useCallback(
+    async (id: string, file: File) => {
+      const { project } = await api<{ project: Project }>(`/workspaces/${workspaceId}/projects/${id}/logo`, { method: "PUT", file });
+      setState((previous) => (previous.status === "ready" ? { ...previous, projects: previous.projects.map((item) => (item.id === project.id ? project : item)) } : previous));
+    },
+    [workspaceId],
+  );
+
+  const removeProjectLogo = useCallback(
+    async (id: string) => {
+      const { project } = await api<{ project: Project }>(`/workspaces/${workspaceId}/projects/${id}/logo`, { method: "DELETE" });
+      setState((previous) => (previous.status === "ready" ? { ...previous, projects: previous.projects.map((item) => (item.id === project.id ? project : item)) } : previous));
+    },
+    [workspaceId],
+  );
+
   const value = useMemo(
-    () => ({ state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, canInvite, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, updateProject, deleteProject }),
-    [state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, canInvite, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, updateProject, deleteProject],
+    () => ({ state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, canInvite, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, updateProject, deleteProject, uploadProjectLogo, removeProjectLogo }),
+    [state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, canInvite, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, updateProject, deleteProject, uploadProjectLogo, removeProjectLogo],
   );
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;
 }

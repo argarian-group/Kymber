@@ -5,6 +5,7 @@ import { SidebarProfile } from "@/components/layout/SidebarProfile";
 import { organizationItems, workspaceItems } from "@/components/layout/navItems";
 import { useCurrentUser } from "@/features/auth/AuthContext";
 import { useProjects } from "@/features/projects/ProjectsContext";
+import { ProjectMark } from "@/features/projects/components/ProjectMark";
 import { WorkspaceSwitcher } from "@/features/projects/components/WorkspaceSwitcher";
 
 export function Sidebar() {
@@ -35,6 +36,7 @@ export function Sidebar() {
                     className={({ isActive }) => `${rowClass} min-h-8 text-meta hover:bg-white/5 hover:text-ink ${isActive ? "bg-white/8 text-ink" : "text-ink-soft"}`}
                     to={`/projects/${project.id}`}
                   >
+                    <ProjectMark project={project} size="xs" />
                     <span className="min-w-0 truncate">{project.name}</span>
                   </NavLink>
                 </li>

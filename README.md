@@ -29,7 +29,7 @@ Knowing how a project is doing usually means checking one tool for tasks, anothe
 - **Accounts:** first-run root account, login, optional registration, and profile and password settings.
 - **Workspaces:** create, rename and delete workspaces, and switch between them.
 - **Team:** owner, admin and member roles, and invite links.
-- **Projects:** create, edit and delete projects inside a workspace.
+- **Projects:** create, edit and delete projects inside a workspace, each with an optional logo.
 - **Apps:** create MySQL and Redis apps from templates, then deploy, start, stop and restart them in Docker.
 - **Appearance:** theme, accent color and density, saved in the browser.
 

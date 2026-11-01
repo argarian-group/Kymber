@@ -2,7 +2,7 @@ import { type LucideIcon } from "lucide-react";
 import { NavLink } from "react-router";
 
 export const rowClass =
-  "flex items-center gap-3 rounded-control px-2.5 transition-colors duration-150 focus-ring";
+  "flex items-center gap-2.5 rounded-control px-2.5 transition-colors duration-150 focus-ring";
 
 export function NavGroup({ title, items, hints = {} }: { title: string; items: { label: string; to: string; icon: LucideIcon }[]; hints?: Record<string, string> }) {
   return (
