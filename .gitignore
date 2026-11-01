@@ -3,3 +3,11 @@
 
 # Build Files
 apps/backend/build/
+
+# AI Agents & Local Tool Artifacts
+graphify-out/
+.agents/
+.claude/
+.codex/
+.cursor/
+.continue/
