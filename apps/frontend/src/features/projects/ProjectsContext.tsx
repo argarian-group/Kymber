@@ -22,6 +22,7 @@ type ProjectsContextValue = {
   renameWorkspace: (name: string) => Promise<void>;
   deleteWorkspace: () => Promise<void>;
   createProject: (input: { name: string; slug: string }) => Promise<void>;
+  updateProject: (id: string, input: { name: string; slug: string }) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
 };
 
@@ -31,6 +32,12 @@ export function useProjects() {
   const value = useContext(ProjectsContext);
   if (!value) throw new Error("useProjects must be used inside ProjectsProvider");
   return value;
+}
+
+export function workspaceLabel(workspace: Workspace, workspaces: Workspace[]) {
+  const duplicated = workspaces.filter(({ name }) => name === workspace.name).length > 1;
+  if (!duplicated || workspace.role !== "root") return workspace.name;
+  return `${workspace.name} (${workspace.created_by?.username ?? `…${workspace.id.slice(-4)}`})`;
 }
 
 function pickWorkspace(workspaces: Workspace[], preferredId: string | null) {
@@ -135,6 +142,14 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     [workspaceId],
   );
 
+  const updateProject = useCallback(
+    async (id: string, input: { name: string; slug: string }) => {
+      const { project } = await api<{ project: Project }>(`/workspaces/${workspaceId}/projects/${id}`, { method: "PUT", body: input });
+      setState((previous) => (previous.status === "ready" ? { ...previous, projects: previous.projects.map((item) => (item.id === project.id ? project : item)) } : previous));
+    },
+    [workspaceId],
+  );
+
   const deleteProject = useCallback(
     async (id: string) => {
       await api(`/workspaces/${workspaceId}/projects/${id}`, { method: "DELETE" });
@@ -144,8 +159,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, canInvite, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, deleteProject }),
-    [state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, canInvite, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, deleteProject],
+    () => ({ state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, canInvite, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, updateProject, deleteProject }),
+    [state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, canInvite, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, updateProject, deleteProject],
   );
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;
 }

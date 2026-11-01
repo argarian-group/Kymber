@@ -1,0 +1,18 @@
+export const roles = ["owner", "admin", "member"];
+
+export function RoleSelect({ id, label, value, options = roles, disabled, onChange }: { id: string; label: string; value: string; options?: string[]; disabled?: boolean; onChange: (role: string) => void }) {
+  return (
+    <>
+      <label className="sr-only" htmlFor={id}>
+        {label}
+      </label>
+      <select className="field cursor-pointer" id={id} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
+        {options.map((role) => (
+          <option value={role} key={role}>
+            {role}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+}

@@ -1,32 +1,11 @@
-import { useState, type FormEvent } from "react";
+import { type FormEvent, useState } from "react";
+import { Field } from "@/components/ui/Field";
+import { FormError } from "@/components/ui/FormError";
+import { useAuth, type User } from "@/features/auth/AuthContext";
+import { AuthScreen } from "@/features/auth/components/AuthScreen";
+import { RegisterForm } from "@/features/auth/components/RegisterForm";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
-import { useAuth, type User } from "./AuthContext";
-import { AuthScreen, Field, FormError } from "./AuthScreen";
-import { CreateAccountForm } from "./CreateAccountForm";
-
-function RegisterForm({ onLogIn }: { onLogIn: () => void }) {
-  const { signIn } = useAuth();
-
-  return (
-    <AuthScreen title="Create your account">
-      <CreateAccountForm<{ user: User }>
-        endpoint="/auth/register"
-        submitLabel="Create account"
-        onCreated={({ user }) => {
-          window.history.replaceState(null, "", "/");
-          signIn(user);
-        }}
-      />
-      <p className="mt-4 text-meta text-ink-soft">
-        Already have an account?{" "}
-        <button className="focus-ring cursor-pointer rounded-sm font-medium text-ink underline underline-offset-2" type="button" onClick={onLogIn}>
-          Log in
-        </button>
-      </p>
-    </AuthScreen>
-  );
-}
 
 export function LoginPage() {
   const { signIn } = useAuth();
@@ -57,7 +36,7 @@ export function LoginPage() {
       </form>
       <p className="mt-4 text-meta text-ink-soft">
         New to Kymber?{" "}
-        <button className="focus-ring cursor-pointer rounded-sm font-medium text-ink underline underline-offset-2" type="button" onClick={() => setRegistering(true)}>
+        <button className="text-button" type="button" onClick={() => setRegistering(true)}>
           Create account
         </button>
       </p>

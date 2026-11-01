@@ -1,13 +1,7 @@
-import { CheckCircle2, CircleAlert, LoaderCircle, type LucideIcon } from "lucide-react";
 import { Link } from "react-router";
 import { Panel } from "@/components/ui/Panel";
-import type { Deploy, DeployStatus } from "../data";
-
-const deployStates: Record<DeployStatus, { label: string; icon: LucideIcon; iconTone: string; labelTone: string }> = {
-  running: { label: "Deploying", icon: LoaderCircle, iconTone: "text-seafoam animate-deploying motion-reduce:animate-none", labelTone: "font-medium text-ink" },
-  failed: { label: "Failed", icon: CircleAlert, iconTone: "text-ember", labelTone: "font-medium text-ember" },
-  live: { label: "Live", icon: CheckCircle2, iconTone: "text-ink-faint", labelTone: "text-ink-soft" },
-};
+import { type Deploy } from "@/features/dashboard/data";
+import { deployStates } from "@/features/dashboard/deployStates";
 
 export function DeploysPanel({ deploys }: { deploys: Deploy[] }) {
   return (
@@ -17,7 +11,7 @@ export function DeploysPanel({ deploys }: { deploys: Deploy[] }) {
           const { label, icon: Icon, iconTone, labelTone } = deployStates[deploy.status];
           return (
             <li key={`${deploy.project}-${deploy.version}`}>
-              <Link className="row-link grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2 md:px-6" to="/deploys">
+              <Link className="row-link grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2 md:px-6" to="/projects">
                 <Icon className={iconTone} aria-hidden="true" size={16} />
                 <span className="min-w-0">
                   <span className="block truncate font-medium">{deploy.project}</span>

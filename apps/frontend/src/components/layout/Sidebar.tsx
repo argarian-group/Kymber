@@ -1,42 +1,10 @@
 import logo from "@assets/logo.svg";
-import type { LucideIcon } from "lucide-react";
-import { Link, NavLink } from "react-router";
+import { NavLink } from "react-router";
+import { NavGroup, rowClass } from "@/components/layout/NavGroup";
+import { SidebarProfile } from "@/components/layout/SidebarProfile";
+import { organizationItems, workspaceItems } from "@/components/layout/navItems";
 import { useProjects } from "@/features/projects/ProjectsContext";
-import { WorkspaceSwitcher } from "@/features/projects/WorkspaceSwitcher";
-import { organizationItems, workspaceItems } from "./navItems";
-import { SidebarProfile } from "./SidebarProfile";
-
-const rowClass =
-  "flex items-center gap-3 rounded-control px-2.5 transition-colors duration-150 focus-ring";
-
-function NavGroup({ title, items, hints = {} }: { title: string; items: { label: string; to: string; icon: LucideIcon }[]; hints?: Record<string, string> }) {
-  return (
-    <div>
-      <p className="mb-1 px-2.5 text-xs font-medium text-ink-faint">{title}</p>
-      <ul className="grid gap-0.5">
-        {items.map(({ label, to, icon: Icon }) => (
-          <li key={to}>
-            <NavLink
-              className={({ isActive }) =>
-                `${rowClass} min-h-8 ${isActive ? "bg-white/8 font-medium text-ink" : "font-medium text-ink-soft hover:bg-white/5 hover:text-ink"}`
-              }
-              to={to}
-              end={to === "/"}
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon className={isActive ? "text-seafoam" : ""} aria-hidden="true" size={16} />
-                  <span>{label}</span>
-                  {hints[to] && <span className="ml-auto text-xs font-medium text-ink-faint tabular-nums">{hints[to]}</span>}
-                </>
-              )}
-            </NavLink>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+import { WorkspaceSwitcher } from "@/features/projects/components/WorkspaceSwitcher";
 
 export function Sidebar() {
   const { state } = useProjects();
@@ -58,12 +26,15 @@ export function Sidebar() {
         {projects.length > 0 && (
           <div>
             <p className="mb-1 px-2.5 text-xs font-medium text-ink-faint">Projects</p>
-            <ul className="grid gap-0.5">
+            <ul className="grid grid-cols-1 gap-0.5">
               {projects.map((project) => (
                 <li key={project.id}>
-                  <Link className={`${rowClass} min-h-8 text-meta text-ink-soft hover:bg-white/5 hover:text-ink`} to="/projects">
+                  <NavLink
+                    className={({ isActive }) => `${rowClass} min-h-8 text-meta hover:bg-white/5 hover:text-ink ${isActive ? "bg-white/8 text-ink" : "text-ink-soft"}`}
+                    to={`/projects/${project.id}`}
+                  >
                     <span className="min-w-0 truncate">{project.name}</span>
-                  </Link>
+                  </NavLink>
                 </li>
               ))}
             </ul>

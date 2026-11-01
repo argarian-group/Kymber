@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { useCurrentUser } from "@/features/auth/AuthContext";
-import { WorkspaceSwitcher } from "@/features/projects/WorkspaceSwitcher";
+import { WorkspaceSwitcher } from "@/features/projects/components/WorkspaceSwitcher";
 import { MobileTabBar } from "./MobileTabBar";
-import { Sidebar } from "./Sidebar";
-import { LogoutButton } from "./SidebarProfile";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { LogoutButton } from "./LogoutButton";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const user = useCurrentUser();

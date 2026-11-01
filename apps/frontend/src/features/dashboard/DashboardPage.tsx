@@ -1,9 +1,9 @@
 import { Link } from "react-router";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AttentionPanel } from "./components/AttentionPanel";
-import { DeadlinesPanel } from "./components/DeadlinesPanel";
-import { DeploysPanel } from "./components/DeploysPanel";
-import { ProjectsPanel } from "./components/ProjectsPanel";
+import { DeadlinesPanel } from "@/features/dashboard/components/DeadlinesPanel";
+import { DeploysPanel } from "@/features/dashboard/components/DeploysPanel";
+import { ProjectsPanel } from "@/features/dashboard/components/ProjectsPanel";
 import { TaskFlowPanel } from "./components/TaskFlowPanel";
 import { deploys, dueTasks, projects, stages } from "./data";
 
@@ -15,11 +15,11 @@ export function DashboardPage() {
     <>
       <PageHeader
         title="Overview"
-        description={`Sample data, ${onTrack} of ${projects.length} projects on track`}
+        description={`${onTrack} of ${projects.length} projects on track`}
         actions={
           <>
-            <Link className="btn" to="/deploys">
-              View deploys
+            <Link className="btn" to="/projects">
+              View projects
             </Link>
             {focus && (
               <Link className="btn btn-primary" to="/projects">

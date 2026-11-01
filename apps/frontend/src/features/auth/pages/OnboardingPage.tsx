@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useAuth, type User } from "./AuthContext";
-import { AuthScreen } from "./AuthScreen";
-import { CreateAccountForm } from "./CreateAccountForm";
+import { useAuth, type User } from "@/features/auth/AuthContext";
+import { AuthScreen } from "@/features/auth/components/AuthScreen";
+import { CreateAccountForm } from "@/features/auth/components/CreateAccountForm";
 
 export function OnboardingPage() {
   const { signIn: enterApp } = useAuth();

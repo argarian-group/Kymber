@@ -17,7 +17,7 @@ function attentionItems(projects: Project[], deploys: Deploy[], tasks: DueTask[]
       title: `${deploy.project} deploy failed`,
       detail: `${deploy.version} to ${deploy.environment}`,
       when: deploy.when,
-      to: "/deploys",
+      to: "/projects",
     }));
   const late = tasks
     .filter((task) => task.late)
@@ -28,7 +28,7 @@ function attentionItems(projects: Project[], deploys: Deploy[], tasks: DueTask[]
       title: task.title,
       detail: task.project,
       when: task.due,
-      to: "/tasks",
+      to: "/projects",
     }));
   const atRisk = projects
     .filter((project) => project.health !== "on-track")

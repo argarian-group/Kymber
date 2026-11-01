@@ -7,7 +7,7 @@ export function MobileTabBar() {
       className="fixed inset-x-2 bottom-[calc(8px+env(safe-area-inset-bottom))] z-10 rounded-panel border border-line-strong bg-raised p-1 md:hidden"
       aria-label="Main"
     >
-      <ul className="grid grid-cols-6">
+      <ul className="grid grid-cols-4">
         {navItems.map(({ label, to, icon: Icon }) => (
           <li key={to}>
             <NavLink

@@ -121,6 +121,35 @@
 
 }
 
+@utility page-title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  line-height: var(--text-xl--line-height);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+@utility section-title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+  font-weight: 600;
+}
+
+@utility text-button {
+  border-radius: var(--radius-sm);
+  color: var(--color-ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-seafoam);
+    outline-offset: -2px;
+  }
+}
+
 @utility focus-ring {
   &:focus-visible {
     outline: 2px solid var(--color-seafoam);

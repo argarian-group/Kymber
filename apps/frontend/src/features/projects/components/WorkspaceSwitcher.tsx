@@ -1,13 +1,10 @@
-import { useProjects, type Workspace } from "./ProjectsContext";
-
-export function workspaceLabel(workspace: Workspace, workspaces: Workspace[]) {
-  const duplicated = workspaces.filter(({ name }) => name === workspace.name).length > 1;
-  if (!duplicated || workspace.role !== "root") return workspace.name;
-  return `${workspace.name} (${workspace.created_by?.username ?? `…${workspace.id.slice(-4)}`})`;
-}
+import { useLocation, useNavigate } from "react-router";
+import { useProjects, workspaceLabel } from "@/features/projects/ProjectsContext";
 
 export function WorkspaceSwitcher() {
   const { workspaces, selectedWorkspaceId, selectWorkspace } = useProjects();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
   if (workspaces.length === 0) return null;
 
   if (workspaces.length === 1) {
@@ -17,7 +14,10 @@ export function WorkspaceSwitcher() {
   return (
     <label className="block min-w-0">
       <span className="sr-only">Workspace</span>
-      <select className="field cursor-pointer truncate font-medium" value={selectedWorkspaceId ?? ""} onChange={(event) => selectWorkspace(event.target.value)}>
+      <select className="field cursor-pointer truncate font-medium" value={selectedWorkspaceId ?? ""} onChange={(event) => {
+          selectWorkspace(event.target.value);
+          if (pathname.startsWith("/projects/")) navigate("/projects");
+        }}>
         {workspaces.map((workspace) => (
           <option value={workspace.id} key={workspace.id}>
             {workspaceLabel(workspace, workspaces)}

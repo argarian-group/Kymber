@@ -1,10 +1,8 @@
-import { FolderKanban, LayoutDashboard, ListChecks, Rocket, Settings, Users } from "lucide-react";
+import { FolderKanban, LayoutDashboard, Settings, Users } from "lucide-react";
 
 export const workspaceItems = [
   { label: "Overview", to: "/", icon: LayoutDashboard },
   { label: "Projects", to: "/projects", icon: FolderKanban },
-  { label: "Tasks", to: "/tasks", icon: ListChecks },
-  { label: "Deploys", to: "/deploys", icon: Rocket },
 ];
 
 export const organizationItems = [

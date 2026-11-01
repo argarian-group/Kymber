@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
-import type { User } from "./AuthContext";
-import { Field, FormError } from "./AuthScreen";
+import type { User } from "@/features/auth/AuthContext";
+import { Field } from "@/components/ui/Field";
+import { FormError } from "@/components/ui/FormError";
 
 type CreateAccountFormProps<T> = {
   endpoint: string;
