@@ -3,10 +3,10 @@ import { useState, type FormEvent } from "react";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { LoadError } from "@/components/ui/LoadError";
-import { AppSection } from "@/features/projects/components/apps/AppSection";
 import { useEnvironments } from "@/features/projects/useEnvironments";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
+import { SettingsSection } from "@/features/settings/components/SettingsSection";
 
 export function ProjectEnvironments() {
   const { environments, error: loadError, path, reload } = useEnvironments();
@@ -32,7 +32,7 @@ export function ProjectEnvironments() {
   if (loadError) return <LoadError title="Could not load environments" message={loadError} onRetry={reload} />;
 
   return (
-    <AppSection title="Environments" description="Apps in an environment share a private network. They cannot reach apps in other environments or apps without one.">
+    <SettingsSection title="Environments" description="Apps in an environment share a private network. They cannot reach apps in other environments or apps without one.">
       <div className="grid gap-4 p-4">
         {environments && environments.length > 0 && (
           <ul className="grid gap-2">
@@ -56,6 +56,6 @@ export function ProjectEnvironments() {
         </form>
         <FormError message={error} />
       </div>
-    </AppSection>
+    </SettingsSection>
   );
 }
