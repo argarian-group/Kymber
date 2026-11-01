@@ -25,9 +25,23 @@ func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not generate project id")
 		return
 	}
-	_, err = h.db.ExecContext(r.Context(), "INSERT INTO projects (id, workspace_id, name, slug) VALUES (?, ?, ?, ?)", id, workspaceID, input.Name, input.Slug)
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create project")
+		return
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(r.Context(), "INSERT INTO projects (id, workspace_id, name, slug) VALUES (?, ?, ?, ?)", id, workspaceID, input.Name, input.Slug)
 	if err != nil {
 		writeProjectError(w, err)
+		return
+	}
+	if err := createDefaultTaskLists(r.Context(), tx, id); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create task lists")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create project")
 		return
 	}
 	project, err := h.findProject(r, workspaceID, id)

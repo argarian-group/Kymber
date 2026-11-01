@@ -186,7 +186,7 @@ func (h *Handler) deleteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(r.Context(), "UPDATE project_tasks t JOIN projects p ON p.id = t.project_id SET t.assignee_id = NULL WHERE p.workspace_id = ? AND t.assignee_id = ?", workspaceID, userID); err != nil {
+	if _, err := tx.ExecContext(r.Context(), "DELETE a FROM task_assignees a JOIN project_tasks t ON t.id = a.task_id JOIN projects p ON p.id = t.project_id WHERE p.workspace_id = ? AND a.user_id = ?", workspaceID, userID); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not unassign workspace member")
 		return
 	}

@@ -1,29 +1,46 @@
-import { TaskAssignee } from "@/features/projects/components/tasks/TaskAssignee";
-import { TaskPriority } from "@/features/projects/components/tasks/TaskPriority";
-import { dueLabel, isLate, type Task } from "@/features/projects/tasks";
+import { TaskAssignees } from "@/features/projects/components/tasks/TaskAssignees";
+import { TaskBadges } from "@/features/projects/components/tasks/TaskBadges";
+import { TaskLabelChip } from "@/features/projects/components/tasks/TaskLabelChip";
+import { type Task, type TaskLabel } from "@/features/projects/tasks";
 
-export function TaskCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
+type TaskCardProps = {
+  task: Task;
+  labels: TaskLabel[];
+  done: boolean;
+  dragging: boolean;
+  onOpen: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+};
+
+export function TaskCard({ task, labels, done, dragging, onOpen, onDragStart, onDragEnd }: TaskCardProps) {
+  const taskLabels = labels.filter(({ id }) => task.label_ids.includes(id));
   return (
     <li
-      className="cursor-pointer rounded-control bg-raised p-3 transition-colors duration-100 hover:bg-white/10"
+      className={`cursor-pointer rounded-control bg-raised p-3 transition-colors duration-100 hover:brightness-110 ${dragging ? "opacity-40" : ""}`}
+      data-task-id={task.id}
       draggable
       onClick={onOpen}
       onDragStart={(event) => {
         event.dataTransfer.setData("text/plain", task.id);
         event.dataTransfer.effectAllowed = "move";
+        onDragStart();
       }}
+      onDragEnd={onDragEnd}
     >
-      <button className="focus-ring block w-full cursor-pointer rounded-sm text-left font-medium wrap-break-word" type="button">
+      {taskLabels.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {taskLabels.map((label) => (
+            <TaskLabelChip label={label} key={label.id} />
+          ))}
+        </div>
+      )}
+      <button className={`focus-ring block w-full cursor-pointer rounded-sm text-left font-medium wrap-break-word ${done ? "text-ink-soft" : ""}`} type="button">
         {task.title}
       </button>
-      <div className="mt-2 flex min-h-6 items-center gap-2 text-meta text-ink-soft">
-        <TaskPriority task={task} />
-        <span className={isLate(task) ? "font-medium text-ember" : ""}>{dueLabel(task)}</span>
-        {task.assignee && (
-          <span className="ml-auto">
-            <TaskAssignee name={task.assignee.username} />
-          </span>
-        )}
+      <div className="mt-2 flex min-h-6 items-center justify-between gap-2">
+        <TaskBadges task={task} done={done} />
+        <TaskAssignees people={task.assignees} />
       </div>
     </li>
   );

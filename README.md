@@ -31,7 +31,7 @@ Knowing how a project is doing usually means checking one tool for tasks, anothe
 - **Team:** owner, admin and member roles, and invite links.
 - **Projects:** create, edit and delete projects inside a workspace, each with an optional logo.
 - **Apps:** create MySQL and Redis apps from templates, then deploy, start, stop and restart them in Docker.
-- **Tasks:** create, edit, assign and move tasks across board, list and calendar views.
+- **Tasks:** boards with editable lists, draggable cards, descriptions, checklists, labels, multiple assignees, comments and filters, across board, list and calendar views.
 - **Appearance:** theme, accent color and density, saved in the browser.
 
 **In preview, with sample data**

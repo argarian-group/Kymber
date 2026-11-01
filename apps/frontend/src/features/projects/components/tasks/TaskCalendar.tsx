@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { CalendarTask } from "@/features/projects/components/tasks/CalendarTask";
-import { TaskAssignee } from "@/features/projects/components/tasks/TaskAssignee";
+import { TaskAssignees } from "@/features/projects/components/tasks/TaskAssignees";
 import { TaskPriority } from "@/features/projects/components/tasks/TaskPriority";
 import { dueDay, type Task } from "@/features/projects/tasks";
 
@@ -9,7 +9,7 @@ function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-export function TaskCalendar({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: Task) => void }) {
+export function TaskCalendar({ tasks, isDone, onOpen }: { tasks: Task[]; isDone: (task: Task) => boolean; onOpen: (task: Task) => void }) {
   const today = new Date();
   const [month, setMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const year = month.getFullYear();
@@ -58,7 +58,7 @@ export function TaskCalendar({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
                 <span className={`mb-1 flex size-6 items-center justify-center rounded-full text-xs tabular-nums ${isToday ? "bg-seafoam font-semibold text-on-accent" : "text-ink-soft"}`}>{day.getDate()}</span>
                 <div className="grid grid-cols-1 gap-1">
                   {tasksOn(day).map((task) => (
-                    <CalendarTask task={task} onOpen={() => onOpen(task)} key={task.id} />
+                    <CalendarTask task={task} done={isDone(task)} onOpen={() => onOpen(task)} key={task.id} />
                   ))}
                 </div>
               </li>
@@ -78,10 +78,10 @@ export function TaskCalendar({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
                 <ul className="grid min-w-0 flex-1 gap-1.5">
                   {tasksOn(day).map((task) => (
                     <li key={task.id}>
-                      <button className={`focus-ring flex min-h-9 w-full cursor-pointer items-center gap-2 text-left ${task.status === "done" ? "text-ink-faint line-through" : ""}`} type="button" onClick={() => onOpen(task)}>
+                      <button className={`focus-ring flex min-h-9 w-full cursor-pointer items-center gap-2 text-left ${isDone(task) ? "text-ink-faint line-through" : ""}`} type="button" onClick={() => onOpen(task)}>
                         <TaskPriority task={task} />
                         <span className="min-w-0 flex-1 wrap-break-word">{task.title}</span>
-                        {task.assignee && <TaskAssignee name={task.assignee.username} />}
+                        <TaskAssignees people={task.assignees} />
                       </button>
                     </li>
                   ))}
