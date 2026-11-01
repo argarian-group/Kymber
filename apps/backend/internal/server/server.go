@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -12,11 +13,12 @@ import (
 	"syscall"
 	"time"
 
+	"kymber/backend/internal/auth"
 	"kymber/backend/internal/logger"
 	"kymber/backend/internal/routes"
 )
 
-func Run(portValue string) error {
+func Run(portValue string, db *sql.DB, secureOnboard bool) error {
 	port := 8080
 	if portValue != "" {
 		parsed, err := strconv.Atoi(portValue)
@@ -26,7 +28,15 @@ func Run(portValue string) error {
 		port = parsed
 	}
 
-	addr := net.JoinHostPort("", strconv.Itoa(port))
+	pending, err := auth.OnboardingPending(db)
+	if err != nil {
+		return err
+	}
+	host := ""
+	if secureOnboard && pending {
+		host = "127.0.0.1"
+	}
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", addr, err)
@@ -35,7 +45,7 @@ func Run(portValue string) error {
 
 	httpServer := &http.Server{
 		Addr:              addr,
-		Handler:           routes.New(),
+		Handler:           routes.New(db, secureOnboard),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -46,6 +56,11 @@ func Run(portValue string) error {
 
 	logger.Info("Kymber API started")
 	logger.Info("Listening at http://localhost:%d", port)
+	if host != "" {
+		logger.Info("onboarding restricted to localhost; restart after setup")
+	} else if pending {
+		logger.Warn("onboarding exposed until root is created")
+	}
 
 	serverErr := make(chan error, 1)
 	go func() { serverErr <- httpServer.Serve(listener) }()
