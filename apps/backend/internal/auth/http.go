@@ -90,10 +90,10 @@ func createUser(r *http.Request, tx *sql.Tx, username, email, passwordHash strin
 
 func createWorkspace(r *http.Request, tx *sql.Tx, userID uint64) error {
 	workspaceID := database.NewID()
-	if _, err := tx.ExecContext(r.Context(), "INSERT INTO workspaces (id, name) VALUES (?, 'Personal')", workspaceID); err != nil {
+	if _, err := tx.ExecContext(r.Context(), "INSERT INTO workspaces (id, name, created_by) VALUES (?, 'Personal', ?)", workspaceID, userID); err != nil {
 		return err
 	}
-	_, err := tx.ExecContext(r.Context(), "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, 'admin')", workspaceID, userID)
+	_, err := tx.ExecContext(r.Context(), "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, 'owner')", workspaceID, userID)
 	return err
 }
 

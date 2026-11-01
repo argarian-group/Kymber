@@ -38,6 +38,21 @@ func (h *Handler) listWorkspaces(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string][]Workspace{"workspaces": workspaces})
 }
 
+func (h *Handler) getWorkspace(w http.ResponseWriter, r *http.Request) {
+	user, _ := auth.UserFromContext(r)
+	workspaceID, ok := pathID(w, r, "workspaceID")
+	if !ok || !h.authorize(w, r, user, workspaceID, false) {
+		return
+	}
+	var workspace Workspace
+	err := h.db.QueryRowContext(r.Context(), `SELECT w.id, w.name, w.created_at, COALESCE(m.role, 'root') FROM workspaces w LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = ? WHERE w.id = ?`, user.ID, workspaceID).Scan(&workspace.ID, &workspace.Name, &workspace.CreatedAt, &workspace.Role)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read workspace")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]Workspace{"workspace": workspace})
+}
+
 func (h *Handler) authorize(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID uint64, write bool) bool {
 	if user.IsRoot {
 		var exists bool

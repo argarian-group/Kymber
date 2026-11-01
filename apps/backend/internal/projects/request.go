@@ -14,6 +14,10 @@ type projectPayload struct {
 	Slug string `json:"slug"`
 }
 
+type workspacePayload struct {
+	Name string `json:"name"`
+}
+
 func pathID(w http.ResponseWriter, r *http.Request, name string) (uint64, bool) {
 	id, err := strconv.ParseUint(r.PathValue(name), 10, 64)
 	if err != nil || id == 0 {
@@ -43,6 +47,19 @@ func projectInput(w http.ResponseWriter, r *http.Request) (projectPayload, bool)
 			writeError(w, http.StatusBadRequest, "slug may contain only lowercase letters, numbers, and hyphens")
 			return input, false
 		}
+	}
+	return input, true
+}
+
+func workspaceInput(w http.ResponseWriter, r *http.Request) (workspacePayload, bool) {
+	var input workspacePayload
+	if !decodeJSON(w, r, &input) {
+		return input, false
+	}
+	input.Name = strings.TrimSpace(input.Name)
+	if length := utf8.RuneCountInString(input.Name); length < 1 || length > 120 {
+		writeError(w, http.StatusBadRequest, "name must be 1 to 120 characters")
+		return input, false
 	}
 	return input, true
 }

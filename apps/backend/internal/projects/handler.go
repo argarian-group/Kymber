@@ -33,6 +33,14 @@ func New(db *sql.DB) *Handler {
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/workspaces", auth.Authenticate(h.db, http.HandlerFunc(h.listWorkspaces)))
+	mux.Handle("POST /api/workspaces", auth.Authenticate(h.db, http.HandlerFunc(h.createWorkspace)))
+	mux.Handle("GET /api/workspaces/{workspaceID}", auth.Authenticate(h.db, http.HandlerFunc(h.getWorkspace)))
+	mux.Handle("PUT /api/workspaces/{workspaceID}", auth.Authenticate(h.db, http.HandlerFunc(h.updateWorkspace)))
+	mux.Handle("DELETE /api/workspaces/{workspaceID}", auth.Authenticate(h.db, http.HandlerFunc(h.deleteWorkspace)))
+	mux.Handle("GET /api/workspaces/{workspaceID}/members", auth.Authenticate(h.db, http.HandlerFunc(h.listMembers)))
+	mux.Handle("POST /api/workspaces/{workspaceID}/members", auth.Authenticate(h.db, http.HandlerFunc(h.addMember)))
+	mux.Handle("PUT /api/workspaces/{workspaceID}/members/{userID}", auth.Authenticate(h.db, http.HandlerFunc(h.updateMember)))
+	mux.Handle("DELETE /api/workspaces/{workspaceID}/members/{userID}", auth.Authenticate(h.db, http.HandlerFunc(h.deleteMember)))
 	mux.Handle("GET /api/workspaces/{workspaceID}/projects", auth.Authenticate(h.db, http.HandlerFunc(h.listProjects)))
 	mux.Handle("POST /api/workspaces/{workspaceID}/projects", auth.Authenticate(h.db, http.HandlerFunc(h.createProject)))
 	mux.Handle("GET /api/workspaces/{workspaceID}/projects/{projectID}", auth.Authenticate(h.db, http.HandlerFunc(h.getProject)))
