@@ -2,6 +2,7 @@ import logo from "@assets/logo.svg";
 import type { LucideIcon } from "lucide-react";
 import { Link, NavLink } from "react-router";
 import { useProjects } from "@/features/projects/ProjectsContext";
+import { WorkspaceSwitcher } from "@/features/projects/WorkspaceSwitcher";
 import { organizationItems, workspaceItems } from "./navItems";
 import { SidebarProfile } from "./SidebarProfile";
 
@@ -46,6 +47,9 @@ export function Sidebar() {
       <div className="flex h-14 flex-none items-center justify-center gap-2 font-display text-base font-semibold tracking-[-0.01em]">
         <img className="-mx-2 -my-2 size-10 -translate-y-px" src={logo} alt="" width="40" height="40" />
         <span>Kymber</span>
+      </div>
+      <div className="flex-none px-3 pb-2 [&>p]:px-2.5">
+        <WorkspaceSwitcher />
       </div>
 
       <nav className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-3 pt-2 [scrollbar-color:var(--color-line)_transparent] [scrollbar-width:thin]" aria-label="Main">

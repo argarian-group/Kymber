@@ -5,6 +5,7 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { Field, FormError } from "@/features/auth/AuthScreen";
 import { errorMessage } from "@/lib/api";
 import { useProjects, type Project } from "./ProjectsContext";
+import { workspaceLabel } from "./WorkspaceSwitcher";
 
 export function slugify(name: string) {
   return name
@@ -18,8 +19,8 @@ export function slugify(name: string) {
 }
 
 export function ProjectsPage() {
-  const { state, retry } = useProjects();
-  const [creating, setCreating] = useState(false);
+  const { state, workspaces, canWrite, retry } = useProjects();
+  const [creatingIn, setCreatingIn] = useState<string | null>(null);
 
   if (state.status === "loading") return <PageSkeleton />;
   if (state.status === "error") {
@@ -48,28 +49,34 @@ export function ProjectsPage() {
   }
 
   const count = state.projects.length;
+  const workspaceId = state.workspace.id;
+  const creating = creatingIn === workspaceId;
+  const startCreating = () => setCreatingIn(workspaceId);
   return (
     <>
       <PageHeader
         title="Projects"
-        description={`${state.workspace.name}, ${count} ${count === 1 ? "project" : "projects"}`}
+        description={`${workspaceLabel(state.workspace, workspaces)}, ${count} ${count === 1 ? "project" : "projects"}`}
         actions={
+          canWrite &&
           !creating && (
-            <button className="btn btn-primary" type="button" onClick={() => setCreating(true)}>
+            <button className="btn btn-primary" type="button" onClick={startCreating}>
               New project
             </button>
           )
         }
       />
-      {creating && <CreateProjectForm onClose={() => setCreating(false)} />}
+      {creating && <CreateProjectForm onClose={() => setCreatingIn(null)} />}
       {count === 0 && !creating ? (
         <EmptyState
           title="No projects yet"
-          description="Create the first project in this workspace."
+          description={canWrite ? "Create the first project in this workspace." : "A workspace admin can create the first project."}
           action={
-            <button className="btn" type="button" onClick={() => setCreating(true)}>
-              Create project
-            </button>
+            canWrite && (
+              <button className="btn" type="button" onClick={startCreating}>
+                Create project
+              </button>
+            )
           }
         />
       ) : (
@@ -131,7 +138,7 @@ function CreateProjectForm({ onClose }: { onClose: () => void }) {
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
 function ProjectRow({ project }: { project: Project }) {
-  const { deleteProject } = useProjects();
+  const { canWrite, deleteProject } = useProjects();
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -156,7 +163,7 @@ function ProjectRow({ project }: { project: Project }) {
         <FormError message={error} />
       </div>
       <span className="text-meta text-ink-soft tabular-nums">Created {dateFormat.format(new Date(project.created_at))}</span>
-      {confirming ? (
+      {!canWrite ? null : confirming ? (
         <span className="flex gap-2">
           <button className="btn btn-danger" type="button" onClick={confirmDelete} disabled={pending} aria-label={`Confirm delete ${project.name}`}>
             {pending ? "Deleting…" : "Confirm delete"}
