@@ -1,3 +1,4 @@
+-- +goose Up
 CREATE TABLE workspaces (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     name VARCHAR(120) NOT NULL,
@@ -17,5 +18,6 @@ CREATE TABLE projects (
         REFERENCES workspaces (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- +goose Down
 DROP TABLE projects;
 DROP TABLE workspaces;
