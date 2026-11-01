@@ -2,19 +2,19 @@ import { useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
 import { ProjectRow } from "@/features/dashboard/components/ProjectRow";
-import { type Project } from "@/features/dashboard/data";
 import { healthMeta } from "@/features/dashboard/health";
+import { type ProjectSummary } from "@/features/dashboard/overview";
 
 const filters = [
   { id: "all", label: "All", matches: () => true },
-  { id: "attention", label: "Attention", matches: (project: Project) => project.health !== "on-track" },
-  { id: "on-track", label: "On track", matches: (project: Project) => project.health === "on-track" },
+  { id: "attention", label: "Attention", matches: (summary: ProjectSummary) => summary.health !== "on-track" },
+  { id: "on-track", label: "On track", matches: (summary: ProjectSummary) => summary.health === "on-track" },
 ];
 
-export function ProjectsPanel({ projects }: { projects: Project[] }) {
+export function ProjectsPanel({ summaries }: { summaries: ProjectSummary[] }) {
   const [filterId, setFilterId] = useState("all");
   const filter = filters.find(({ id }) => id === filterId)!;
-  const visible = projects.filter(filter.matches).sort((a, b) => healthMeta[a.health].rank - healthMeta[b.health].rank);
+  const visible = summaries.filter(filter.matches).sort((a, b) => healthMeta[a.health].rank - healthMeta[b.health].rank);
 
   return (
     <Panel
@@ -31,7 +31,7 @@ export function ProjectsPanel({ projects }: { projects: Project[] }) {
               onClick={() => setFilterId(id)}
               key={id}
             >
-              {label} <span className="text-ink-faint">{projects.filter(matches).length}</span>
+              {label} <span className="text-ink-faint">{summaries.filter(matches).length}</span>
             </button>
           ))}
         </div>
@@ -56,12 +56,12 @@ export function ProjectsPanel({ projects }: { projects: Project[] }) {
                 <th className="px-3 py-1.5 font-medium" scope="col">Health</th>
                 <th className="px-3 py-1.5 font-medium" scope="col">Done</th>
                 <th className="hidden px-3 py-1.5 text-right font-medium @2xl:table-cell" scope="col">Tasks left</th>
-                <th className="hidden py-1.5 pr-6 pl-3 text-right font-medium @2xl:table-cell" scope="col">Next deploy</th>
+                <th className="hidden py-1.5 pr-6 pl-3 text-right font-medium @2xl:table-cell" scope="col">Apps running</th>
               </tr>
             </thead>
             <tbody>
-              {visible.map((project) => (
-                <ProjectRow project={project} key={project.name} />
+              {visible.map((summary) => (
+                <ProjectRow summary={summary} key={summary.project.id} />
               ))}
             </tbody>
           </table>

@@ -1,4 +1,4 @@
-import type { Health } from "./data";
+export type Health = "on-track" | "at-risk" | "late";
 
 export const healthMeta: Record<Health, { label: string; text: string; dot: string; rank: number }> = {
   late: { label: "Late", text: "text-ember", dot: "bg-ember", rank: 0 },

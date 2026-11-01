@@ -1,45 +1,32 @@
 import { Link } from "react-router";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { AttentionPanel } from "./components/AttentionPanel";
-import { DeadlinesPanel } from "@/features/dashboard/components/DeadlinesPanel";
-import { DeploysPanel } from "@/features/dashboard/components/DeploysPanel";
-import { ProjectsPanel } from "@/features/dashboard/components/ProjectsPanel";
-import { TaskFlowPanel } from "./components/TaskFlowPanel";
-import { deploys, dueTasks, projects, stages } from "./data";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { LoadError } from "@/components/ui/LoadError";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { OverviewContent } from "@/features/dashboard/OverviewContent";
+import { useProjects } from "@/features/projects/ProjectsContext";
 
 export function DashboardPage() {
-  const onTrack = projects.filter((project) => project.health === "on-track").length;
-  const focus = projects.find((project) => project.health === "late") ?? projects.find((project) => project.health === "at-risk");
+  const { state, retry } = useProjects();
 
-  return (
-    <>
-      <PageHeader
-        title="Overview"
-        description={`${onTrack} of ${projects.length} projects on track`}
-        actions={
-          <>
-            <Link className="btn" to="/projects">
-              View projects
+  if (state.status === "loading") return <PageSkeleton />;
+  if (state.status === "error") return <LoadError title="Could not load the overview" message={state.message} onRetry={retry} />;
+  if (state.projects.length === 0) {
+    return (
+      <>
+        <PageHeader title="Overview" />
+        <EmptyState
+          title="No projects yet"
+          description="Create a project to see its tasks and apps here."
+          action={
+            <Link className="btn btn-primary" to="/projects">
+              Go to projects
             </Link>
-            {focus && (
-              <Link className="btn btn-primary" to="/projects">
-                Review {focus.name}
-              </Link>
-            )}
-          </>
-        }
-      />
-      <div className="grid flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="min-w-0">
-          <AttentionPanel projects={projects} deploys={deploys} tasks={dueTasks} />
-          <ProjectsPanel projects={projects} />
-        </div>
-        <aside className="min-w-0 bg-sunken lg:grid lg:grid-cols-2 xl:block" aria-label="Delivery">
-          <DeploysPanel deploys={deploys} />
-          <DeadlinesPanel tasks={dueTasks} />
-          <TaskFlowPanel stages={stages} />
-        </aside>
-      </div>
-    </>
-  );
+          }
+        />
+      </>
+    );
+  }
+
+  return <OverviewContent projects={state.projects} key={state.workspace?.id} />;
 }
