@@ -1,4 +1,4 @@
-.PHONY: build run backend dev server frontend db up template-registry
+.PHONY: build run backend dev server frontend db up template-registry docker-build docker-up docker-agent docker-down
 
 build: template-registry
 	cd apps/backend && go build -o build/api ./cmd/api
@@ -16,6 +16,18 @@ dev: db template-registry
 
 template-registry:
 	cd apps/backend && go run ./cmd/template-registry
+
+docker-build:
+	docker compose build
+
+docker-up:
+	docker compose up --build -d
+
+docker-agent:
+	docker compose up --build -d server
+
+docker-down:
+	docker compose down
 
 frontend:
 	cd apps/frontend && pnpm install && pnpm dev

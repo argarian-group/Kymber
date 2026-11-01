@@ -1,0 +1,12 @@
+.git
+.env
+.env.*
+**/node_modules
+**/dist
+apps/backend/build
+graphify-out
+.agents
+.claude
+.codex
+.cursor
+.continue
