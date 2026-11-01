@@ -33,6 +33,7 @@ type task struct {
 	Image        string           `json:"image"`
 	Port         int              `json:"port"`
 	DataPath     string           `json:"data_path"`
+	Environment  string           `json:"environment_id"`
 	Database     string           `json:"database_name"`
 	Username     string           `json:"database_user"`
 	Password     string           `json:"password"`
@@ -208,6 +209,10 @@ func execute(t task) result {
 				}
 			}
 		}
+		if t.Action == "delete" && t.Environment != "" {
+			// Best effort: Docker refuses while other apps of the environment still use the network.
+			_, _ = docker("network", "rm", networkName(t))
+		}
 		if t.Action == "stop" || t.Action == "delete" || t.Action == "remove_container" || t.Action == "remove_container_image" {
 			return result{Success: true, Message: t.Action}
 		}
@@ -239,7 +244,7 @@ func execute(t task) result {
 	if !templates.ValidDataPath(template.DataPath) {
 		return result{Message: "invalid data path"}
 	}
-	network := fmt.Sprintf("kymber-workspace-%s", t.WorkspaceID)
+	network := networkName(t)
 	if _, err := docker("network", "inspect", network); err != nil {
 		if _, err = docker("network", "create", "--label", "kymber.managed=true", network); err != nil {
 			return result{Message: err.Error()}
@@ -271,6 +276,14 @@ func execute(t task) result {
 		return result{Message: err.Error(), ContainerID: id}
 	}
 	return result{Success: true, ContainerID: id}
+}
+
+// Each environment gets its own network, so its apps cannot reach other environments or apps outside one.
+func networkName(t task) string {
+	if t.Environment != "" {
+		return fmt.Sprintf("kymber-workspace-%s-env-%s", t.WorkspaceID, t.Environment)
+	}
+	return fmt.Sprintf("kymber-workspace-%s", t.WorkspaceID)
 }
 
 func serviceTemplate(t task) (templates.Template, bool) {

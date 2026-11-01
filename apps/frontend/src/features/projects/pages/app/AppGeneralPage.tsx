@@ -54,6 +54,7 @@ export function AppGeneralPage() {
         <dl className="grid gap-4 p-4 sm:grid-cols-2">
           <ProjectDetail label="Engine">{service.engine}</ProjectDetail>
           <ProjectDetail label="Image">{service.image}</ProjectDetail>
+          <ProjectDetail label="Environment">{service.environment_name ?? "None"}</ProjectDetail>
           <ProjectDetail label="Server">{service.server_name ?? "Chosen at first deploy"}</ProjectDetail>
           {service.database_name && <ProjectDetail label="Database">{service.database_name}</ProjectDetail>}
           {service.database_user && <ProjectDetail label="Username">{service.database_user}</ProjectDetail>}

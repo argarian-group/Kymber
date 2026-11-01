@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { EngineMark } from "@/features/projects/components/apps/EngineMark";
+import { EnvironmentField } from "@/features/projects/components/apps/EnvironmentField";
 import { appCategories, type AppCategory } from "@/features/projects/engines";
 import type { Service } from "@/features/projects/services";
 import { api } from "@/lib/api";
@@ -52,7 +53,7 @@ function ImageSearch({ onPick }: { onPick: (image: HubImage) => void }) {
         <p className="text-meta text-ink-soft">
           No {category?.label.toLowerCase() ?? "images"} match “{query}”.{" "}
           {category && (
-            <Link className="text-button" to="?template=docker">
+            <Link className="text-button" to={params.get("environment") ? `?template=docker&environment=${params.get("environment")}` : "?template=docker"}>
               Search all categories
             </Link>
           )}
@@ -88,6 +89,8 @@ function ImageSearch({ onPick }: { onPick: (image: HubImage) => void }) {
 function ImageSettings({ image, path, onChange }: { image: HubImage; path: string; onChange: () => void }) {
   const { repository, logo_url, category } = image;
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const [environmentId, setEnvironmentId] = useState(params.get("environment") ?? "");
   const [details, setDetails] = useState<ImageDetails | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -117,7 +120,7 @@ function ImageSettings({ image, path, onChange }: { image: HubImage; path: strin
     event.preventDefault();
     await run(async () => {
       const environment = Object.fromEntries(variables.filter(({ name }) => name).map(({ name, value }) => [name, value]));
-      const service = await api<Service>(path, { method: "POST", body: { engine: "docker", repository, name, image_version: version, port: Number(port), data_path: dataPath, logo_url, category, environment } });
+      const service = await api<Service>(path, { method: "POST", body: { engine: "docker", repository, name, image_version: version, port: Number(port), data_path: dataPath, logo_url, category, environment, environment_id: environmentId } });
       navigate(`../apps/${service.id}`);
     });
   }
@@ -136,6 +139,7 @@ function ImageSettings({ image, path, onChange }: { image: HubImage; path: strin
       </div>
       <FormError message={loadError} />
       <Field label="App name" autoFocus maxLength={63} pattern="[a-z][a-z0-9\-]{1,62}" title="Lowercase letters, numbers and hyphens, starting with a letter" hint="Optional. Leave blank to generate one." value={name} onChange={(event) => setName(event.target.value)} />
+      <EnvironmentField value={environmentId} onChange={setEnvironmentId} />
       <div className="grid items-start gap-4 sm:grid-cols-2">
         <Field label="Image version" list="docker-image-tags" maxLength={128} required placeholder={details ? undefined : "Loading…"} value={version} onChange={(event) => setVersion(event.target.value)} />
         <datalist id="docker-image-tags">

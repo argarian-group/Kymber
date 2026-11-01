@@ -32,6 +32,7 @@ Knowing how a project is doing usually means checking one tool for tasks, anothe
 - **Team:** owner, admin and member roles, and invite links.
 - **Projects:** create, edit and delete projects inside a workspace, each with an optional logo.
 - **Apps:** create MySQL and Redis apps from templates, or any public Docker Hub image, then deploy, start, stop and restart them in Docker.
+- **Environments:** add environments such as production and dev to a project. Apps in an environment share a private network, and apps can also stay outside any environment.
 - **Tasks:** boards with editable lists, draggable cards, a rich text editor for descriptions and comments, checklists, labels, multiple assignees and filters, across board, list and calendar views.
 - **Appearance:** theme, accent color and density, saved in the browser.
 

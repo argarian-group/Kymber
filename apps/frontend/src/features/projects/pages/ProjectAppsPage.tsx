@@ -1,24 +1,33 @@
 import { Plus, Search } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadError } from "@/components/ui/LoadError";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { ServiceCard } from "@/features/projects/components/apps/ServiceCard";
 import { appCategories } from "@/features/projects/engines";
 import { useProjects } from "@/features/projects/ProjectsContext";
+import { useEnvironments } from "@/features/projects/useEnvironments";
 import { useServices } from "@/features/projects/useServices";
+
+const noEnvironment = "none";
 
 export function ProjectAppsPage() {
   const { canWrite } = useProjects();
   const { services, error, reload } = useServices();
   const [query, setQuery] = useState("");
+  const { environments } = useEnvironments();
+  const [params, setParams] = useSearchParams();
+  const selected = params.get("environment");
 
   if (error && !services) return <LoadError title="Could not load apps" message={error} onRetry={reload} />;
   if (!services) return <PageSkeleton />;
 
   const term = query.trim().toLowerCase();
-  const visible = services.filter(({ name, engine }) => name.toLowerCase().includes(term) || engine.includes(term));
+  const inEnvironment = services.filter(({ environment_id }) => !selected || (selected === noEnvironment ? !environment_id : environment_id === selected));
+  const visible = inEnvironment.filter(({ name, engine }) => name.toLowerCase().includes(term) || engine.includes(term));
+  const filters = environments?.length ? [{ id: "", name: "All" }, ...environments, { id: noEnvironment, name: "No environment" }] : [];
+  const selectedName = filters.find(({ id }) => id === selected)?.name;
 
   return (
     <div className="grid min-w-0 gap-4 px-4 py-6 md:px-6">
@@ -32,14 +41,25 @@ export function ProjectAppsPage() {
           </label>
         )}
         {canWrite && (
-          <Link className="btn btn-primary ml-auto" to="new">
+          <Link className="btn btn-primary ml-auto" to={selected && selected !== noEnvironment ? `new?environment=${selected}` : "new"}>
             <Plus aria-hidden="true" size={15} />
             New app
           </Link>
         )}
       </div>
+      {filters.length > 0 && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by environment">
+          {filters.map(({ id, name }) => (
+            <button className={`btn ${(selected ?? "") === id ? "btn-primary" : ""}`} type="button" aria-pressed={(selected ?? "") === id} onClick={() => setParams(id ? { environment: id } : {}, { replace: true })} key={id || "all"}>
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
       {services.length === 0 ? (
         <EmptyState title="No apps yet" description={canWrite ? "Create your first app from a template." : "A workspace admin can create the first app."} />
+      ) : inEnvironment.length === 0 ? (
+        <EmptyState title={selected === noEnvironment ? "No apps without an environment" : `No apps in ${selectedName ?? "this environment"}`} />
       ) : visible.length === 0 ? (
         <EmptyState title={`No apps match "${query.trim()}"`} />
       ) : (

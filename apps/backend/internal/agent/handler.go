@@ -65,11 +65,11 @@ func (h *Handler) claim(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	var taskID, serviceID string
-	var action, engine, name, imageVersion, image, dataPath, dbName, dbUser string
+	var action, engine, name, imageVersion, image, dataPath, environmentID, dbName, dbUser string
 	var port int
 	var workspaceID string
 	var encryptedConfig []byte
-	err = tx.QueryRowContext(r.Context(), `SELECT t.id, t.service_id, t.action, s.workspace_id, s.engine, s.name, s.image_version, s.image, s.port, s.data_path, s.database_name, s.database_user, s.encrypted_config FROM server_tasks t JOIN database_services s ON s.id = t.service_id WHERE t.server_id = ? AND t.status = 'queued' ORDER BY t.created_at LIMIT 1 FOR UPDATE`, id).Scan(&taskID, &serviceID, &action, &workspaceID, &engine, &name, &imageVersion, &image, &port, &dataPath, &dbName, &dbUser, &encryptedConfig)
+	err = tx.QueryRowContext(r.Context(), `SELECT t.id, t.service_id, t.action, s.workspace_id, s.engine, s.name, s.image_version, s.image, s.port, s.data_path, s.environment_id, s.database_name, s.database_user, s.encrypted_config FROM server_tasks t JOIN database_services s ON s.id = t.service_id WHERE t.server_id = ? AND t.status = 'queued' ORDER BY t.created_at LIMIT 1 FOR UPDATE`, id).Scan(&taskID, &serviceID, &action, &workspaceID, &engine, &name, &imageVersion, &image, &port, &dataPath, &environmentID, &dbName, &dbUser, &encryptedConfig)
 	if err == sql.ErrNoRows {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -101,7 +101,7 @@ func (h *Handler) claim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"id": taskID, "service_id": serviceID, "workspace_id": workspaceID, "action": action, "engine": engine, "name": name, "image_version": imageVersion, "image": image, "port": port, "data_path": dataPath, "database_name": dbName, "database_user": dbUser, "config": config})
+	_ = json.NewEncoder(w).Encode(map[string]any{"id": taskID, "service_id": serviceID, "workspace_id": workspaceID, "action": action, "engine": engine, "name": name, "image_version": imageVersion, "image": image, "port": port, "data_path": dataPath, "environment_id": environmentID, "database_name": dbName, "database_user": dbUser, "config": config})
 }
 
 func (h *Handler) result(w http.ResponseWriter, r *http.Request) {

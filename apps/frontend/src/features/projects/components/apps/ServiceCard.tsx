@@ -15,7 +15,10 @@ export function ServiceCard({ service, to }: { service: Service; to: string }) {
           </span>
         </span>
         <span className="mt-auto flex items-center justify-between gap-3 border-t border-line pt-3">
-          <ServiceStatus status={service.status} />
+          <span className="flex min-w-0 items-center gap-2">
+            <ServiceStatus status={service.status} />
+            {service.environment_name && <span className="min-w-0 truncate rounded-sm bg-seafoam/15 px-1.5 text-xs text-seafoam">{service.environment_name}</span>}
+          </span>
           <span className="min-w-0 truncate text-xs text-ink-soft">{service.server_name ?? service.image_version}</span>
         </span>
       </Link>

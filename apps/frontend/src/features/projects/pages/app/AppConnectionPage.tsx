@@ -11,7 +11,7 @@ export function AppConnectionPage() {
   if (!detail) return <PageSkeleton />;
 
   return (
-    <AppSection title="Internal connection" description="Reachable by containers in this workspace's Docker network, on the same server. It is not exposed to the internet.">
+    <AppSection title="Internal connection" description={detail.environment_name ? `Reachable only by apps in the ${detail.environment_name} environment, on the same server. It is not exposed to the internet.` : "Reachable only by apps in this workspace without an environment, on the same server. It is not exposed to the internet."}>
       <div className="grid gap-4 p-4">
         {detail.connection_url && <CopyField label="Connection URL" value={detail.connection_url} secret />}
         {detail.internal_host && <CopyField label="Host" value={detail.internal_host} />}

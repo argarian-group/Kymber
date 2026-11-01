@@ -111,3 +111,15 @@ func TestRunArgsOmitOptionalFlagsForCustomImages(t *testing.T) {
 		}
 	}
 }
+
+func TestNetworkNameIsolatesEnvironments(t *testing.T) {
+	outside := networkName(task{WorkspaceID: "aaa111"})
+	production := networkName(task{WorkspaceID: "aaa111", Environment: "bbb222"})
+	development := networkName(task{WorkspaceID: "aaa111", Environment: "ccc333"})
+	if outside != "kymber-workspace-aaa111" {
+		t.Errorf("apps outside an environment must keep the existing network, got %q", outside)
+	}
+	if production == outside || production == development {
+		t.Errorf("networks not isolated: %q, %q, %q", outside, production, development)
+	}
+}

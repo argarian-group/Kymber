@@ -23,9 +23,13 @@ export type Service = {
   data_path?: string;
   logo_url?: string;
   category: AppCategory;
+  environment_id?: string;
+  environment_name?: string;
   connection_url?: string;
   environment?: Record<string, string>;
 };
+
+export type ProjectEnvironment = { id: string; name: string };
 
 export type ServiceAction = "deploy" | "start" | "stop" | "restart" | "remove_container";
 

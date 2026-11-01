@@ -1,5 +1,5 @@
 import { ChevronRight } from "lucide-react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { EngineMark } from "@/features/projects/components/apps/EngineMark";
 import { appCategories, engineLabel, engines } from "@/features/projects/engines";
 import type { DatabaseTemplate } from "@/features/projects/services";
@@ -21,6 +21,9 @@ function GalleryCard({ engine, to, title, description }: { engine: string; to: s
 
 export function TemplateGallery({ templates }: { templates: DatabaseTemplate[] }) {
   const custom = templates.find((template) => template.custom);
+  const [params] = useSearchParams();
+  const environment = params.get("environment");
+  const suffix = environment ? `&environment=${environment}` : "";
   return (
     <div className="grid gap-6">
       {appCategories.map(({ id, label, item }) => (
@@ -30,9 +33,9 @@ export function TemplateGallery({ templates }: { templates: DatabaseTemplate[] }
             {templates
               .filter((template) => template.category === id)
               .map(({ engine, image }) => (
-                <GalleryCard engine={engine} to={`?template=${engine}`} title={engineLabel(engine)} description={engines[engine]?.description ?? image} key={engine} />
+                <GalleryCard engine={engine} to={`?template=${engine}${suffix}`} title={engineLabel(engine)} description={engines[engine]?.description ?? image} key={engine} />
               ))}
-            {custom && <GalleryCard engine={custom.engine} to={`?template=${custom.engine}&category=${id}`} title={engineLabel(custom.engine)} description={`Any ${item} from Docker Hub`} />}
+            {custom && <GalleryCard engine={custom.engine} to={`?template=${custom.engine}&category=${id}${suffix}`} title={engineLabel(custom.engine)} description={`Any ${item} from Docker Hub`} />}
           </ul>
         </section>
       ))}
