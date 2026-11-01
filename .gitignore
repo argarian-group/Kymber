@@ -5,6 +5,7 @@
 apps/backend/build/
 apps/frontend/dist/
 node_modules/
+*.log
 
 # AI Agents & Local Tool Artifacts
 graphify-out/
