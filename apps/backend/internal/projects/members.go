@@ -111,7 +111,7 @@ func (h *Handler) updateMember(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.requireWorkspaceOwner(w, r, user, workspaceID) {
 		return
 	}
-	userID, ok := pathID(w, r, "userID")
+	userID, ok := pathUserID(w, r)
 	if !ok {
 		return
 	}
@@ -167,7 +167,7 @@ func (h *Handler) deleteMember(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.requireWorkspaceOwner(w, r, user, workspaceID) {
 		return
 	}
-	userID, ok := pathID(w, r, "userID")
+	userID, ok := pathUserID(w, r)
 	if !ok {
 		return
 	}
@@ -197,12 +197,12 @@ func (h *Handler) deleteMember(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) requireWorkspaceOwner(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID uint64) bool {
+func (h *Handler) requireWorkspaceOwner(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID string) bool {
 	_, ok := h.requireWorkspaceRole(w, r, user, workspaceID, false)
 	return ok
 }
 
-func (h *Handler) requireWorkspaceRole(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID uint64, allowAdmin bool) (string, bool) {
+func (h *Handler) requireWorkspaceRole(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID string, allowAdmin bool) (string, bool) {
 	if !h.authorize(w, r, user, workspaceID, false) {
 		return "", false
 	}
@@ -226,7 +226,7 @@ func (h *Handler) requireWorkspaceRole(w http.ResponseWriter, r *http.Request, u
 	return role, true
 }
 
-func (h *Handler) findMember(r *http.Request, workspaceID, userID uint64) (WorkspaceMember, error) {
+func (h *Handler) findMember(r *http.Request, workspaceID string, userID uint64) (WorkspaceMember, error) {
 	var member WorkspaceMember
 	err := h.db.QueryRowContext(r.Context(), `SELECT u.id, u.username, u.email, m.role, m.created_at FROM workspace_members m JOIN users u ON u.id = m.user_id WHERE m.workspace_id = ? AND u.id = ?`, workspaceID, userID).Scan(&member.UserID, &member.Username, &member.Email, &member.Role, &member.CreatedAt)
 	return member, err

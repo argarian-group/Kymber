@@ -3,7 +3,6 @@ package projects
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/go-sql-driver/mysql"
 	"kymber/backend/internal/auth"
@@ -20,7 +19,11 @@ func (h *Handler) createWorkspace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	id := database.NewID()
+	id, err := database.NewShortID()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not generate workspace id")
+		return
+	}
 	tx, err := h.db.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not start workspace creation")
@@ -44,7 +47,7 @@ func (h *Handler) createWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not read created workspace")
 		return
 	}
-	w.Header().Set("Location", "/api/workspaces/"+strconv.FormatUint(id, 10))
+	w.Header().Set("Location", "/api/workspaces/"+id)
 	writeJSON(w, http.StatusCreated, map[string]Workspace{"workspace": workspace})
 }
 

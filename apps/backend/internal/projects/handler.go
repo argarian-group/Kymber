@@ -13,7 +13,7 @@ type Handler struct {
 }
 
 type Workspace struct {
-	ID        uint64            `json:"id,string"`
+	ID        string            `json:"id"`
 	Name      string            `json:"name"`
 	Role      string            `json:"role"`
 	CreatedAt time.Time         `json:"created_at"`
@@ -27,8 +27,8 @@ type WorkspaceCreator struct {
 }
 
 type Project struct {
-	ID          uint64    `json:"id,string"`
-	WorkspaceID uint64    `json:"workspace_id,string"`
+	ID          string    `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
 	Name        string    `json:"name"`
 	Slug        string    `json:"slug"`
 	CreatedAt   time.Time `json:"created_at"`

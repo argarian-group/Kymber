@@ -67,7 +67,7 @@ func (h *Handler) getWorkspace(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]Workspace{"workspace": workspace})
 }
 
-func (h *Handler) authorize(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID uint64, write bool) bool {
+func (h *Handler) authorize(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID string, write bool) bool {
 	if user.IsRoot {
 		var exists bool
 		if err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM workspaces WHERE id = ?)", workspaceID).Scan(&exists); err != nil {

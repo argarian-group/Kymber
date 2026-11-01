@@ -58,7 +58,7 @@ func (h *Handler) getProject(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]Project{"project": project})
 }
 
-func (h *Handler) findProject(r *http.Request, workspaceID, projectID uint64) (Project, error) {
+func (h *Handler) findProject(r *http.Request, workspaceID, projectID string) (Project, error) {
 	var project Project
 	err := h.db.QueryRowContext(r.Context(), "SELECT id, workspace_id, name, slug, created_at FROM projects WHERE id = ? AND workspace_id = ?", projectID, workspaceID).Scan(&project.ID, &project.WorkspaceID, &project.Name, &project.Slug, &project.CreatedAt)
 	return project, err

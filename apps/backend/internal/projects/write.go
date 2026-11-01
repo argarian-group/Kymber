@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/go-sql-driver/mysql"
 	"kymber/backend/internal/auth"
@@ -21,8 +20,12 @@ func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	id := database.NewID()
-	_, err := h.db.ExecContext(r.Context(), "INSERT INTO projects (id, workspace_id, name, slug) VALUES (?, ?, ?, ?)", id, workspaceID, input.Name, input.Slug)
+	id, err := database.NewShortID()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not generate project id")
+		return
+	}
+	_, err = h.db.ExecContext(r.Context(), "INSERT INTO projects (id, workspace_id, name, slug) VALUES (?, ?, ?, ?)", id, workspaceID, input.Name, input.Slug)
 	if err != nil {
 		writeProjectError(w, err)
 		return
@@ -32,7 +35,7 @@ func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not read created project")
 		return
 	}
-	w.Header().Set("Location", "/api/workspaces/"+strconv.FormatUint(workspaceID, 10)+"/projects/"+strconv.FormatUint(project.ID, 10))
+	w.Header().Set("Location", "/api/workspaces/"+workspaceID+"/projects/"+project.ID)
 	writeJSON(w, http.StatusCreated, map[string]Project{"project": project})
 }
 

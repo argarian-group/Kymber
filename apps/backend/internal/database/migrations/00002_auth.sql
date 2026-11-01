@@ -12,7 +12,7 @@ CREATE TABLE users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE workspace_members (
-    workspace_id BIGINT UNSIGNED NOT NULL,
+    workspace_id CHAR(6) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     user_id BIGINT UNSIGNED NOT NULL,
     role VARCHAR(16) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -44,13 +44,8 @@ CREATE TABLE platform_settings (
 
 INSERT INTO platform_settings (id, registration_enabled) VALUES (1, FALSE);
 
-ALTER TABLE projects MODIFY id BIGINT UNSIGNED NOT NULL;
-ALTER TABLE workspaces MODIFY id BIGINT UNSIGNED NOT NULL;
-
 -- +goose Down
 DROP TABLE user_sessions;
 DROP TABLE workspace_members;
 DROP TABLE platform_settings;
 DROP TABLE users;
-ALTER TABLE projects MODIFY id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT;
-ALTER TABLE workspaces MODIFY id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT;

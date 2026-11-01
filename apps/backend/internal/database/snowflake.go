@@ -3,9 +3,18 @@ package database
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"sync"
 	"time"
 )
+
+func NewShortID() (string, error) {
+	value := make([]byte, 3)
+	if _, err := rand.Read(value); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(value), nil
+}
 
 const snowflakeEpoch = int64(1704067200000)
 

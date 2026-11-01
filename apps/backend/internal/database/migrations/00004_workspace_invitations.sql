@@ -1,7 +1,7 @@
 -- +goose Up
 CREATE TABLE workspace_invitations (
     token_hash BINARY(32) NOT NULL,
-    workspace_id BIGINT UNSIGNED NOT NULL,
+    workspace_id CHAR(6) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     email VARCHAR(254) NOT NULL,
     role VARCHAR(16) NOT NULL,
     invited_by BIGINT UNSIGNED NOT NULL,

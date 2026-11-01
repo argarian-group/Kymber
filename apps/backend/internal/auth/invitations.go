@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -42,7 +41,7 @@ func (h *Handler) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
-	var workspaceID uint64
+	var workspaceID string
 	var invitedEmail, role string
 	err = tx.QueryRowContext(r.Context(), "SELECT workspace_id, email, role FROM workspace_invitations WHERE token_hash = ? AND expires_at > UTC_TIMESTAMP(6) FOR UPDATE", digest[:]).Scan(&workspaceID, &invitedEmail, &role)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -117,5 +116,5 @@ func (h *Handler) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]any{"user": user, "workspace_id": strconv.FormatUint(workspaceID, 10), "role": role})
+	_ = json.NewEncoder(w).Encode(map[string]any{"user": user, "workspace_id": workspaceID, "role": role})
 }

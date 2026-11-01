@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -18,10 +19,21 @@ type workspacePayload struct {
 	Name string `json:"name"`
 }
 
-func pathID(w http.ResponseWriter, r *http.Request, name string) (uint64, bool) {
-	id, err := strconv.ParseUint(r.PathValue(name), 10, 64)
-	if err != nil || id == 0 {
+var entityIDPattern = regexp.MustCompile(`^[0-9a-f]{6}$`)
+
+func pathID(w http.ResponseWriter, r *http.Request, name string) (string, bool) {
+	id := r.PathValue(name)
+	if !entityIDPattern.MatchString(id) {
 		writeError(w, http.StatusBadRequest, "invalid "+name)
+		return "", false
+	}
+	return id, true
+}
+
+func pathUserID(w http.ResponseWriter, r *http.Request) (uint64, bool) {
+	id, err := strconv.ParseUint(r.PathValue("userID"), 10, 64)
+	if err != nil || id == 0 {
+		writeError(w, http.StatusBadRequest, "invalid userID")
 		return 0, false
 	}
 	return id, true
