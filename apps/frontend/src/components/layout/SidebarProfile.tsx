@@ -60,7 +60,7 @@ export function SidebarProfile() {
       </button>
       <div
         id={menuId}
-        className="pop-in inset-auto bottom-18 left-3 m-0 w-56 rounded-panel border border-line-strong bg-raised p-3 text-ink"
+        className="pop-in inset-auto bottom-18 left-3 m-0 w-50 rounded-panel border border-line-strong bg-raised p-3 text-ink"
         popover="auto"
         role="dialog"
         aria-label="Profile"
