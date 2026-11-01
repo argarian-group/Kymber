@@ -12,12 +12,17 @@ export function InviteSignupPage() {
   const { signIn } = useAuth();
   const token = window.location.hash.slice(1);
   const [form, setForm] = useState({ username: "", password: "" });
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (confirmPassword !== form.password) {
+      setError("The passwords do not match.");
+      return;
+    }
     setPending(true);
     setError(null);
     try {
@@ -44,6 +49,7 @@ export function InviteSignupPage() {
       <form className="grid gap-4" onSubmit={submit}>
         <Field label="Username" autoComplete="username" required autoFocus minLength={3} maxLength={32} hint="3 to 32 letters, numbers, _ or -." value={form.username} onChange={update("username")} />
         <Field label="Password" type="password" autoComplete="new-password" required minLength={8} maxLength={128} hint="8 to 128 characters." value={form.password} onChange={update("password")} />
+        <Field label="Confirm password" type="password" autoComplete="new-password" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
         <FormError message={error} />
         <button className="btn btn-primary justify-center" type="submit" disabled={pending}>
           {pending ? "Accepting…" : "Create account and join"}
