@@ -19,6 +19,7 @@ export type Service = {
   internal_host?: string;
   port?: number;
   data_path?: string;
+  logo_url?: string;
   connection_url?: string;
   environment?: Record<string, string>;
 };

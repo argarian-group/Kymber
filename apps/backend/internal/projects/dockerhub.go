@@ -29,6 +29,26 @@ type dockerHubImage struct {
 	Description string `json:"description"`
 	Official    bool   `json:"official"`
 	Stars       int    `json:"stars"`
+	LogoURL     string `json:"logo_url,omitempty"`
+}
+
+// dockerLogoURL keeps only Docker Hub's logo hosts, because browsers of every workspace member load this URL.
+func dockerLogoURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "https" {
+		return ""
+	}
+	switch parsed.Host {
+	case "djeqr6to3dedg.cloudfront.net":
+		return raw
+	case "www.gravatar.com":
+		// Without this, accounts with no avatar return a grey silhouette instead of failing over to our icon.
+		query := parsed.Query()
+		query.Set("d", "404")
+		parsed.RawQuery = query.Encode()
+		return parsed.String()
+	}
+	return ""
 }
 
 func (h *Handler) searchDockerHub(w http.ResponseWriter, r *http.Request) {
@@ -39,20 +59,28 @@ func (h *Handler) searchDockerHub(w http.ResponseWriter, r *http.Request) {
 	}
 	var response struct {
 		Results []struct {
-			RepoName         string `json:"repo_name"`
+			Type             string `json:"type"`
+			Slug             string `json:"slug"`
 			ShortDescription string `json:"short_description"`
-			IsOfficial       bool   `json:"is_official"`
+			Badge            string `json:"badge"`
 			StarCount        int    `json:"star_count"`
+			LogoURL          struct {
+				Small string `json:"small"`
+			} `json:"logo_url"`
 		} `json:"results"`
 	}
-	target := dockerHubBaseURL + "/v2/search/repositories/?page_size=10&query=" + url.QueryEscape(query)
+	target := dockerHubBaseURL + "/api/search/v4?size=15&type=image&query=" + url.QueryEscape(query)
 	if err := fetchJSON(r.Context(), target, "", &response); err != nil {
 		writeError(w, http.StatusBadGateway, "could not search Docker Hub")
 		return
 	}
 	images := make([]dockerHubImage, 0, len(response.Results))
 	for _, result := range response.Results {
-		images = append(images, dockerHubImage{Repository: result.RepoName, Description: result.ShortDescription, Official: result.IsOfficial, Stars: result.StarCount})
+		// Other types, such as hardened images, ignore the type filter and cannot be pulled from docker.io.
+		if result.Type != "image" {
+			continue
+		}
+		images = append(images, dockerHubImage{Repository: result.Slug, Description: result.ShortDescription, Official: result.Badge == "official", Stars: result.StarCount, LogoURL: dockerLogoURL(result.LogoURL.Small)})
 	}
 	writeJSON(w, http.StatusOK, map[string][]dockerHubImage{"images": images})
 }

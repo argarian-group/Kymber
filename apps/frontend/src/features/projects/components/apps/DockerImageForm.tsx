@@ -9,11 +9,11 @@ import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
 
-type HubImage = { repository: string; description: string; official: boolean; stars: number };
+type HubImage = { repository: string; description: string; official: boolean; stars: number; logo_url?: string };
 type ImageDetails = { tags: string[]; default_version: string; port: number; data_path: string };
 type Variable = { id: number; name: string; value: string };
 
-function ImageSearch({ onPick }: { onPick: (repository: string) => void }) {
+function ImageSearch({ onPick }: { onPick: (image: HubImage) => void }) {
   const [text, setText] = useState("");
   const [query, setQuery] = useState("");
   const [images, setImages] = useState<HubImage[] | null>(null);
@@ -49,7 +49,8 @@ function ImageSearch({ onPick }: { onPick: (repository: string) => void }) {
         <ul className="grid gap-2">
           {images.map((image) => (
             <li className="min-w-0" key={image.repository}>
-              <button className="row-link flex w-full items-center gap-3 rounded-panel bg-raised p-3 text-left" type="button" onClick={() => onPick(image.repository)}>
+              <button className="row-link flex w-full items-center gap-3 rounded-panel bg-raised p-3 text-left" type="button" onClick={() => onPick(image)}>
+                <EngineMark engine="docker" logo={image.logo_url} />
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2 font-medium">
                     <span className="min-w-0 break-all">{image.repository}</span>
@@ -71,7 +72,8 @@ function ImageSearch({ onPick }: { onPick: (repository: string) => void }) {
   );
 }
 
-function ImageSettings({ repository, path, onChange }: { repository: string; path: string; onChange: () => void }) {
+function ImageSettings({ image, path, onChange }: { image: HubImage; path: string; onChange: () => void }) {
+  const { repository, logo_url } = image;
   const navigate = useNavigate();
   const [details, setDetails] = useState<ImageDetails | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -102,7 +104,7 @@ function ImageSettings({ repository, path, onChange }: { repository: string; pat
     event.preventDefault();
     await run(async () => {
       const environment = Object.fromEntries(variables.filter(({ name }) => name).map(({ name, value }) => [name, value]));
-      const service = await api<Service>(path, { method: "POST", body: { engine: "docker", repository, name, image_version: version, port: Number(port), data_path: dataPath, environment } });
+      const service = await api<Service>(path, { method: "POST", body: { engine: "docker", repository, name, image_version: version, port: Number(port), data_path: dataPath, logo_url, environment } });
       navigate(`../apps/${service.id}`);
     });
   }
@@ -110,7 +112,7 @@ function ImageSettings({ repository, path, onChange }: { repository: string; pat
   return (
     <form className="mx-auto grid w-full max-w-xl gap-5" onSubmit={submit} aria-label={`New app from ${repository}`}>
       <div className="flex items-center gap-3 rounded-panel bg-raised p-4">
-        <EngineMark engine="docker" />
+        <EngineMark engine="docker" logo={logo_url} />
         <span className="min-w-0 flex-1">
           <span className="block break-all font-display text-base font-semibold">{repository}</span>
           <span className="block truncate text-meta text-ink-soft">Docker Hub image</span>
@@ -162,6 +164,6 @@ function ImageSettings({ repository, path, onChange }: { repository: string; pat
 }
 
 export function DockerImageForm({ path }: { path: string }) {
-  const [repository, setRepository] = useState<string | null>(null);
-  return repository ? <ImageSettings repository={repository} path={path} onChange={() => setRepository(null)} key={repository} /> : <ImageSearch onPick={setRepository} />;
+  const [image, setImage] = useState<HubImage | null>(null);
+  return image ? <ImageSettings image={image} path={path} onChange={() => setImage(null)} key={image.repository} /> : <ImageSearch onPick={setImage} />;
 }

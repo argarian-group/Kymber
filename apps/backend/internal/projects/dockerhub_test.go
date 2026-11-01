@@ -58,3 +58,49 @@ func TestDockerHubEndpointsRejectBadInput(t *testing.T) {
 		}
 	}
 }
+
+func TestDockerLogoURL(t *testing.T) {
+	cases := map[string]string{
+		"https://djeqr6to3dedg.cloudfront.net/repo-logos/library/redis/live/logo.png": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/redis/live/logo.png",
+		"https://www.gravatar.com/avatar/abc?s=80&r=g&d=mm":                           "https://www.gravatar.com/avatar/abc?d=404&r=g&s=80",
+		"http://djeqr6to3dedg.cloudfront.net/logo.png":                                "",
+		"https://evil.example/logo.png":                                               "",
+		"javascript:alert(1)":                                                         "",
+		"":                                                                            "",
+	}
+	for input, want := range cases {
+		if got := dockerLogoURL(input); got != want {
+			t.Errorf("dockerLogoURL(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestSearchDockerHubKeepsOnlyPullableImages(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/search/v4" || r.URL.Query().Get("query") != "post gres" {
+			t.Errorf("request = %s", r.URL)
+		}
+		w.Write([]byte(`{"results":[
+			{"type":"image","slug":"postgres","short_description":"DB","badge":"official","star_count":5,"logo_url":{"small":"https://djeqr6to3dedg.cloudfront.net/l.png"}},
+			{"type":"dhi","slug":"dhi/postgres","badge":"hardened"},
+			{"type":"image","slug":"acme/postgres","badge":"open_source","logo_url":{"small":"https://evil.example/l.png"}}
+		]}`))
+	}))
+	defer server.Close()
+	dockerHubBaseURL = server.URL
+	recorder := httptest.NewRecorder()
+	(&Handler{}).searchDockerHub(recorder, httptest.NewRequest(http.MethodGet, "/search?q=post+gres", nil))
+	var response struct {
+		Images []dockerHubImage `json:"images"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	want := []dockerHubImage{
+		{Repository: "postgres", Description: "DB", Official: true, Stars: 5, LogoURL: "https://djeqr6to3dedg.cloudfront.net/l.png"},
+		{Repository: "acme/postgres"},
+	}
+	if len(response.Images) != 2 || response.Images[0] != want[0] || response.Images[1] != want[1] {
+		t.Errorf("images = %+v", response.Images)
+	}
+}

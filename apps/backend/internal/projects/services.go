@@ -34,6 +34,7 @@ type databaseService struct {
 	InternalHost  string           `json:"internal_host,omitempty"`
 	Port          int              `json:"port,omitempty"`
 	DataPath      string           `json:"data_path,omitempty"`
+	LogoURL       string           `json:"logo_url,omitempty"`
 	ConnectionURL string           `json:"connection_url,omitempty"`
 	Environment   templates.Config `json:"environment,omitempty"`
 }
@@ -50,7 +51,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, d.data_path, COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, '') FROM database_services d LEFT JOIN servers v ON v.id = d.server_id WHERE d.workspace_id = ? AND d.project_id = ? ORDER BY d.created_at`, workspaceID, projectID)
+	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, d.data_path, d.logo_url, COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, '') FROM database_services d LEFT JOIN servers v ON v.id = d.server_id WHERE d.workspace_id = ? AND d.project_id = ? ORDER BY d.created_at`, workspaceID, projectID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list services")
 		return
@@ -59,7 +60,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	services := make([]databaseService, 0)
 	for rows.Next() {
 		var service databaseService
-		if err := rows.Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.DataPath, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError); err != nil {
+		if err := rows.Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.DataPath, &service.LogoURL, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read services")
 			return
 		}
@@ -98,6 +99,7 @@ func (h *Handler) createService(w http.ResponseWriter, r *http.Request) {
 		Repository   string           `json:"repository"`
 		Port         int              `json:"port"`
 		DataPath     string           `json:"data_path"`
+		LogoURL      string           `json:"logo_url"`
 	}
 	if !decodeJSON(w, r, &input) {
 		return
@@ -118,7 +120,7 @@ func (h *Handler) createService(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "supported engine and valid name are required")
 		return
 	}
-	customImage := ""
+	customImage, logoURL := "", dockerLogoURL(input.LogoURL)
 	if template.Custom {
 		repository, err := templates.ParseRepository(strings.TrimSpace(input.Repository))
 		if err != nil || input.Port < 0 || input.Port > 65535 || !templates.ValidDataPath(input.DataPath) {
@@ -152,12 +154,12 @@ func (h *Handler) createService(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not generate application id")
 		return
 	}
-	_, err = h.db.ExecContext(r.Context(), `INSERT INTO database_services (id, workspace_id, project_id, engine, name, image_version, image, port, data_path, database_name, database_user, encrypted_config, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, workspaceID, projectID, input.Engine, input.Name, input.ImageVersion, customImage, input.Port, input.DataPath, databaseName, databaseUser, config, user.ID)
+	_, err = h.db.ExecContext(r.Context(), `INSERT INTO database_services (id, workspace_id, project_id, engine, name, image_version, image, port, data_path, logo_url, database_name, database_user, encrypted_config, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, workspaceID, projectID, input.Engine, input.Name, input.ImageVersion, customImage, input.Port, input.DataPath, logoURL, databaseName, databaseUser, config, user.ID)
 	if err != nil {
 		writeError(w, http.StatusConflict, "could not create service; its name may already be used")
 		return
 	}
-	service := databaseService{ID: id, WorkspaceID: workspaceID, ProjectID: projectID, Engine: input.Engine, Image: template.Image, ImageVersion: input.ImageVersion, Name: input.Name, DatabaseName: databaseName, DatabaseUser: databaseUser, Status: "draft", InternalHost: template.InternalHost(id), Port: template.Port, DataPath: template.DataPath, ConnectionURL: template.ConnectionURL(id, input.Environment), Environment: input.Environment}
+	service := databaseService{ID: id, WorkspaceID: workspaceID, ProjectID: projectID, Engine: input.Engine, Image: template.Image, ImageVersion: input.ImageVersion, Name: input.Name, DatabaseName: databaseName, DatabaseUser: databaseUser, Status: "draft", InternalHost: template.InternalHost(id), Port: template.Port, DataPath: template.DataPath, LogoURL: logoURL, ConnectionURL: template.ConnectionURL(id, input.Environment), Environment: input.Environment}
 	writeJSON(w, http.StatusCreated, service)
 }
 
@@ -357,7 +359,7 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) readService(r *http.Request, workspaceID, projectID string, serviceID string, includeSecret bool) (databaseService, error) {
 	var service databaseService
 	var encrypted []byte
-	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, d.data_path, COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.encrypted_config FROM database_services d LEFT JOIN servers v ON v.id = d.server_id WHERE d.id = ? AND d.workspace_id = ? AND d.project_id = ?`, serviceID, workspaceID, projectID).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.DataPath, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &encrypted)
+	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, d.data_path, d.logo_url, COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.encrypted_config FROM database_services d LEFT JOIN servers v ON v.id = d.server_id WHERE d.id = ? AND d.workspace_id = ? AND d.project_id = ?`, serviceID, workspaceID, projectID).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.DataPath, &service.LogoURL, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &encrypted)
 	if err != nil {
 		return service, err
 	}
