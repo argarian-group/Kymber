@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { useCurrentUser } from "@/features/auth/AuthContext";
 import { Field, FormError } from "@/features/auth/AuthScreen";
 import { errorMessage } from "@/lib/api";
 import { useProjects, type Project } from "./ProjectsContext";
@@ -20,6 +22,7 @@ export function slugify(name: string) {
 
 export function ProjectsPage() {
   const { state, workspaces, canWrite, retry } = useProjects();
+  const user = useCurrentUser();
   const [creatingIn, setCreatingIn] = useState<string | null>(null);
 
   if (state.status === "loading") return <PageSkeleton />;
@@ -43,7 +46,7 @@ export function ProjectsPage() {
     return (
       <>
         <PageHeader title="Projects" description="Every project in one place." />
-        <EmptyState title="No workspace yet" description="Ask an administrator to add you to a workspace." />
+        <EmptyState title="No workspace yet" description={user.is_root ? "Create a workspace to start adding projects." : "Ask an administrator to add you to a workspace."} action={user.is_root && <Link className="btn" to="/settings/workspace">Create workspace</Link>} />
       </>
     );
   }

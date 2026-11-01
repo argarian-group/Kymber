@@ -12,8 +12,12 @@ type ProjectsContextValue = {
   workspaces: Workspace[];
   selectedWorkspaceId: string | null;
   canWrite: boolean;
+  canManageMembers: boolean;
   retry: () => void;
   selectWorkspace: (id: string) => void;
+  createWorkspace: (name: string) => Promise<void>;
+  renameWorkspace: (name: string) => Promise<void>;
+  deleteWorkspace: () => Promise<void>;
   createProject: (input: { name: string; slug: string }) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
 };
@@ -95,6 +99,31 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const workspaceId = workspace?.id;
   const canWrite = workspace !== null && (user.is_root || workspace.role === "owner" || workspace.role === "admin");
 
+  const canManageMembers = workspace !== null && (user.is_root || workspace.role === "owner");
+
+  const createWorkspace = useCallback(
+    async (name: string) => {
+      const created = await api<{ workspace: Workspace }>("/workspaces", { method: "POST", body: { name } });
+      selectWorkspace(created.workspace.id);
+    },
+    [selectWorkspace],
+  );
+
+  const renameWorkspace = useCallback(
+    async (name: string) => {
+      const updated = await api<{ workspace: Workspace }>(`/workspaces/${workspaceId}`, { method: "PUT", body: { name } });
+      setWorkspaces((previous) => previous.map((item) => (item.id === updated.workspace.id ? updated.workspace : item)));
+      setState((previous) => (previous.status === "ready" && previous.workspace?.id === updated.workspace.id ? { ...previous, workspace: updated.workspace } : previous));
+    },
+    [workspaceId],
+  );
+
+  const deleteWorkspace = useCallback(async () => {
+    await api(`/workspaces/${workspaceId}`, { method: "DELETE" });
+    setRequestedWorkspaceId(null);
+    retry();
+  }, [retry, workspaceId]);
+
   const createProject = useCallback(
     async (input: { name: string; slug: string }) => {
       const { project } = await api<{ project: Project }>(`/workspaces/${workspaceId}/projects`, { method: "POST", body: input });
@@ -112,8 +141,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ state, workspaces, selectedWorkspaceId, canWrite, retry, selectWorkspace, createProject, deleteProject }),
-    [state, workspaces, selectedWorkspaceId, canWrite, retry, selectWorkspace, createProject, deleteProject],
+    () => ({ state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, deleteProject }),
+    [state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, deleteProject],
   );
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;
 }

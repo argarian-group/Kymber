@@ -1,50 +1,18 @@
-import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, NavLink } from "react-router";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useAuth, useCurrentUser, type User } from "@/features/auth/AuthContext";
 import { Field, FormError } from "@/features/auth/AuthScreen";
+import { FormFooter, SettingsSection } from "./SettingsSection";
+import { WorkspaceSettings } from "./WorkspaceSettings";
 import { api, errorMessage } from "@/lib/api";
 
-const tabs = [
-  { label: "Account", to: "/settings" },
-  { label: "System", to: "/settings/system" },
-];
-
-function SettingsSection({ title, description, children }: { title: string; description: string; children: ReactNode }) {
-  const titleId = useId();
-  return (
-    <section className="grid gap-x-10 gap-y-3 px-4 py-6 md:px-6 lg:grid-cols-[220px_minmax(0,1fr)]" aria-labelledby={titleId}>
-      <div>
-        <h2 id={titleId} className="font-display text-base font-semibold">
-          {title}
-        </h2>
-        <p className="mt-1 text-meta text-ink-soft">{description}</p>
-      </div>
-      <div className="max-w-2xl min-w-0 rounded-panel bg-raised">{children}</div>
-    </section>
-  );
-}
-
-function FormFooter({ error, saved, children }: { error: string | null; saved: string | null; children: ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t border-line px-4 py-3">
-      <div className="mr-auto min-w-0">
-        <FormError message={error} />
-        {!error && <Saved message={saved} />}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function Saved({ message }: { message: string | null }) {
-  return (
-    <p className="min-h-5 text-meta text-ink-soft" role="status">
-      {message}
-    </p>
-  );
-}
+const descriptions = {
+  account: "Your profile and password.",
+  workspace: "Name and lifecycle of your workspaces.",
+  system: "Options for everyone on this server.",
+};
 
 function ProfileForm() {
   const user = useCurrentUser();
@@ -228,37 +196,40 @@ function SystemSettings() {
   );
 }
 
-export function SettingsPage({ section }: { section: "account" | "system" }) {
+export function SettingsPage({ section }: { section: "account" | "workspace" | "system" }) {
   const user = useCurrentUser();
   if (section === "system" && !user.is_root) return <Navigate to="/settings" replace />;
+  const tabs = [
+    { label: "Account", to: "/settings" },
+    { label: "Workspace", to: "/settings/workspace" },
+    ...(user.is_root ? [{ label: "System", to: "/settings/system" }] : []),
+  ];
 
   return (
     <>
-      <PageHeader title="Settings" description={section === "account" ? "Your profile and password." : "Options for everyone on this server."} />
-      {user.is_root && (
-        <nav className="mt-4 flex gap-5 border-b border-line px-4 md:px-6" aria-label="Settings sections">
-          {tabs.map(({ label, to }) => (
-            <NavLink
-              className={({ isActive }) =>
-                `focus-ring -mb-px flex min-h-10 items-center border-b-2 text-meta font-medium transition-colors duration-100 ${isActive ? "border-seafoam text-ink" : "border-transparent text-ink-soft hover:text-ink"}`
-              }
-              to={to}
-              end
-              key={to}
-            >
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-      )}
-      {section === "account" ? (
+      <PageHeader title="Settings" description={descriptions[section]} />
+      <nav className="mt-4 flex gap-5 border-b border-line px-4 md:px-6" aria-label="Settings sections">
+        {tabs.map(({ label, to }) => (
+          <NavLink
+            className={({ isActive }) =>
+              `focus-ring -mb-px flex min-h-10 items-center border-b-2 text-meta font-medium transition-colors duration-100 ${isActive ? "border-seafoam text-ink" : "border-transparent text-ink-soft hover:text-ink"}`
+            }
+            to={to}
+            end
+            key={to}
+          >
+            {label}
+          </NavLink>
+        ))}
+      </nav>
+      {section === "account" && (
         <>
           <ProfileForm />
           <PasswordForm />
         </>
-      ) : (
-        <SystemSettings />
       )}
+      {section === "workspace" && <WorkspaceSettings />}
+      {section === "system" && <SystemSettings />}
     </>
   );
 }
