@@ -57,7 +57,7 @@ cp .env.example .env
 | `SERVER_PORT` | API port, `8080` when not set |
 | `SECURE_ONBOARD` | When `true`, the API listens only on localhost until the root account exists |
 | `SERVICE_ENCRYPTION_KEY` | Encrypts app settings. Required to create apps. Generate it with `openssl rand -hex 32` |
-| `KYMBER_API_URL` | API address used by a server |
+| `KYMBER_API_URL` | API address used by a server, `http://127.0.0.1:8080` when not set |
 | `KYMBER_SERVER_TOKEN` | Token shown when you register a server |
 | `DB_HOST`, `DB_PORT`, `DB_NAME` | MariaDB address and database |
 | `DB_USER`, `DB_PASSWORD` | MariaDB application user |

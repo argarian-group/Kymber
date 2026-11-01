@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -50,5 +52,21 @@ func TestResultFitsAPILimits(t *testing.T) {
 	short := result{Message: "ok", ContainerID: "abc"}
 	if fitResult(short) != short {
 		t.Errorf("short result changed: %+v", fitResult(short))
+	}
+}
+
+func TestAgentToken(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "server-token")
+	if got := agentToken("fixed", path); got != "fixed" {
+		t.Errorf("explicit token = %q", got)
+	}
+	if got := agentToken("", path); got != "" {
+		t.Errorf("missing file = %q", got)
+	}
+	if err := os.WriteFile(path, []byte("from-file\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := agentToken("", path); got != "from-file" {
+		t.Errorf("file token = %q", got)
 	}
 }

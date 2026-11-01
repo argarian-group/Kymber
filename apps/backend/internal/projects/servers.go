@@ -3,7 +3,9 @@ package projects
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"os"
 	"strings"
@@ -147,18 +149,10 @@ func (h *Handler) createServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not register server")
 		return
 	}
-	if path := os.Getenv("KYMBER_SERVER_TOKEN_FILE"); path != "" {
-		tmp := path + ".tmp"
-		fileErr := os.WriteFile(tmp, []byte(token), 0600)
-		if fileErr == nil {
-			fileErr = os.Rename(tmp, path)
-		}
-		if fileErr != nil {
-			_ = os.Remove(tmp)
-			_, _ = h.db.ExecContext(r.Context(), "DELETE FROM servers WHERE id = ?", id)
-			writeError(w, http.StatusInternalServerError, "could not provision local server token")
-			return
-		}
+	if err := h.claimLocalToken(r.Context(), token); err != nil {
+		_, _ = h.db.ExecContext(r.Context(), "DELETE FROM servers WHERE id = ?", id)
+		writeError(w, http.StatusInternalServerError, "could not provision local server token")
+		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"server": serverInfo{ID: id, Name: name, Status: "pending", CreatedAt: time.Now().UTC()}, "token": token})
 }
@@ -213,13 +207,34 @@ func (h *Handler) rotateServerToken(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not generate server token")
 		return
 	}
-	result, err := h.db.ExecContext(r.Context(), "UPDATE servers SET token_hash = ?, last_seen = NULL, status = 'pending' WHERE id = ?", digest[:], id)
+	tx, err := h.db.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not replace server token")
 		return
 	}
-	if changed, err := result.RowsAffected(); err != nil || changed == 0 {
+	defer tx.Rollback()
+	var current []byte
+	err = tx.QueryRowContext(r.Context(), "SELECT token_hash FROM servers WHERE id = ? FOR UPDATE", id).Scan(&current)
+	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "server not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not replace server token")
+		return
+	}
+	if _, err := tx.ExecContext(r.Context(), "UPDATE servers SET token_hash = ?, last_seen = NULL, status = 'pending' WHERE id = ?", digest[:], id); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not replace server token")
+		return
+	}
+	if isLocalServer(current) {
+		if err := writeTokenFile(os.Getenv("KYMBER_SERVER_TOKEN_FILE"), token); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not provision local server token")
+			return
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not replace server token")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"token": token})
@@ -254,18 +269,26 @@ func (h *Handler) deleteServer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	result, err := tx.ExecContext(r.Context(), "DELETE FROM servers WHERE id = ?", id)
+	var current []byte
+	err = tx.QueryRowContext(r.Context(), "SELECT token_hash FROM servers WHERE id = ?", id).Scan(&current)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "server not found")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not delete server")
 		return
 	}
-	if deleted, err := result.RowsAffected(); err != nil || deleted == 0 {
-		writeError(w, http.StatusNotFound, "server not found")
+	if _, err := tx.ExecContext(r.Context(), "DELETE FROM servers WHERE id = ?", id); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not delete server")
 		return
 	}
 	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not delete server")
 		return
+	}
+	if isLocalServer(current) {
+		_ = os.Remove(os.Getenv("KYMBER_SERVER_TOKEN_FILE"))
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

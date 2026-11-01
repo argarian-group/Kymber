@@ -55,19 +55,9 @@ func run() error {
 	if baseURL == "" {
 		baseURL = "http://127.0.0.1:8080"
 	}
-	token := os.Getenv("KYMBER_SERVER_TOKEN")
-	if token == "" && os.Getenv("KYMBER_SERVER_TOKEN_FILE") != "" {
-		for token == "" {
-			data, err := os.ReadFile(os.Getenv("KYMBER_SERVER_TOKEN_FILE"))
-			if err == nil {
-				token = strings.TrimSpace(string(data))
-			}
-			if token == "" {
-				time.Sleep(2 * time.Second)
-			}
-		}
-	}
-	if token == "" && os.Getenv("KYMBER_SERVER_TOKEN_FILE") == "" {
+	fixedToken := os.Getenv("KYMBER_SERVER_TOKEN")
+	tokenFile := os.Getenv("KYMBER_SERVER_TOKEN_FILE")
+	if fixedToken == "" && tokenFile == "" {
 		return errors.New("KYMBER_SERVER_TOKEN or KYMBER_SERVER_TOKEN_FILE is required")
 	}
 	if err := validateAPIURL(baseURL); err != nil {
@@ -76,6 +66,11 @@ func run() error {
 	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	for {
 		ctx := context.Background()
+		token := agentToken(fixedToken, tokenFile)
+		if token == "" {
+			time.Sleep(2 * time.Second)
+			continue
+		}
 		if err := request(ctx, client, baseURL, token, "/api/agent/heartbeat", nil, nil); err != nil {
 			time.Sleep(5 * time.Second)
 			continue
@@ -93,7 +88,7 @@ func run() error {
 		outcome := fitResult(execute(current))
 		body, _ := json.Marshal(outcome)
 		for {
-			err := request(ctx, client, baseURL, token, fmt.Sprintf("/api/agent/tasks/%s/result", current.ID), body, nil)
+			err := request(ctx, client, baseURL, agentToken(fixedToken, tokenFile), fmt.Sprintf("/api/agent/tasks/%s/result", current.ID), body, nil)
 			if err == nil {
 				break
 			}
@@ -101,6 +96,17 @@ func run() error {
 			time.Sleep(5 * time.Second)
 		}
 	}
+}
+
+func agentToken(fixed, path string) string {
+	if fixed != "" {
+		return fixed
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 func containerIDFrom(output string) string {
