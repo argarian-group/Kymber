@@ -1,37 +1,43 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, HardDrive, KeyRound, Plug, Settings2, TriangleAlert } from "lucide-react";
 import { useState } from "react";
-import { Link, useParams } from "react-router";
-import { CopyField } from "@/components/ui/CopyField";
+import { Link, NavLink, Outlet, useParams } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadError } from "@/components/ui/LoadError";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { EngineMark } from "@/features/projects/components/apps/EngineMark";
 import { ServiceActions } from "@/features/projects/components/apps/ServiceActions";
-import { ServiceDanger } from "@/features/projects/components/apps/ServiceDanger";
 import { ServiceLifecycle } from "@/features/projects/components/apps/ServiceLifecycle";
 import { ServiceStatus } from "@/features/projects/components/apps/ServiceStatus";
-import { ProjectDetail } from "@/features/projects/components/overview/ProjectDetail";
-import { SectionHeading } from "@/features/projects/components/overview/SectionHeading";
 import { useProjects } from "@/features/projects/ProjectsContext";
-import { isServiceBusy, type Service } from "@/features/projects/services";
+import type { DatabaseTemplate, Service } from "@/features/projects/services";
+import type { AppOutlet } from "@/features/projects/useAppOutlet";
 import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
 import { useServices } from "@/features/projects/useServices";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
 
-export function ProjectAppPage() {
+export function AppLayout() {
   const { appId } = useParams();
   const { canWrite } = useProjects();
-  const { workspace } = useProjectOutlet();
+  const { project, workspace } = useProjectOutlet();
   const { services, error, reload, path } = useServices();
   const [detail, setDetail] = useState<Service | null>(null);
+  const [templates, setTemplates] = useState<DatabaseTemplate[]>([]);
+  const [revision, setRevision] = useState(0);
   const service = services?.find(({ id }) => id === appId);
 
   useLoadEffect(
     () => (canWrite && appId ? api<Service>(`${path}/${appId}`) : Promise.resolve(null)),
     setDetail,
     () => setDetail(null),
-    [canWrite, appId, path],
+    [canWrite, appId, path, revision],
+  );
+
+  useLoadEffect(
+    () => api<{ templates: DatabaseTemplate[] }>("/database-templates"),
+    (response) => setTemplates(response.templates),
+    () => setTemplates([]),
+    [],
   );
 
   if (error && !services) return <LoadError title="Could not load this app" message={error} onRetry={reload} />;
@@ -49,8 +55,33 @@ export function ProjectAppPage() {
     );
   }
 
+  const onChanged = () => {
+    reload();
+    setRevision((value) => value + 1);
+  };
+  const sections = [
+    { label: "General", to: "", end: true, icon: Settings2 },
+    ...(canWrite
+      ? [
+          { label: "Environment", to: "environment", end: false, icon: KeyRound },
+          { label: "Connection", to: "connection", end: false, icon: Plug },
+        ]
+      : []),
+    { label: "Storage", to: "storage", end: false, icon: HardDrive },
+    ...(canWrite ? [{ label: "Danger zone", to: "danger", end: false, icon: TriangleAlert }] : []),
+  ];
+  const context: AppOutlet = {
+    service,
+    detail,
+    template: templates.find(({ engine }) => engine === service.engine) ?? null,
+    path,
+    canWrite,
+    appsPath: `/projects/${project.id}/apps`,
+    onChanged,
+  };
+
   return (
-    <div className="grid min-w-0 gap-6 px-4 py-6 md:px-6">
+    <div className="grid min-w-0 gap-5 px-4 py-6 md:px-6">
       <Link className="focus-ring inline-flex w-fit items-center gap-1 rounded-sm text-meta text-ink-soft hover:text-ink" to="../apps">
         <ArrowLeft aria-hidden="true" size={14} />
         All apps
@@ -68,7 +99,7 @@ export function ProjectAppPage() {
               <ServiceStatus status={service.status} />
             </div>
           </div>
-          {canWrite && <ServiceActions service={service} path={path} workspaceId={workspace.id} onChanged={reload} />}
+          {canWrite && <ServiceActions service={service} path={path} workspaceId={workspace.id} onChanged={onChanged} />}
         </div>
         <ServiceLifecycle status={service.status} />
       </section>
@@ -79,41 +110,25 @@ export function ProjectAppPage() {
         </p>
       )}
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="grid min-w-0 gap-6">
-          {detail?.connection_url && (
-            <section aria-labelledby="app-connection">
-              <SectionHeading id="app-connection" title="Connection" />
-              <div className="grid gap-4 rounded-panel bg-raised p-4">
-                <CopyField label="Connection URL" value={detail.connection_url} secret />
-                {Object.entries(detail.environment ?? {}).map(([name, value]) => (
-                  <CopyField label={name} value={value} secret={/password/i.test(name)} key={name} />
-                ))}
-              </div>
-            </section>
-          )}
-          {canWrite && !isServiceBusy(service.status) && service.status !== "running" && (
-            <section aria-labelledby="app-danger">
-              <SectionHeading id="app-danger" title="Remove" />
-              <ServiceDanger service={service} path={path} onChanged={reload} />
-            </section>
-          )}
+      <div className="grid items-start gap-5 lg:grid-cols-[200px_minmax(0,1fr)]">
+        <nav className="flex gap-1 overflow-x-auto lg:sticky lg:top-4 lg:grid" aria-label="App sections">
+          {sections.map(({ label, to, end, icon: Icon }) => (
+            <NavLink
+              className={({ isActive }) =>
+                `focus-ring flex min-h-9 flex-none items-center gap-2 rounded-control px-2.5 text-meta font-medium whitespace-nowrap transition-colors duration-100 ${isActive ? "bg-white/8 text-ink" : "text-ink-soft hover:bg-white/5 hover:text-ink"}`
+              }
+              to={to}
+              end={end}
+              key={label}
+            >
+              <Icon aria-hidden="true" size={15} />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="min-w-0">
+          <Outlet context={context} />
         </div>
-        <aside className="rounded-panel bg-sunken p-4" aria-labelledby="app-details">
-          <SectionHeading id="app-details" title="Details" />
-          <dl className="grid gap-4">
-            <ProjectDetail label="Engine">{service.engine}</ProjectDetail>
-            <ProjectDetail label="Version">{service.image_version}</ProjectDetail>
-            {service.server_name && <ProjectDetail label="Server">{service.server_name}</ProjectDetail>}
-            {service.database_name && <ProjectDetail label="Database">{service.database_name}</ProjectDetail>}
-            {service.database_user && <ProjectDetail label="Username">{service.database_user}</ProjectDetail>}
-            {detail?.internal_host && (
-              <ProjectDetail label="Internal address">
-                {detail.internal_host}:{detail.port}
-              </ProjectDetail>
-            )}
-          </dl>
-        </aside>
       </div>
     </div>
   );

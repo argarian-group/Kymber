@@ -5,7 +5,7 @@ import type { Service } from "@/features/projects/services";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 
-export function ServiceDanger({ service, path, onChanged }: { service: Service; path: string; onChanged: () => void }) {
+export function ServiceDanger({ service, path, appsPath, onChanged }: { service: Service; path: string; appsPath: string; onChanged: () => void }) {
   const navigate = useNavigate();
   const [confirming, setConfirming] = useState<"remove" | "delete" | null>(null);
   const { pending, error, run } = useAction();
@@ -19,13 +19,13 @@ export function ServiceDanger({ service, path, onChanged }: { service: Service; 
         onChanged();
       } else {
         await api(`${path}/${service.id}`, { method: "DELETE" });
-        navigate("../apps", { replace: true });
+        navigate(appsPath, { replace: true });
       }
     });
   }
 
   return (
-    <div className="grid gap-3 rounded-panel border border-line-strong p-4">
+    <div className="grid gap-3 p-4">
       {confirming ? (
         <>
           <p>{confirming === "delete" ? `Delete ${service.name} and all its data? This cannot be undone.` : `Remove the container of ${service.name}? Its data stays, and you can deploy again.`}</p>

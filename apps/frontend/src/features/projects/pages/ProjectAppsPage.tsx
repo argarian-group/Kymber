@@ -1,54 +1,49 @@
+import { Plus, Search } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadError } from "@/components/ui/LoadError";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { CreateServiceForm } from "@/features/projects/components/apps/CreateServiceForm";
 import { ServiceCard } from "@/features/projects/components/apps/ServiceCard";
 import { useProjects } from "@/features/projects/ProjectsContext";
-import type { DatabaseTemplate } from "@/features/projects/services";
 import { useServices } from "@/features/projects/useServices";
-import { api } from "@/lib/api";
-import { useLoadEffect } from "@/lib/useLoadEffect";
 
 export function ProjectAppsPage() {
   const { canWrite } = useProjects();
-  const { services, error, reload, path } = useServices();
-  const [templates, setTemplates] = useState<DatabaseTemplate[] | null>(null);
-  const [templatesError, setTemplatesError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-
-  useLoadEffect(
-    () => api<{ templates: DatabaseTemplate[] }>("/database-templates"),
-    (response) => setTemplates(response.templates),
-    setTemplatesError,
-    [],
-  );
+  const { services, error, reload } = useServices();
+  const [query, setQuery] = useState("");
 
   if (error && !services) return <LoadError title="Could not load apps" message={error} onRetry={reload} />;
   if (!services) return <PageSkeleton />;
 
-  const empty = services.length === 0;
-  const showForm = canWrite && templates !== null && templates.length > 0 && (creating || empty);
+  const term = query.trim().toLowerCase();
+  const visible = services.filter(({ name, engine }) => name.toLowerCase().includes(term) || engine.includes(term));
 
   return (
-    <div className="grid min-w-0 gap-6 px-4 py-6 md:px-6">
-      {!empty && (
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="section-title">
-            {services.length} {services.length === 1 ? "app" : "apps"}
-          </h2>
-          {canWrite && !creating && (
-            <button className="btn btn-primary" type="button" disabled={!templates?.length} title={templatesError ?? undefined} onClick={() => setCreating(true)}>
-              New app
-            </button>
-          )}
-        </div>
-      )}
-      {showForm && <CreateServiceForm templates={templates} path={path} onClose={empty ? undefined : () => setCreating(false)} />}
-      {empty && !showForm && <EmptyState title="No apps yet" description={canWrite ? (templatesError ?? undefined) : "A workspace admin can create the first app."} />}
-      {!empty && (
+    <div className="grid min-w-0 gap-4 px-4 py-6 md:px-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="section-title">Apps</h2>
+        {services.length > 0 && (
+          <label className="relative min-w-40 flex-1 sm:max-w-xs">
+            <span className="sr-only">Search apps</span>
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-ink-faint" aria-hidden="true" size={15} />
+            <input className="field pl-8" type="search" placeholder="Search" value={query} onChange={(event) => setQuery(event.target.value)} />
+          </label>
+        )}
+        {canWrite && (
+          <Link className="btn btn-primary ml-auto" to="new">
+            <Plus aria-hidden="true" size={15} />
+            New app
+          </Link>
+        )}
+      </div>
+      {services.length === 0 ? (
+        <EmptyState title="No apps yet" description={canWrite ? "Create your first app from a template." : "A workspace admin can create the first app."} />
+      ) : visible.length === 0 ? (
+        <EmptyState title={`No apps match "${query.trim()}"`} />
+      ) : (
         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {services.map((service) => (
+          {visible.map((service) => (
             <ServiceCard service={service} to={service.id} key={service.id} />
           ))}
         </ul>

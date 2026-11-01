@@ -7,7 +7,13 @@ import { AuthScreen } from "@/features/auth/components/AuthScreen";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { OnboardingPage } from "@/features/auth/pages/OnboardingPage";
 import { ProjectsProvider } from "@/features/projects/ProjectsContext";
-import { ProjectAppPage } from "@/features/projects/pages/ProjectAppPage";
+import { AppConnectionPage } from "@/features/projects/pages/app/AppConnectionPage";
+import { AppDangerPage } from "@/features/projects/pages/app/AppDangerPage";
+import { AppEnvironmentPage } from "@/features/projects/pages/app/AppEnvironmentPage";
+import { AppGeneralPage } from "@/features/projects/pages/app/AppGeneralPage";
+import { AppLayout } from "@/features/projects/pages/app/AppLayout";
+import { AppStoragePage } from "@/features/projects/pages/app/AppStoragePage";
+import { ProjectNewAppPage } from "@/features/projects/pages/ProjectNewAppPage";
 import { ProjectAppsPage } from "@/features/projects/pages/ProjectAppsPage";
 import { ProjectLayout } from "@/features/projects/pages/ProjectLayout";
 import { ProjectOverviewPage } from "@/features/projects/pages/ProjectOverviewPage";
@@ -52,7 +58,14 @@ export function AuthGate() {
                   <Route path="projects/:projectId" element={<ProjectLayout />}>
                     <Route index element={<ProjectOverviewPage />} />
                     <Route path="apps" element={<ProjectAppsPage />} />
-                    <Route path="apps/:appId" element={<ProjectAppPage />} />
+                    <Route path="apps/new" element={<ProjectNewAppPage />} />
+                    <Route path="apps/:appId" element={<AppLayout />}>
+                      <Route index element={<AppGeneralPage />} />
+                      <Route path="environment" element={<AppEnvironmentPage />} />
+                      <Route path="connection" element={<AppConnectionPage />} />
+                      <Route path="storage" element={<AppStoragePage />} />
+                      <Route path="danger" element={<AppDangerPage />} />
+                    </Route>
                     <Route path="deploys" element={<Navigate to="../apps" replace />} />
                     <Route path="tasks" element={<ProjectTasksPage />} />
                     <Route path="settings" element={<ProjectSettingsPage />} />

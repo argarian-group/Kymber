@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { EngineMark } from "@/features/projects/components/apps/EngineMark";
@@ -12,7 +12,7 @@ const engines: Record<string, { label: string; description: string }> = {
   redis: { label: "Redis", description: "In-memory data store" },
 };
 
-export function CreateServiceForm({ templates, path, onClose }: { templates: DatabaseTemplate[]; path: string; onClose?: () => void }) {
+export function CreateServiceForm({ templates, path }: { templates: DatabaseTemplate[]; path: string }) {
   const navigate = useNavigate();
   const [engine, setEngine] = useState(templates[0].engine);
   const [name, setName] = useState("");
@@ -32,14 +32,14 @@ export function CreateServiceForm({ templates, path, onClose }: { templates: Dat
     await run(async () => {
       const filled = Object.fromEntries(Object.entries(environment).filter(([, value]) => value));
       const service = await api<Service>(path, { method: "POST", body: { engine, name, image_version: version, environment: filled } });
-      navigate(service.id);
+      navigate(`../apps/${service.id}`);
     });
   }
 
   return (
     <form className="grid gap-5" onSubmit={submit} aria-label="New app">
       <fieldset className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <legend className="section-title mb-3">Choose a template</legend>
+        <legend className="section-title mb-3">Databases</legend>
         {templates.map((item) => {
           const selected = engine === item.engine;
           return (
@@ -84,11 +84,9 @@ export function CreateServiceForm({ templates, path, onClose }: { templates: Dat
           <button className="btn btn-primary" type="submit" disabled={pending}>
             {pending ? "Creating…" : `Create ${engines[engine]?.label ?? engine} app`}
           </button>
-          {onClose && (
-            <button className="btn" type="button" onClick={onClose} disabled={pending}>
-              Cancel
-            </button>
-          )}
+          <Link className="btn" to="../apps">
+            Cancel
+          </Link>
         </div>
       </div>
     </form>
