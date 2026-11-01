@@ -52,13 +52,33 @@ func main() {
 
 func run() error {
 	baseURL := strings.TrimRight(os.Getenv("KYMBER_API_URL"), "/")
+	if baseURL == "" {
+		baseURL = "http://127.0.0.1:8080"
+	}
 	token := os.Getenv("KYMBER_SERVER_TOKEN")
-	if baseURL == "" || token == "" {
-		return errors.New("KYMBER_API_URL and KYMBER_SERVER_TOKEN are required")
+	if token == "" && os.Getenv("KYMBER_SERVER_TOKEN_FILE") != "" {
+		for token == "" {
+			data, err := os.ReadFile(os.Getenv("KYMBER_SERVER_TOKEN_FILE"))
+			if err == nil {
+				token = strings.TrimSpace(string(data))
+			}
+			if token == "" {
+				time.Sleep(2 * time.Second)
+			}
+		}
+	}
+	if token == "" && os.Getenv("KYMBER_SERVER_TOKEN_FILE") == "" {
+		return errors.New("KYMBER_SERVER_TOKEN or KYMBER_SERVER_TOKEN_FILE is required")
 	}
 	parsedURL, err := url.Parse(baseURL)
-	if err != nil || parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" || parsedURL.Hostname() != "localhost" && (net.ParseIP(parsedURL.Hostname()) == nil || !net.ParseIP(parsedURL.Hostname()).IsLoopback()) || parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return errors.New("API URL must use loopback HTTP or HTTPS")
+	if err != nil {
+		return errors.New("API URL must be a valid HTTP or HTTPS URL")
+	}
+	hostname := parsedURL.Hostname()
+	ip := net.ParseIP(hostname)
+	localHost := hostname == "localhost" || ip != nil && ip.IsLoopback()
+	if parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" || parsedURL.Scheme != "http" && parsedURL.Scheme != "https" || hostname != "backend" && !localHost {
+		return errors.New("API URL must use the local backend or loopback HTTP(S)")
 	}
 	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	for {

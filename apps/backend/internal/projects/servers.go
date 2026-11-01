@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -89,6 +90,19 @@ func (h *Handler) createServer(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.db.ExecContext(r.Context(), "INSERT INTO servers (id, name, token_hash, created_by) VALUES (?, ?, ?, ?)", id, input.Name, digest[:], user.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not register server")
 		return
+	}
+	if path := os.Getenv("KYMBER_SERVER_TOKEN_FILE"); path != "" {
+		tmp := path + ".tmp"
+		fileErr := os.WriteFile(tmp, []byte(token), 0600)
+		if fileErr == nil {
+			fileErr = os.Rename(tmp, path)
+		}
+		if fileErr != nil {
+			_ = os.Remove(tmp)
+			_, _ = h.db.ExecContext(r.Context(), "DELETE FROM servers WHERE id = ?", id)
+			writeError(w, http.StatusInternalServerError, "could not provision local server token")
+			return
+		}
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"server": serverInfo{ID: id, Name: input.Name, Status: "pending", CreatedAt: time.Now().UTC()}, "token": token})
 }
