@@ -47,7 +47,7 @@ export function SidebarProfile() {
         aria-haspopup="dialog"
       >
         <span
-          className="flex size-7 flex-none items-center justify-center rounded-full bg-raised text-xs font-semibold text-ink"
+          className="flex size-7 flex-none items-center justify-center rounded-full bg-seafoam text-xs font-semibold text-on-accent"
           aria-hidden="true"
         >
           {user.username[0].toUpperCase()}

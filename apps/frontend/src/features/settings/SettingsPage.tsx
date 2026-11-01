@@ -4,12 +4,14 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useAuth, useCurrentUser, type User } from "@/features/auth/AuthContext";
 import { Field, FormError } from "@/features/auth/AuthScreen";
+import { AppearanceSettings } from "./AppearanceSettings";
 import { FormFooter, SettingsSection } from "./SettingsSection";
 import { WorkspaceSettings } from "./WorkspaceSettings";
 import { api, errorMessage } from "@/lib/api";
 
 const descriptions = {
   account: "Your profile and password.",
+  appearance: "Make Kymber yours.",
   workspace: "Name and lifecycle of your workspaces.",
   system: "Options for everyone on this server.",
 };
@@ -196,11 +198,12 @@ function SystemSettings() {
   );
 }
 
-export function SettingsPage({ section }: { section: "account" | "workspace" | "system" }) {
+export function SettingsPage({ section }: { section: "account" | "appearance" | "workspace" | "system" }) {
   const user = useCurrentUser();
   if (section === "system" && !user.is_root) return <Navigate to="/settings" replace />;
   const tabs = [
     { label: "Account", to: "/settings" },
+    { label: "Appearance", to: "/settings/appearance" },
     { label: "Workspace", to: "/settings/workspace" },
     ...(user.is_root ? [{ label: "System", to: "/settings/system" }] : []),
   ];
@@ -208,11 +211,11 @@ export function SettingsPage({ section }: { section: "account" | "workspace" | "
   return (
     <>
       <PageHeader title="Settings" description={descriptions[section]} />
-      <nav className="mt-4 flex gap-5 border-b border-line px-4 md:px-6" aria-label="Settings sections">
+      <nav className="mt-4 flex gap-5 overflow-x-auto border-b border-line px-4 md:px-6" aria-label="Settings sections">
         {tabs.map(({ label, to }) => (
           <NavLink
             className={({ isActive }) =>
-              `focus-ring -mb-px flex min-h-10 items-center border-b-2 text-meta font-medium transition-colors duration-100 ${isActive ? "border-seafoam text-ink" : "border-transparent text-ink-soft hover:text-ink"}`
+              `focus-ring flex min-h-10 flex-none items-center border-b-2 text-meta font-medium transition-colors duration-100 ${isActive ? "border-seafoam text-ink" : "border-transparent text-ink-soft hover:text-ink"}`
             }
             to={to}
             end
@@ -228,6 +231,7 @@ export function SettingsPage({ section }: { section: "account" | "workspace" | "
           <PasswordForm />
         </>
       )}
+      {section === "appearance" && <AppearanceSettings />}
       {section === "workspace" && <WorkspaceSettings />}
       {section === "system" && <SystemSettings />}
     </>

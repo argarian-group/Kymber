@@ -47,6 +47,7 @@ function AuthGate() {
                   <Route path="team" element={<TeamPage />} />
                   <Route path="invite" element={<InviteAcceptPage />} />
                   <Route path="settings" element={<SettingsPage section="account" />} />
+                  <Route path="settings/appearance" element={<SettingsPage section="appearance" />} />
                   <Route path="settings/workspace" element={<SettingsPage section="workspace" />} />
                   <Route path="settings/system" element={<SettingsPage section="system" />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
