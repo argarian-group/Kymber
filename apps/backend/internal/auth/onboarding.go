@@ -1,6 +1,10 @@
 package auth
 
-import "net/http"
+import (
+	"net/http"
+
+	"kymber/backend/internal/logger"
+)
 
 func (h *Handler) onboardingStatus(w http.ResponseWriter, r *http.Request) {
 	var exists bool
@@ -63,6 +67,7 @@ func (h *Handler) onboard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not complete onboarding")
 		return
 	}
+	logger.Info("Root user created: %s <%s>", input.Username, input.Email)
 	setSessionCookie(w, token, expiresAt)
 	writeJSON(w, http.StatusCreated, map[string]any{"user": User{ID: userID, Username: input.Username, Email: input.Email, IsRoot: true}, "restart_required": h.secureOnboard})
 }
