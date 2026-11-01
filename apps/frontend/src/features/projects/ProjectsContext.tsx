@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { useCurrentUser } from "@/features/auth/AuthContext";
-import { api, errorMessage } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useLoadEffect } from "@/lib/useLoadEffect";
 
 export type Workspace = { id: string; name: string; role: string; created_at: string; created_by: { id: string; username: string; email: string } | null };
 export type Project = { id: string; workspace_id: string; name: string; slug: string; created_at: string };
@@ -32,7 +33,7 @@ export function useProjects() {
   return value;
 }
 
-export function pickWorkspace(workspaces: Workspace[], preferredId: string | null) {
+function pickWorkspace(workspaces: Workspace[], preferredId: string | null) {
   return workspaces.find(({ id }) => id === preferredId) ?? workspaces.find(({ role }) => role !== "root") ?? workspaces[0] ?? null;
 }
 
@@ -64,25 +65,19 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const [requestedWorkspaceId, setRequestedWorkspaceId] = useState(() => readStoredWorkspace(storageKey));
   const [attempt, setAttempt] = useState(0);
 
-  useEffect(() => {
-    let current = true;
-    async function load() {
+  useLoadEffect<ProjectsState>(
+    async (isCurrent) => {
       const list = await api<{ workspaces: Workspace[] }>("/workspaces");
-      if (!current) return;
-      setWorkspaces(list.workspaces);
+      if (isCurrent()) setWorkspaces(list.workspaces);
       const workspace = pickWorkspace(list.workspaces, requestedWorkspaceId);
-      if (!workspace) {
-        setState({ status: "ready", workspace: null, projects: [] });
-        return;
-      }
+      if (!workspace) return { status: "ready", workspace: null, projects: [] };
       const { projects } = await api<{ projects: Project[] }>(`/workspaces/${workspace.id}/projects`);
-      if (current) setState({ status: "ready", workspace, projects });
-    }
-    load().catch((error) => current && setState({ status: "error", message: errorMessage(error) }));
-    return () => {
-      current = false;
-    };
-  }, [attempt, requestedWorkspaceId]);
+      return { status: "ready", workspace, projects };
+    },
+    setState,
+    (message) => setState({ status: "error", message }),
+    [attempt, requestedWorkspaceId],
+  );
 
   const retry = useCallback(() => {
     setState({ status: "loading" });

@@ -45,7 +45,7 @@ export function AppearanceSettings() {
 
   return (
     <>
-      <SettingsSection title="Preview" description="Changes apply right away.">
+      <SettingsSection title="Preview">
         <div className="p-4">
           <Preview />
           <div className="mt-3 flex justify-end">
@@ -56,7 +56,7 @@ export function AppearanceSettings() {
         </div>
       </SettingsSection>
 
-      <SettingsSection title="Theme" description="The colors behind everything.">
+      <SettingsSection title="Theme">
         <fieldset className="grid gap-3 p-4 sm:grid-cols-3">
           <legend className="sr-only">Theme</legend>
           {themes.map((theme) => {
@@ -84,7 +84,7 @@ export function AppearanceSettings() {
         </fieldset>
       </SettingsSection>
 
-      <SettingsSection title="Accent color" description="Used for selection, focus, your avatar and main buttons.">
+      <SettingsSection title="Accent color">
         <fieldset className="flex flex-wrap gap-x-5 gap-y-3 p-4">
           <legend className="sr-only">Accent color</legend>
           {accents.map((accent) => {
@@ -105,7 +105,7 @@ export function AppearanceSettings() {
         </fieldset>
       </SettingsSection>
 
-      <SettingsSection title="Density" description="How much space the interface uses.">
+      <SettingsSection title="Density">
         <fieldset className="grid gap-2 p-4 sm:grid-cols-2">
           <legend className="sr-only">Density</legend>
           {densities.map((density) => {

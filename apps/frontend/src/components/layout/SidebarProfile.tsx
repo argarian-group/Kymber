@@ -1,27 +1,15 @@
 import { ChevronsUpDown, LogOut } from "lucide-react";
-import { useId, useState } from "react";
+import { useId } from "react";
 import { useAuth, useCurrentUser } from "@/features/auth/AuthContext";
-import { errorMessage } from "@/lib/api";
+import { useAction } from "@/lib/useAction";
 
 export function LogoutButton({ className = "" }: { className?: string }) {
   const { signOut } = useAuth();
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function logOut() {
-    setPending(true);
-    setError(null);
-    try {
-      await signOut();
-    } catch (failure) {
-      setError(errorMessage(failure));
-      setPending(false);
-    }
-  }
+  const { pending, error, run } = useAction();
 
   return (
     <>
-      <button className={`btn ${className}`} type="button" onClick={logOut} disabled={pending}>
+      <button className={`btn ${className}`} type="button" onClick={() => run(signOut)} disabled={pending}>
         <LogOut aria-hidden="true" size={14} />
         {pending ? "Logging out…" : "Log out"}
       </button>

@@ -4,34 +4,28 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useCurrentUser } from "@/features/auth/AuthContext";
 import { Field, FormError } from "@/features/auth/AuthScreen";
 import { useProjects, type Workspace } from "@/features/projects/ProjectsContext";
-import { errorMessage } from "@/lib/api";
+import { useAction } from "@/lib/useAction";
 import { FormFooter, SettingsSection } from "./SettingsSection";
 
 function RenameWorkspace({ workspace }: { workspace: Workspace }) {
   const { canWrite, renameWorkspace } = useProjects();
   const [name, setName] = useState(workspace.name);
-  const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { pending, error, run } = useAction();
   const changed = name.trim() !== workspace.name;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setPending(true);
-    setError(null);
     setSaved(null);
-    try {
+    await run(async () => {
       await renameWorkspace(name);
       setName(name.trim());
       setSaved("Workspace renamed.");
-    } catch (failure) {
-      setError(errorMessage(failure));
-    }
-    setPending(false);
+    });
   }
 
   return (
-    <SettingsSection title="General" description={`${canWrite ? "The name everyone in this workspace sees." : "Only admins and owners can rename this workspace."}${workspace.created_by ? ` Created by ${workspace.created_by.username}.` : ""}`}>
+    <SettingsSection title="General" description={[!canWrite && "Only admins and owners can rename this workspace.", workspace.created_by && `Created by ${workspace.created_by.username}.`].filter(Boolean).join(" ")}>
       <form onSubmit={submit}>
         <div className="p-4 sm:max-w-sm">
           <Field label="Workspace name" required maxLength={120} disabled={!canWrite} value={name} onChange={(event) => setName(event.target.value)} />
@@ -51,19 +45,10 @@ function RenameWorkspace({ workspace }: { workspace: Workspace }) {
 function DeleteWorkspace({ workspace }: { workspace: Workspace }) {
   const { deleteWorkspace } = useProjects();
   const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { pending, error, run } = useAction();
 
   async function confirmDelete() {
-    setPending(true);
-    setError(null);
-    try {
-      await deleteWorkspace();
-    } catch (failure) {
-      setError(errorMessage(failure));
-      setPending(false);
-      setConfirming(false);
-    }
+    if (!(await run(deleteWorkspace))) setConfirming(false);
   }
 
   return (
@@ -99,20 +84,14 @@ function DeleteWorkspace({ workspace }: { workspace: Workspace }) {
 function CreateWorkspace() {
   const { createWorkspace } = useProjects();
   const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { pending, error, run } = useAction();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setPending(true);
-    setError(null);
-    try {
+    await run(async () => {
       await createWorkspace(name);
       setName("");
-    } catch (failure) {
-      setError(errorMessage(failure));
-    }
-    setPending(false);
+    });
   }
 
   return (

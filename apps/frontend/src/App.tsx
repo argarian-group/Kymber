@@ -42,8 +42,8 @@ function AuthGate() {
                 <Routes>
                   <Route index element={<DashboardPage />} />
                   <Route path="projects" element={<ProjectsPage />} />
-                  <Route path="tasks" element={<PlaceholderPage title="Tasks" description="Plan the work and follow it through." />} />
-                  <Route path="deploys" element={<PlaceholderPage title="Deploys" description="What shipped, where and when." />} />
+                  <Route path="tasks" element={<PlaceholderPage title="Tasks" />} />
+                  <Route path="deploys" element={<PlaceholderPage title="Deploys" />} />
                   <Route path="team" element={<TeamPage />} />
                   <Route path="invite" element={<InviteAcceptPage />} />
                   <Route path="settings" element={<SettingsPage section="account" />} />

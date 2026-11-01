@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { api, errorMessage } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAction } from "@/lib/useAction";
 import type { User } from "./AuthContext";
 import { Field, FormError } from "./AuthScreen";
 
@@ -12,8 +13,7 @@ type CreateAccountFormProps<T> = {
 export function CreateAccountForm<T extends { user: User }>({ endpoint, submitLabel, onCreated }: CreateAccountFormProps<T>) {
   const [form, setForm] = useState({ username: "", email: "", password: "" });
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { pending, error, setError, run } = useAction();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -21,14 +21,7 @@ export function CreateAccountForm<T extends { user: User }>({ endpoint, submitLa
       setError("The passwords do not match.");
       return;
     }
-    setPending(true);
-    setError(null);
-    try {
-      onCreated(await api<T>(endpoint, { method: "POST", body: form }));
-    } catch (failure) {
-      setError(errorMessage(failure));
-      setPending(false);
-    }
+    await run(async () => onCreated(await api<T>(endpoint, { method: "POST", body: form })));
   }
 
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: event.target.value });

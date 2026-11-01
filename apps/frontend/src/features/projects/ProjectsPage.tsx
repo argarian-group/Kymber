@@ -5,11 +5,11 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { useCurrentUser } from "@/features/auth/AuthContext";
 import { Field, FormError } from "@/features/auth/AuthScreen";
-import { errorMessage } from "@/lib/api";
+import { useAction } from "@/lib/useAction";
 import { useProjects, type Project } from "./ProjectsContext";
 import { workspaceLabel } from "./WorkspaceSwitcher";
 
-export function slugify(name: string) {
+function slugify(name: string) {
   return name
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -29,7 +29,7 @@ export function ProjectsPage() {
   if (state.status === "error") {
     return (
       <>
-        <PageHeader title="Projects" description="Every project in one place." />
+        <PageHeader title="Projects" />
         <EmptyState
           title="Could not load projects"
           description={state.message}
@@ -45,7 +45,7 @@ export function ProjectsPage() {
   if (!state.workspace) {
     return (
       <>
-        <PageHeader title="Projects" description="Every project in one place." />
+        <PageHeader title="Projects" />
         <EmptyState title="No workspace yet" description={user.is_root ? "Create a workspace to start adding projects." : "Ask an administrator to add you to a workspace."} action={user.is_root && <Link className="btn" to="/settings/workspace">Create workspace</Link>} />
       </>
     );
@@ -97,8 +97,7 @@ function CreateProjectForm({ onClose }: { onClose: () => void }) {
   const { createProject } = useProjects();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { pending, error, setError, run } = useAction();
   const suggestedSlug = slugify(name);
 
   async function submit(event: FormEvent) {
@@ -108,15 +107,10 @@ function CreateProjectForm({ onClose }: { onClose: () => void }) {
       setError("Enter a slug using lowercase letters, numbers and hyphens.");
       return;
     }
-    setPending(true);
-    setError(null);
-    try {
+    await run(async () => {
       await createProject({ name, slug: finalSlug });
       onClose();
-    } catch (failure) {
-      setError(errorMessage(failure));
-      setPending(false);
-    }
+    });
   }
 
   return (
@@ -143,19 +137,10 @@ const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 function ProjectRow({ project }: { project: Project }) {
   const { canWrite, deleteProject } = useProjects();
   const [confirming, setConfirming] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { pending, error, run } = useAction();
 
   async function confirmDelete() {
-    setPending(true);
-    setError(null);
-    try {
-      await deleteProject(project.id);
-    } catch (failure) {
-      setError(errorMessage(failure));
-      setPending(false);
-      setConfirming(false);
-    }
+    if (!(await run(() => deleteProject(project.id)))) setConfirming(false);
   }
 
   return (

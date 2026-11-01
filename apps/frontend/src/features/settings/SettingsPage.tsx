@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Navigate, NavLink } from "react-router";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -7,11 +7,12 @@ import { Field, FormError } from "@/features/auth/AuthScreen";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { FormFooter, SettingsSection } from "./SettingsSection";
 import { WorkspaceSettings } from "./WorkspaceSettings";
-import { api, errorMessage } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAction } from "@/lib/useAction";
+import { useLoadEffect } from "@/lib/useLoadEffect";
 
-const descriptions = {
+const descriptions: Partial<Record<string, string>> = {
   account: "Your profile and password.",
-  appearance: "Make Kymber yours.",
   workspace: "Name and lifecycle of your workspaces.",
   system: "Options for everyone on this server.",
 };
@@ -22,19 +23,16 @@ function ProfileForm() {
   const [username, setUsername] = useState(user.username);
   const [email, setEmail] = useState(user.email);
   const [currentPassword, setCurrentPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { pending, error, run } = useAction();
 
   const changed = username !== user.username || email !== user.email;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!changed) return;
-    setPending(true);
-    setError(null);
     setSaved(null);
-    try {
+    await run(async () => {
       const response = await api<{ user: User }>("/account/profile", {
         method: "PUT",
         body: { username, email, current_password: currentPassword },
@@ -44,10 +42,7 @@ function ProfileForm() {
       setEmail(response.user.email);
       setCurrentPassword("");
       setSaved("Profile saved.");
-    } catch (failure) {
-      setError(errorMessage(failure));
-    }
-    setPending(false);
+    });
   }
 
   return (
@@ -72,9 +67,8 @@ function ProfileForm() {
 
 function PasswordForm() {
   const [form, setForm] = useState({ current: "", next: "", confirm: "" });
-  const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { pending, error, setError, run } = useAction();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -83,16 +77,11 @@ function PasswordForm() {
       setError("The new passwords do not match.");
       return;
     }
-    setPending(true);
-    setError(null);
-    try {
+    await run(async () => {
       await api("/account/password", { method: "PUT", body: { current_password: form.current, new_password: form.next } });
       setForm({ current: "", next: "", confirm: "" });
       setSaved("Password changed. Other devices were logged out.");
-    } catch (failure) {
-      setError(errorMessage(failure));
-    }
-    setPending(false);
+    });
   }
 
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: event.target.value });
@@ -121,29 +110,20 @@ function SystemSettings() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { pending, error, run } = useAction();
 
-  useEffect(() => {
-    let current = true;
-    api<{ registration_enabled: boolean }>("/settings/registration")
-      .then((response) => current && setEnabled(response.registration_enabled))
-      .catch((failure) => current && setLoadError(errorMessage(failure)));
-    return () => {
-      current = false;
-    };
-  }, [attempt]);
+  useLoadEffect(
+    () => api<{ registration_enabled: boolean }>("/settings/registration"),
+    (response) => setEnabled(response.registration_enabled),
+    setLoadError,
+    [attempt],
+  );
 
-  async function toggle(next: boolean) {
-    setPending(true);
-    setError(null);
-    try {
+  function toggle(next: boolean) {
+    return run(async () => {
       const response = await api<{ registration_enabled: boolean }>("/settings/registration", { method: "PUT", body: { enabled: next } });
       setEnabled(response.registration_enabled);
-    } catch (failure) {
-      setError(errorMessage(failure));
-    }
-    setPending(false);
+    });
   }
 
   if (loadError) {
@@ -168,7 +148,7 @@ function SystemSettings() {
   }
 
   return (
-    <SettingsSection title="Access" description="Who can get into this server.">
+    <SettingsSection title="Access">
       <label className="flex cursor-pointer items-center justify-between gap-6 p-4">
         <span>
           <span className="block font-medium">Allow new registrations</span>

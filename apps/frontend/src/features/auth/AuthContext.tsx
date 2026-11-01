@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, ApiError, errorMessage, unauthorizedEvent } from "@/lib/api";
+import { api, ApiError, unauthorizedEvent } from "@/lib/api";
+import { useLoadEffect } from "@/lib/useLoadEffect";
 
 export type User = { id: string; username: string; email: string; is_root: boolean };
 
@@ -47,15 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
-  useEffect(() => {
-    let current = true;
-    loadAuthState()
-      .then((next) => current && setState(next))
-      .catch((error) => current && setState({ status: "error", message: errorMessage(error) }));
-    return () => {
-      current = false;
-    };
-  }, [attempt]);
+  useLoadEffect(loadAuthState, setState, (message) => setState({ status: "error", message }), [attempt]);
 
   useEffect(() => {
     const expire = () => setState((previous) => (previous.status === "authenticated" ? { status: "anonymous" } : previous));

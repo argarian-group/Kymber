@@ -4,7 +4,8 @@ import { useAuth, useCurrentUser, type User } from "@/features/auth/AuthContext"
 import { AuthScreen, Field, FormError } from "@/features/auth/AuthScreen";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { rememberWorkspace, useProjects } from "@/features/projects/ProjectsContext";
-import { api, ApiError, errorMessage } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
+import { useAction } from "@/lib/useAction";
 
 type Acceptance = { user: User; workspace_id: string; role: string };
 
@@ -14,8 +15,7 @@ export function InviteSignupPage() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { pending, error, setError, run } = useAction();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -23,21 +23,17 @@ export function InviteSignupPage() {
       setError("The passwords do not match.");
       return;
     }
-    setPending(true);
-    setError(null);
-    try {
-      const { user, workspace_id } = await api<Acceptance>("/invitations/accept", { method: "POST", body: { token, ...form } });
-      rememberWorkspace(user.id, workspace_id);
-      window.history.replaceState(null, "", "/projects");
-      signIn(user);
-    } catch (failure) {
-      if (failure instanceof ApiError && failure.status === 401) {
+    await run(async () => {
+      try {
+        const { user, workspace_id } = await api<Acceptance>("/invitations/accept", { method: "POST", body: { token, ...form } });
+        rememberWorkspace(user.id, workspace_id);
+        window.history.replaceState(null, "", "/projects");
+        signIn(user);
+      } catch (failure) {
+        if (!(failure instanceof ApiError && failure.status === 401)) throw failure;
         setLoggingIn(true);
-        return;
       }
-      setError(errorMessage(failure));
-      setPending(false);
-    }
+    });
   }
 
   if (loggingIn) return <LoginPage />;
@@ -45,7 +41,7 @@ export function InviteSignupPage() {
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: event.target.value });
 
   return (
-    <AuthScreen title="Join a workspace" description="Create your account to accept this invitation. It uses the email the invitation was sent for.">
+    <AuthScreen title="Join a workspace" description="Create your account to accept this invitation.">
       <form className="grid gap-4" onSubmit={submit}>
         <Field label="Username" autoComplete="username" required autoFocus minLength={3} maxLength={32} hint="3 to 32 letters, numbers, _ or -." value={form.username} onChange={update("username")} />
         <Field label="Password" type="password" autoComplete="new-password" required minLength={8} maxLength={128} hint="8 to 128 characters." value={form.password} onChange={update("password")} />
@@ -70,20 +66,14 @@ export function InviteAcceptPage() {
   const { selectWorkspace } = useProjects();
   const navigate = useNavigate();
   const token = useLocation().hash.slice(1);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { pending, error, run } = useAction();
 
   async function accept() {
-    setPending(true);
-    setError(null);
-    try {
+    await run(async () => {
       const { workspace_id } = await api<Acceptance>("/invitations/accept", { method: "POST", body: { token } });
       selectWorkspace(workspace_id);
       navigate("/projects", { replace: true });
-    } catch (failure) {
-      setError(errorMessage(failure));
-      setPending(false);
-    }
+    });
   }
 
   return (

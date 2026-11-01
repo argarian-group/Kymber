@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useRef, useState, type FormEvent } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -6,7 +6,9 @@ import { useCurrentUser } from "@/features/auth/AuthContext";
 import { Field, FormError } from "@/features/auth/AuthScreen";
 import { useProjects, type Workspace } from "@/features/projects/ProjectsContext";
 import { workspaceLabel } from "@/features/projects/WorkspaceSwitcher";
-import { api, errorMessage } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAction } from "@/lib/useAction";
+import { useLoadEffect } from "@/lib/useLoadEffect";
 
 type Member = { user_id: string; username: string; email: string; role: string; created_at: string };
 type MembersState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; members: Member[] };
@@ -34,8 +36,7 @@ function RoleSelect({ id, label, value, options = roles, disabled, onChange }: {
 function InviteForm({ workspaceId, canAddDirectly, onAdded, onClose }: { workspaceId: string; canAddDirectly: boolean; onAdded: () => void; onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("member");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { pending, error, run } = useAction();
   const [invite, setInvite] = useState<{ email: string; link: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -43,29 +44,19 @@ function InviteForm({ workspaceId, canAddDirectly, onAdded, onClose }: { workspa
 
   async function createInvite(event: FormEvent) {
     event.preventDefault();
-    setPending(true);
-    setError(null);
-    try {
+    await run(async () => {
       const { invitation } = await api<{ invitation: { email: string; token: string } }>(`/workspaces/${workspaceId}/invitations`, { method: "POST", body: { email, role } });
       setInvite({ email: invitation.email, link: `${window.location.origin}/invite#${invitation.token}` });
-    } catch (failure) {
-      setError(errorMessage(failure));
-    }
-    setPending(false);
+    });
   }
 
   async function addDirectly() {
     if (!formRef.current?.reportValidity()) return;
-    setPending(true);
-    setError(null);
-    try {
+    await run(async () => {
       await api(`/workspaces/${workspaceId}/members`, { method: "POST", body: { email, role } });
       onAdded();
       onClose();
-    } catch (failure) {
-      setError(errorMessage(failure));
-      setPending(false);
-    }
+    });
   }
 
   async function copyLink() {
@@ -134,32 +125,21 @@ function MemberRow({ member, workspaceId, isCreator, canManage, onChanged }: { m
   const user = useCurrentUser();
   const isSelf = member.user_id === user.id;
   const [confirming, setConfirming] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { pending, error, run } = useAction();
 
-  async function changeRole(role: string) {
-    setPending(true);
-    setError(null);
-    try {
+  function changeRole(role: string) {
+    return run(async () => {
       const response = await api<{ member: Member }>(`/workspaces/${workspaceId}/members/${member.user_id}`, { method: "PUT", body: { role } });
       onChanged(response.member, false);
-    } catch (failure) {
-      setError(errorMessage(failure));
-    }
-    setPending(false);
+    });
   }
 
   async function remove() {
-    setPending(true);
-    setError(null);
-    try {
+    const removed = await run(async () => {
       await api(`/workspaces/${workspaceId}/members/${member.user_id}`, { method: "DELETE" });
       onChanged(member, true);
-    } catch (failure) {
-      setError(errorMessage(failure));
-      setPending(false);
-      setConfirming(false);
-    }
+    });
+    if (!removed) setConfirming(false);
   }
 
   return (
@@ -208,15 +188,12 @@ function Members({ workspace }: { workspace: Workspace }) {
   const [attempt, setAttempt] = useState(0);
   const [adding, setAdding] = useState(false);
 
-  useEffect(() => {
-    let current = true;
-    api<{ members: Member[] }>(`/workspaces/${workspace.id}/members`)
-      .then(({ members }) => current && setState({ status: "ready", members }))
-      .catch((error) => current && setState({ status: "error", message: errorMessage(error) }));
-    return () => {
-      current = false;
-    };
-  }, [attempt, workspace.id]);
+  useLoadEffect(
+    () => api<{ members: Member[] }>(`/workspaces/${workspace.id}/members`),
+    ({ members }) => setState({ status: "ready", members }),
+    (message) => setState({ status: "error", message }),
+    [attempt, workspace.id],
+  );
 
   const reload = useCallback(() => {
     setState({ status: "loading" });
@@ -284,7 +261,7 @@ export function TeamPage() {
   if (state.status === "error") {
     return (
       <>
-        <PageHeader title="Team" description="The people in this workspace." />
+        <PageHeader title="Team" />
         <EmptyState
           title="Could not load this workspace"
           description={state.message}
@@ -300,7 +277,7 @@ export function TeamPage() {
   if (!state.workspace) {
     return (
       <>
-        <PageHeader title="Team" description="The people in this workspace." />
+        <PageHeader title="Team" />
         <EmptyState title="No workspace yet" description="Members appear here once you have a workspace." />
       </>
     );
