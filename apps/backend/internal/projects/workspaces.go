@@ -8,12 +8,27 @@ import (
 	"kymber/backend/internal/auth"
 )
 
+type workspaceScanner interface {
+	Scan(...any) error
+}
+
+func scanWorkspace(row workspaceScanner) (Workspace, error) {
+	var workspace Workspace
+	var creatorID sql.NullInt64
+	var creatorUsername, creatorEmail sql.NullString
+	err := row.Scan(&workspace.ID, &workspace.Name, &workspace.CreatedAt, &workspace.Role, &creatorID, &creatorUsername, &creatorEmail)
+	if creatorID.Valid {
+		workspace.CreatedBy = &WorkspaceCreator{ID: uint64(creatorID.Int64), Username: creatorUsername.String, Email: creatorEmail.String}
+	}
+	return workspace, err
+}
+
 func (h *Handler) listWorkspaces(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
-	query := `SELECT w.id, w.name, w.created_at, m.role FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id WHERE m.user_id = ? ORDER BY w.id`
+	query := `SELECT w.id, w.name, w.created_at, m.role, c.id, c.username, c.email FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id LEFT JOIN users c ON c.id = w.created_by WHERE m.user_id = ? ORDER BY w.id`
 	args := []any{user.ID}
 	if user.IsRoot {
-		query = `SELECT w.id, w.name, w.created_at, COALESCE(m.role, 'root') FROM workspaces w LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = ? ORDER BY w.id`
+		query = `SELECT w.id, w.name, w.created_at, COALESCE(m.role, 'root'), c.id, c.username, c.email FROM workspaces w LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = ? LEFT JOIN users c ON c.id = w.created_by ORDER BY w.id`
 		args = []any{user.ID}
 	}
 	rows, err := h.db.QueryContext(r.Context(), query, args...)
@@ -24,8 +39,8 @@ func (h *Handler) listWorkspaces(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	workspaces := make([]Workspace, 0)
 	for rows.Next() {
-		var workspace Workspace
-		if err := rows.Scan(&workspace.ID, &workspace.Name, &workspace.CreatedAt, &workspace.Role); err != nil {
+		workspace, err := scanWorkspace(rows)
+		if err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read workspaces")
 			return
 		}
@@ -44,8 +59,7 @@ func (h *Handler) getWorkspace(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.authorize(w, r, user, workspaceID, false) {
 		return
 	}
-	var workspace Workspace
-	err := h.db.QueryRowContext(r.Context(), `SELECT w.id, w.name, w.created_at, COALESCE(m.role, 'root') FROM workspaces w LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = ? WHERE w.id = ?`, user.ID, workspaceID).Scan(&workspace.ID, &workspace.Name, &workspace.CreatedAt, &workspace.Role)
+	workspace, err := scanWorkspace(h.db.QueryRowContext(r.Context(), `SELECT w.id, w.name, w.created_at, COALESCE(m.role, 'root'), c.id, c.username, c.email FROM workspaces w LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = ? LEFT JOIN users c ON c.id = w.created_by WHERE w.id = ?`, user.ID, workspaceID))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read workspace")
 		return

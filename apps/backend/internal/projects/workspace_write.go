@@ -39,12 +39,11 @@ func (h *Handler) createWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not complete workspace creation")
 		return
 	}
-	var workspace Workspace
-	if err := h.db.QueryRowContext(r.Context(), "SELECT id, name, created_at FROM workspaces WHERE id = ?", id).Scan(&workspace.ID, &workspace.Name, &workspace.CreatedAt); err != nil {
+	workspace, err := scanWorkspace(h.db.QueryRowContext(r.Context(), `SELECT w.id, w.name, w.created_at, 'owner', u.id, u.username, u.email FROM workspaces w LEFT JOIN users u ON u.id = w.created_by WHERE w.id = ?`, id))
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read created workspace")
 		return
 	}
-	workspace.Role = "owner"
 	w.Header().Set("Location", "/api/workspaces/"+strconv.FormatUint(id, 10))
 	writeJSON(w, http.StatusCreated, map[string]Workspace{"workspace": workspace})
 }
@@ -63,8 +62,7 @@ func (h *Handler) updateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not update workspace")
 		return
 	}
-	var workspace Workspace
-	err := h.db.QueryRowContext(r.Context(), `SELECT w.id, w.name, w.created_at, COALESCE(m.role, 'root') FROM workspaces w LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = ? WHERE w.id = ?`, user.ID, workspaceID).Scan(&workspace.ID, &workspace.Name, &workspace.CreatedAt, &workspace.Role)
+	workspace, err := scanWorkspace(h.db.QueryRowContext(r.Context(), `SELECT w.id, w.name, w.created_at, COALESCE(m.role, 'root'), c.id, c.username, c.email FROM workspaces w LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = ? LEFT JOIN users c ON c.id = w.created_by WHERE w.id = ?`, user.ID, workspaceID))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read updated workspace")
 		return

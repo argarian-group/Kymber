@@ -13,10 +13,17 @@ type Handler struct {
 }
 
 type Workspace struct {
-	ID        uint64    `json:"id,string"`
-	Name      string    `json:"name"`
-	Role      string    `json:"role"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        uint64            `json:"id,string"`
+	Name      string            `json:"name"`
+	Role      string            `json:"role"`
+	CreatedAt time.Time         `json:"created_at"`
+	CreatedBy *WorkspaceCreator `json:"created_by"`
+}
+
+type WorkspaceCreator struct {
+	ID       uint64 `json:"id,string"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
 }
 
 type Project struct {
