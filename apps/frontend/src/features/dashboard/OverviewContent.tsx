@@ -41,8 +41,8 @@ export function OverviewContent({ projects }: { projects: Project[] }) {
       />
       <div className="grid flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0">
-          <AttentionPanel overview={overview} />
           <ProjectsPanel summaries={summaries} />
+          <AttentionPanel overview={overview} />
         </div>
         <aside className="min-w-0 bg-sunken lg:grid lg:grid-cols-2 xl:block" aria-label="Delivery">
           <AppsPanel apps={apps} />
