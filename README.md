@@ -16,7 +16,7 @@
 </div>
 
 > [!NOTE]
-> Kymber is at an early stage. Today the repository contains only a backend skeleton with a health check. Everything under [Planned features](#planned-features) describes the vision, is not implemented yet, and may change.
+> Kymber is at an early stage. Today the repository contains a backend skeleton with a health check and a dashboard that runs on sample data. Everything under [Planned features](#planned-features) describes the vision, is not implemented yet, and may change.
 
 ## Why Kymber
 
@@ -36,6 +36,7 @@ Knowing how a project is doing usually means checking one tool for tasks, anothe
 
 - [Go](https://go.dev/dl/) 1.27.3 or newer
 - Make
+- [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/) for the frontend
 
 ### Run the API
 
@@ -56,15 +57,27 @@ curl http://localhost:8080/health
 
 To compile a binary to `apps/backend/build/api`, run `make build`.
 
+### Run the dashboard
+
+```bash
+make frontend
+```
+
+Vite prints the local URL. The dashboard is not connected to the API yet.
+
 ## Project structure
 
 ```text
-apps/backend/
-├── cmd/api/          # API entry point
-└── internal/
-    ├── logger/       # Colored log output
-    └── routes/       # HTTP routes
-assets/               # Logo and banner
+apps/
+├── backend/
+│   ├── cmd/api/      # API entry point
+│   └── internal/
+│       ├── logger/   # Colored log output
+│       └── routes/   # HTTP routes
+└── frontend/src/      # React app (Vite, Tailwind CSS)
+    ├── components/   # Shared layout and UI components
+    └── features/     # One folder per product area
+assets/               # Logo, banner and background
 ```
 
 ## Roadmap
@@ -73,4 +86,5 @@ assets/               # Logo and banner
 - [ ] Projects and tasks
 - [ ] Deploy visibility
 - [ ] Collaboration and progress tracking
-- [ ] Web interface
+- [x] Dashboard layout with sample data
+- [ ] Connect the dashboard to the API

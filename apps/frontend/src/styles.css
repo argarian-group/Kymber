@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+@theme {
+  --breakpoint-md: 47.5rem;
+  --breakpoint-lg: 67.5rem;
+
+  --font-sans: "Figtree Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --text-*: initial;
+  --text-tab: 11px;
+  --text-tab--line-height: 1.45;
+  --text-xs: 12px;
+  --text-xs--line-height: 1.45;
+  --text-meta: 13px;
+  --text-meta--line-height: 1.45;
+  --text-sm: 14px;
+  --text-sm--line-height: 1.45;
+  --text-base: 16px;
+  --text-base--line-height: 1.45;
+  --text-lg: 18px;
+  --text-lg--line-height: 1.45;
+  --text-xl: 24px;
+  --text-xl--line-height: 1.45;
+  --text-2xl: 32px;
+  --text-2xl--line-height: 1.1;
+  --text-3xl: 40px;
+  --text-3xl--line-height: 1.1;
+
+  --color-deep-pine: #03231f;
+  --color-pine: #006759;
+  --color-jade: #00a58e;
+  --color-seafoam: #47cbb7;
+  --color-mist: #b9f3e8;
+  --color-ink: #f4fffc;
+  --color-ink-soft: rgb(236 255 250 / 0.76);
+  --color-ink-faint: rgb(236 255 250 / 0.62);
+  --color-ember: #ff9d8c;
+  --color-ember-deep: #cf6252;
+  --color-amber: #ffd27a;
+  --color-amber-deep: #c79235;
+  --color-hairline: rgb(255 255 255 / 0.1);
+  --color-well: rgb(3 35 31 / 0.45);
+  --color-surface: #0b3b33;
+
+  --radius-panel: 16px;
+
+  --ease-spring: linear(0, 0.009, 0.035 2.1%, 0.141, 0.281 6.7%, 0.723 12.9%, 0.938 16.7%, 1.017, 1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%, 1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%, 0.975 57.1%, 0.997 69.8%, 1.003 76.9%, 1.004 83.8%, 1);
+
+  --animate-deploying: spin 1.4s linear infinite;
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    min-height: 100dvh;
+    background: var(--color-deep-pine);
+    color: var(--color-ink);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    inset: -48px;
+    background: url("../../../assets/background.svg") center / cover no-repeat;
+    filter: blur(16px);
+  }
+}
+
+@utility pop-in {
+  transform-origin: bottom left;
+  scale: 0.8;
+  opacity: 0;
+  transition:
+    scale 520ms var(--ease-spring),
+    opacity 180ms ease-out,
+    display 200ms allow-discrete,
+    overlay 200ms allow-discrete;
+
+  &:popover-open {
+    scale: 1;
+    opacity: 1;
+
+    @starting-style {
+      scale: 0.8;
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    scale: 1;
+    transition: opacity 180ms ease-out;
+  }
+}

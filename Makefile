@@ -1,4 +1,4 @@
-.PHONY: build run backend dev
+.PHONY: build run backend dev frontend
 
 build:
 	cd apps/backend && go build -o build/api ./cmd/api
@@ -10,3 +10,6 @@ backend:
 
 dev:
 	cd apps/backend && go tool air
+
+frontend:
+	cd apps/frontend && pnpm install && pnpm dev

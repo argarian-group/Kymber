@@ -3,6 +3,8 @@
 
 # Build Files
 apps/backend/build/
+apps/frontend/dist/
+node_modules/
 
 # AI Agents & Local Tool Artifacts
 graphify-out/

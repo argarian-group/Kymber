@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+  <title>Kymber background</title>
+  <defs>
+    <radialGradient id="glow-top" cx="1408" cy="-80" r="960" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#24c8b4" stop-opacity="0.85"/>
+      <stop offset="0.68" stop-color="#24c8b4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow-left" cx="-96" cy="340" r="880" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00a58e" stop-opacity="0.8"/>
+      <stop offset="0.7" stop-color="#00a58e" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow-bottom" cx="1152" cy="1050" r="800" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#47cbb7" stop-opacity="0.55"/>
+      <stop offset="0.7" stop-color="#47cbb7" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="linear-gradient-1" x1="462.277" y1="628.256" x2="1027.321" y2="849.671" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#24c8b4"/>
+      <stop offset="0.58" stop-color="#00a58e"/>
+      <stop offset="1" stop-color="#006d61"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-2" x1="898.466" y1="1592.925" x2="1282.78" y2="933.578" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#006759"/>
+      <stop offset="0.57" stop-color="#009f8c"/>
+      <stop offset="1" stop-color="#19bda6"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-3" x1="519.745" y1="1508.558" x2="1457.467" y2="517.825" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00a28d"/>
+      <stop offset="0.5" stop-color="#08b7a4"/>
+      <stop offset="1" stop-color="#47cbb7"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="#03231f"/>
+  <rect width="1600" height="1000" fill="url(#glow-top)"/>
+  <rect width="1600" height="1000" fill="url(#glow-left)"/>
+  <rect width="1600" height="1000" fill="url(#glow-bottom)"/>
+  <g transform="translate(416 -12) scale(0.5)" opacity="0.38">
+    <path d="M450.56 793.921 C450.56 738.332 468.114 698.835 519.314 672.504 L785.554 543.772 C817.737 529.144 841.143 545.235 841.143 577.418 L841.143 1045.532 L452.023 1437.578 Z" fill="url(#linear-gradient-1)"/>
+    <path d="M820.114 1268.171 L1019.063 1089.702 C1074.651 1063.371 1130.24 1080.925 1174.125 1118.959 L1580.8 1513.931 C1624.685 1551.965 1598.354 1592.925 1560.32 1592.925 L1197.531 1592.925 C1156.571 1592.925 1133.165 1572.445 1098.057 1540.262 Z" fill="url(#linear-gradient-2)"/>
+    <path d="M453.486 1296.091 L1117.623 617.326 C1161.509 567.589 1205.394 538.331 1272.686 538.331 L1565.257 538.331 C1603.291 538.331 1614.994 564.663 1591.589 590.994 L599.771 1562.331 C538.331 1623.771 450.56 1585.737 450.56 1509.669 Z" fill="url(#linear-gradient-3)"/>
+  </g>
+</svg>
