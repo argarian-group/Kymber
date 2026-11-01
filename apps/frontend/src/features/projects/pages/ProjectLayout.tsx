@@ -1,4 +1,5 @@
-import { Boxes, ChevronRight, LayoutDashboard, ListChecks, Settings } from "lucide-react";
+import { Boxes, ChevronDown, ChevronRight, ChevronUp, LayoutDashboard, ListChecks, Settings } from "lucide-react";
+import { useState } from "react";
 import { Link, NavLink, Outlet, useParams } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadError } from "@/components/ui/LoadError";
@@ -14,7 +15,18 @@ const tabs = [
   { label: "Settings", to: "settings", end: false, icon: Settings },
 ];
 
+const collapsedKey = "kymber.project-header-collapsed";
+
+function readCollapsed() {
+  try {
+    return localStorage.getItem(collapsedKey) === "true";
+  } catch {
+    return false;
+  }
+}
+
 export function ProjectLayout() {
+  const [collapsed, setCollapsed] = useState(readCollapsed);
   const { projectId } = useParams();
   const { state, retry } = useProjects();
 
@@ -40,27 +52,46 @@ export function ProjectLayout() {
     );
   }
 
+  function toggleCollapsed() {
+    const next = !collapsed;
+    setCollapsed(next);
+    try {
+      localStorage.setItem(collapsedKey, String(next));
+    } catch {
+      return;
+    }
+  }
+
   return (
     <>
-      <header className="px-4 pt-6 md:px-6">
-        <nav className="flex items-center gap-1 text-meta text-ink-soft" aria-label="Breadcrumb">
-          <Link className="focus-ring rounded-sm hover:text-ink" to="/projects">
-            Projects
-          </Link>
-          <ChevronRight className="flex-none" aria-hidden="true" size={14} />
-          <span className="min-w-0 truncate" aria-current="page">
-            {project.name}
-          </span>
-        </nav>
-        <div className="mt-3 flex items-start gap-3">
-          <ProjectMark name={project.name} />
-          <div className="min-w-0">
-            <h1 className="page-title leading-tight wrap-break-word">{project.name}</h1>
-            <p className="text-meta wrap-break-word text-ink-soft">{project.slug}</p>
+      {!collapsed && (
+        <header className="px-4 pt-6 md:px-6">
+          <nav className="flex items-center gap-1 text-meta text-ink-soft" aria-label="Breadcrumb">
+            <Link className="focus-ring rounded-sm hover:text-ink" to="/projects">
+              Projects
+            </Link>
+            <ChevronRight className="flex-none" aria-hidden="true" size={14} />
+            <span className="min-w-0 truncate" aria-current="page">
+              {project.name}
+            </span>
+          </nav>
+          <div className="mt-3 flex items-start gap-3">
+            <ProjectMark name={project.name} />
+            <div className="min-w-0">
+              <h1 className="page-title leading-tight wrap-break-word">{project.name}</h1>
+              <p className="text-meta wrap-break-word text-ink-soft">{project.slug}</p>
+            </div>
           </div>
-        </div>
-      </header>
-      <nav className="mt-4 flex gap-5 overflow-x-auto border-b border-line px-4 md:px-6" aria-label="Project sections">
+        </header>
+      )}
+      <div className={`flex items-center gap-4 border-b border-line px-4 md:px-6 ${collapsed ? "" : "mt-4"}`}>
+        {collapsed && (
+          <div className="flex max-w-40 min-w-0 flex-none items-center gap-2 md:max-w-64">
+            <ProjectMark name={project.name} size="xs" />
+            <h1 className="min-w-0 truncate font-display font-semibold">{project.name}</h1>
+          </div>
+        )}
+        <nav className="flex min-w-0 flex-1 gap-5 overflow-x-auto" aria-label="Project sections">
         {tabs.map(({ label, to, end, icon: Icon }) => (
           <NavLink
             className={({ isActive }) =>
@@ -74,7 +105,11 @@ export function ProjectLayout() {
             {label}
           </NavLink>
         ))}
-      </nav>
+        </nav>
+        <button className="btn size-8 flex-none justify-center border-transparent px-0 text-ink-soft" type="button" aria-expanded={!collapsed} aria-label={collapsed ? "Expand project header" : "Collapse project header"} title={collapsed ? "Expand" : "Collapse"} onClick={toggleCollapsed}>
+          {collapsed ? <ChevronDown aria-hidden="true" size={16} /> : <ChevronUp aria-hidden="true" size={16} />}
+        </button>
+      </div>
       <div className="flex min-h-0 flex-1 flex-col">
         <Outlet context={{ project, workspace: state.workspace } satisfies ProjectOutlet} />
       </div>
