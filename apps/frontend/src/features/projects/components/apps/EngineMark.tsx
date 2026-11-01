@@ -8,7 +8,9 @@ const brands: Record<string, string> = { docker, mysql, redis };
 
 export function EngineMark({ engine, logo, size = "md" }: { engine: string; logo?: string; size?: "md" | "lg" }) {
   const [failedLogo, setFailedLogo] = useState<string | null>(null);
-  const src = logo && logo !== failedLogo ? logo : brands[engine];
+  // Docker Hub's official Redis logo is the rebranded "R"; show the same mark as the Redis template.
+  const hubLogo = logo?.includes("/repo-logos/library/redis/") ? redis : logo;
+  const src = hubLogo && hubLogo !== failedLogo ? hubLogo : brands[engine];
   const box = size === "lg" ? "size-14" : "size-10";
 
   if (!src) {
