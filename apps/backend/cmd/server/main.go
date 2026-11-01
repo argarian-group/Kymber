@@ -76,7 +76,7 @@ func run() error {
 			time.Sleep(2 * time.Second)
 			continue
 		}
-		outcome := execute(current)
+		outcome := fitResult(execute(current))
 		body, _ := json.Marshal(outcome)
 		for {
 			err := request(ctx, client, baseURL, token, fmt.Sprintf("/api/agent/tasks/%s/result", current.ID), body, nil)
@@ -87,6 +87,20 @@ func run() error {
 			time.Sleep(5 * time.Second)
 		}
 	}
+}
+
+func containerIDFrom(output string) string {
+	return output[strings.LastIndex(output, "\n")+1:]
+}
+
+func fitResult(r result) result {
+	if len(r.Message) > 2048 {
+		r.Message = strings.ToValidUTF8(r.Message[len(r.Message)-2048:], "")
+	}
+	if len(r.ContainerID) > 128 {
+		r.ContainerID = r.ContainerID[:128]
+	}
+	return r
 }
 
 func validateAPIURL(raw string) error {
@@ -220,10 +234,11 @@ func execute(t task) result {
 	}
 	args = append(args, image)
 	args = append(args, engineArgs...)
-	id, err := docker(args...)
+	output, err := docker(args...)
 	if err != nil {
 		return result{Message: err.Error()}
 	}
+	id := containerIDFrom(output)
 	if err := waitHealthy(containerName(t), 2*time.Minute); err != nil {
 		return result{Message: err.Error(), ContainerID: id}
 	}

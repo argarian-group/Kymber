@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+	"unicode/utf8"
+)
 
 func TestValidateAPIURL(t *testing.T) {
 	cases := map[string]bool{
@@ -22,5 +26,27 @@ func TestValidateAPIURL(t *testing.T) {
 		if err := validateAPIURL(raw); (err == nil) != valid {
 			t.Errorf("validateAPIURL(%q) = %v, want valid=%v", raw, err, valid)
 		}
+	}
+}
+
+func TestContainerIDIgnoresPullProgress(t *testing.T) {
+	output := "Unable to find image 'redis:latest' locally\nlatest: Pulling from library/redis\nStatus: Downloaded newer image\nabc123"
+	if got := containerIDFrom(output); got != "abc123" {
+		t.Errorf("containerIDFrom = %q", got)
+	}
+}
+
+func TestResultFitsAPILimits(t *testing.T) {
+	long := strings.Repeat("é", 2000) + "the real error"
+	got := fitResult(result{Message: long, ContainerID: strings.Repeat("a", 200)})
+	if len(got.Message) > 2048 || !utf8.ValidString(got.Message) || !strings.HasSuffix(got.Message, "the real error") {
+		t.Errorf("message not fitted: %d bytes", len(got.Message))
+	}
+	if len(got.ContainerID) > 128 {
+		t.Errorf("container ID not fitted: %d", len(got.ContainerID))
+	}
+	short := result{Message: "ok", ContainerID: "abc"}
+	if fitResult(short) != short {
+		t.Errorf("short result changed: %+v", fitResult(short))
 	}
 }
