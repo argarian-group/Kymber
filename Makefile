@@ -5,10 +5,10 @@ build:
 
 run: backend
 
-backend:
+backend: db
 	cd apps/backend && go run ./cmd/api
 
-dev:
+dev: db
 	cd apps/backend && go tool air
 
 frontend:
