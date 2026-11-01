@@ -52,6 +52,13 @@ func Decrypt(ciphertext []byte) ([]byte, error) {
 
 func encryptionKey() ([]byte, error) {
 	value := os.Getenv("SERVICE_ENCRYPTION_KEY")
+	if value == "" && os.Getenv("SERVICE_ENCRYPTION_KEY_FILE") != "" {
+		data, err := os.ReadFile(os.Getenv("SERVICE_ENCRYPTION_KEY_FILE"))
+		if err != nil {
+			return nil, err
+		}
+		value = string(data)
+	}
 	key, err := hex.DecodeString(value)
 	if err != nil || len(key) != 32 {
 		return nil, errors.New("SERVICE_ENCRYPTION_KEY must be 64 hexadecimal characters")
