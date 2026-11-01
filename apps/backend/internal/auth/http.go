@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
+	"kymber/backend/internal/database"
 )
 
 type credentials struct {
@@ -79,24 +80,20 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, value any) bool {
 }
 
 func createUser(r *http.Request, tx *sql.Tx, username, email, passwordHash string, root bool) (uint64, error) {
-	result, err := tx.ExecContext(r.Context(), "INSERT INTO users (username, email, password_hash, is_root) VALUES (?, ?, ?, ?)", username, email, passwordHash, root)
+	id := database.NewID()
+	_, err := tx.ExecContext(r.Context(), "INSERT INTO users (id, username, email, password_hash, is_root) VALUES (?, ?, ?, ?, ?)", id, username, email, passwordHash, root)
 	if err != nil {
 		return 0, err
 	}
-	id, err := result.LastInsertId()
-	return uint64(id), err
+	return id, nil
 }
 
 func createWorkspace(r *http.Request, tx *sql.Tx, userID uint64) error {
-	result, err := tx.ExecContext(r.Context(), "INSERT INTO workspaces (name) VALUES ('Personal')")
-	if err != nil {
+	workspaceID := database.NewID()
+	if _, err := tx.ExecContext(r.Context(), "INSERT INTO workspaces (id, name) VALUES (?, 'Personal')", workspaceID); err != nil {
 		return err
 	}
-	workspaceID, err := result.LastInsertId()
-	if err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(r.Context(), "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, 'admin')", workspaceID, userID)
+	_, err := tx.ExecContext(r.Context(), "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, 'admin')", workspaceID, userID)
 	return err
 }
 

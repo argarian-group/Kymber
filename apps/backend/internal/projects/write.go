@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	"kymber/backend/internal/auth"
+	"kymber/backend/internal/database"
 )
 
 func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
@@ -20,17 +21,13 @@ func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := h.db.ExecContext(r.Context(), "INSERT INTO projects (workspace_id, name, slug) VALUES (?, ?, ?)", workspaceID, input.Name, input.Slug)
+	id := database.NewID()
+	_, err := h.db.ExecContext(r.Context(), "INSERT INTO projects (id, workspace_id, name, slug) VALUES (?, ?, ?, ?)", id, workspaceID, input.Name, input.Slug)
 	if err != nil {
 		writeProjectError(w, err)
 		return
 	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "could not create project")
-		return
-	}
-	project, err := h.findProject(r, workspaceID, uint64(id))
+	project, err := h.findProject(r, workspaceID, id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read created project")
 		return

@@ -1,6 +1,6 @@
 -- +goose Up
 CREATE TABLE users (
-    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    id BIGINT UNSIGNED NOT NULL,
     username VARCHAR(32) NOT NULL,
     email VARCHAR(254) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -44,8 +44,13 @@ CREATE TABLE platform_settings (
 
 INSERT INTO platform_settings (id, registration_enabled) VALUES (1, FALSE);
 
+ALTER TABLE projects MODIFY id BIGINT UNSIGNED NOT NULL;
+ALTER TABLE workspaces MODIFY id BIGINT UNSIGNED NOT NULL;
+
 -- +goose Down
 DROP TABLE user_sessions;
 DROP TABLE workspace_members;
 DROP TABLE platform_settings;
 DROP TABLE users;
+ALTER TABLE projects MODIFY id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE workspaces MODIFY id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT;
