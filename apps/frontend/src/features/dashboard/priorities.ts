@@ -1,4 +1,4 @@
-import { type Priority } from "@/features/dashboard/data";
+export type Priority = "urgent" | "high" | "normal";
 
 export const priorities: Record<Priority, { label: string; level: number; tone: string }> = {
   urgent: { label: "Urgent", level: 3, tone: "fill-ember" },

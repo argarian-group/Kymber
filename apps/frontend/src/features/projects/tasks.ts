@@ -1,4 +1,5 @@
-import type { Priority } from "@/features/dashboard/data";
+import { type Priority } from "@/features/dashboard/priorities";
+import { palette } from "@/lib/palette";
 
 export type TaskPerson = { id: string; username: string };
 
@@ -36,18 +37,13 @@ export type TaskDetail = Task & { description: string; checklists: Checklist[]; 
 
 export type TaskFilters = { search: string; assignee: string; label: string; priority: string; due: string };
 
-export const labelColors = {
-  red: "#ff9d8c",
-  orange: "#ffb870",
-  yellow: "#ffd27a",
-  green: "#8fdc8a",
-  teal: "#47cbb7",
-  blue: "#8ab8ff",
-  purple: "#c7a6ff",
-  gray: "#b4d0c8",
-};
+export const descriptionLimit = 20000;
 
-export type LabelColor = keyof typeof labelColors;
+export const commentLimit = 5000;
+
+export const labelColors = palette;
+
+export type LabelColor = keyof typeof palette;
 
 export function boardPath(workspaceId: string, projectId: string) {
   return `/workspaces/${workspaceId}/projects/${projectId}`;
@@ -61,12 +57,9 @@ export function moveInBoard(board: Board, taskId: string, listId: string, positi
   const moved = board.tasks.find(({ id }) => id === taskId);
   if (!moved) return board;
   const others = tasksInList(board.tasks, listId).filter(({ id }) => id !== taskId);
-  const ordered = [...others.slice(0, position), { ...moved, list_id: listId }, ...others.slice(position)];
-  const positions = new Map(ordered.map((task, index) => [task.id, index + 1]));
-  return {
-    ...board,
-    tasks: board.tasks.map((task) => (task.id === taskId ? { ...task, list_id: listId, position: positions.get(taskId) ?? 1 } : positions.has(task.id) ? { ...task, position: positions.get(task.id) ?? task.position } : task)),
-  };
+  const ordered = [...others.slice(0, position), moved, ...others.slice(position)];
+  const updated = new Map(ordered.map((task, index) => [task.id, { ...task, list_id: listId, position: index + 1 }]));
+  return { ...board, tasks: board.tasks.map((task) => updated.get(task.id) ?? task) };
 }
 
 export function positionBefore(board: Board, taskId: string, listId: string, beforeId: string | null) {

@@ -11,8 +11,6 @@ import { common, createLowlight } from "lowlight";
 
 const lowlight = createLowlight(common);
 
-export const textColors = ["#ff9d8c", "#ffb870", "#ffd27a", "#8fdc8a", "#47cbb7", "#8ab8ff", "#c7a6ff", "#b4d0c8"];
-
 type RichTextOptions = {
   placeholder?: string;
   openLinks?: boolean;
@@ -48,12 +46,4 @@ export function toEditorHTML(stored: string) {
     .split("\n")
     .map((line) => `<p>${escapeHTML(line)}</p>`)
     .join("");
-}
-
-export function isSafeURL(url: string) {
-  try {
-    return ["http:", "https:", "mailto:"].includes(new URL(url).protocol);
-  } catch {
-    return false;
-  }
 }

@@ -1,6 +1,5 @@
-import { EditorContent, useEditor } from "@tiptap/react";
+import { type Editor, EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useRef } from "react";
-import { type Editor } from "@tiptap/react";
 import { richTextExtensions, toEditorHTML } from "@/components/richtext/richText";
 
 export function RichTextView({ html, onToggleTask }: { html: string; onToggleTask?: (html: string) => void }) {

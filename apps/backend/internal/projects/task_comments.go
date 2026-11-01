@@ -14,11 +14,11 @@ import (
 )
 
 type TaskComment struct {
-	ID        string        `json:"id"`
-	Author    *TaskAssignee `json:"author"`
-	Body      string        `json:"body"`
-	CreatedAt time.Time     `json:"created_at"`
-	UpdatedAt time.Time     `json:"updated_at"`
+	ID        string    `json:"id"`
+	Author    *TaskUser `json:"author"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type commentPayload struct {
@@ -40,7 +40,7 @@ func (h *Handler) loadComments(ctx context.Context, taskID string) ([]TaskCommen
 			return nil, err
 		}
 		if authorID.Valid {
-			comment.Author = &TaskAssignee{ID: uint64(authorID.Int64), Username: authorName.String}
+			comment.Author = &TaskUser{ID: uint64(authorID.Int64), Username: authorName.String}
 		}
 		comments = append(comments, comment)
 	}

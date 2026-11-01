@@ -2,11 +2,9 @@ import { type FormEvent, useState } from "react";
 import { RichTextEditor } from "@/components/richtext/RichTextEditor";
 import { FormError } from "@/components/ui/FormError";
 import { TaskCommentRow } from "@/features/projects/components/tasks/TaskCommentRow";
-import { type TaskComment } from "@/features/projects/tasks";
+import { commentLimit, type TaskComment } from "@/features/projects/tasks";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
-
-const commentLimit = 5000;
 
 export function TaskComments({ comments, path, taskId, onChanged }: { comments: TaskComment[]; path: string; taskId: string; onChanged: () => void }) {
   const [body, setBody] = useState("");

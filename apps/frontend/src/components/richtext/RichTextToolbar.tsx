@@ -109,7 +109,7 @@ export function RichTextToolbar({ editor }: { editor: Editor }) {
         <RichTextUrlForm
           label="Link URL"
           initial={editor.getAttributes("link").href ?? ""}
-          protocols="https://|http://|mailto:"
+          protocols={["https:", "http:", "mailto:"]}
           onSubmit={(href) => {
             if (editor.state.selection.empty && !state.link) chain().insertContent({ type: "text", text: href, marks: [{ type: "link", attrs: { href } }] }).run();
             else chain().extendMarkRange("link").setLink({ href }).run();
@@ -123,7 +123,7 @@ export function RichTextToolbar({ editor }: { editor: Editor }) {
         <RichTextUrlForm
           label="Image URL"
           initial=""
-          protocols="https://"
+          protocols={["https:"]}
           onSubmit={(src) => {
             chain().setImage({ src }).run();
             setPanel(null);

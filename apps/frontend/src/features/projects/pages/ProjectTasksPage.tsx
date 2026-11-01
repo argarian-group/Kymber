@@ -1,5 +1,5 @@
 import { CalendarDays, Columns3, List, type LucideIcon } from "lucide-react";
-import { lazy, Suspense, useCallback } from "react";
+import { lazy, Suspense } from "react";
 import { useSearchParams } from "react-router";
 import { LoadError } from "@/components/ui/LoadError";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -28,7 +28,6 @@ export function ProjectTasksPage() {
   const filters = Object.fromEntries(filterNames.map((name) => [name, params.get(name) ?? ""])) as TaskFilters;
   const openTaskId = params.get("task");
   const { board, error, path, reload, createTask, moveTask, reorderLists, createList, updateList, deleteList } = useBoard();
-  const stableReload = useCallback(reload, []);
 
   function setParam(name: string, value: string, replace = true) {
     setParams(
@@ -95,7 +94,7 @@ export function ProjectTasksPage() {
       {view === "calendar" && <TaskCalendar tasks={visible} isDone={isDone} onOpen={openTask} />}
       {openTaskId && (
         <Suspense fallback={null}>
-          <TaskDetailDialog taskId={openTaskId} board={board} path={path} onMove={moveTask} onChanged={stableReload} onClose={() => setParam("task", "")} key={openTaskId} />
+          <TaskDetailDialog taskId={openTaskId} board={board} path={path} onMove={moveTask} onChanged={reload} onClose={() => setParam("task", "")} key={openTaskId} />
         </Suspense>
       )}
     </div>

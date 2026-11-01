@@ -1,10 +1,10 @@
 import { X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { FormError } from "@/components/ui/FormError";
-import { SelectField } from "@/components/ui/SelectField";
+import { useRef, useState } from "react";
 import { Field } from "@/components/ui/Field";
-import { type Priority } from "@/features/dashboard/data";
-import { priorities } from "@/features/dashboard/priorities";
+import { FormError } from "@/components/ui/FormError";
+import { Modal } from "@/components/ui/Modal";
+import { SelectField } from "@/components/ui/SelectField";
+import { priorities, type Priority } from "@/features/dashboard/priorities";
 import { useProjects } from "@/features/projects/ProjectsContext";
 import { AddInline } from "@/features/projects/components/tasks/AddInline";
 import { TaskChecklistCard } from "@/features/projects/components/tasks/TaskChecklistCard";
@@ -36,7 +36,6 @@ function editOf(task: TaskDetail): TaskEdit {
 export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClose }: TaskDetailDialogProps) {
   const { workspace } = useProjectOutlet();
   const { canWrite } = useProjects();
-  const dialog = useRef<HTMLDialogElement>(null);
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [edit, setEdit] = useState<TaskEdit | null>(null);
   const latest = useRef<TaskEdit | null>(null);
@@ -47,10 +46,6 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
   const [confirming, setConfirming] = useState(false);
   const removal = useAction();
   const taskPath = `${path}/tasks/${taskId}`;
-
-  useEffect(() => {
-    dialog.current?.showModal();
-  }, []);
 
   useLoadEffect(
     () => api<{ task: TaskDetail }>(taskPath),
@@ -72,10 +67,10 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
     [workspace.id],
   );
 
-  const refresh = useCallback(() => {
+  function refresh() {
     setAttempt((value) => value + 1);
     onChanged();
-  }, [onChanged]);
+  }
 
   function save(patch: Partial<TaskEdit>) {
     if (!latest.current) return;
@@ -115,11 +110,12 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
   const position = siblings.findIndex(({ id }) => id === taskId);
 
   return (
-    <dialog
-      ref={dialog}
-      className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl rounded-panel bg-raised p-0 text-ink backdrop:bg-black/60"
-      aria-label={edit?.title ?? "Task"}
-      onCancel={() => (document.activeElement as HTMLElement | null)?.blur()}
+    <Modal
+      label={edit?.title ?? "Task"}
+      className="max-h-[calc(100dvh-2rem)] max-w-3xl"
+      onCancel={() => {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      }}
       onClose={onClose}
     >
       {!edit || !detail ? (
@@ -236,6 +232,6 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
           </div>
         </div>
       )}
-    </dialog>
+    </Modal>
   );
 }

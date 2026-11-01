@@ -4,7 +4,7 @@ import { RichTextView } from "@/components/richtext/RichTextView";
 import { FormError } from "@/components/ui/FormError";
 import { useCurrentUser } from "@/features/auth/AuthContext";
 import { useProjects } from "@/features/projects/ProjectsContext";
-import { type TaskComment } from "@/features/projects/tasks";
+import { commentLimit, type TaskComment } from "@/features/projects/tasks";
 import { api } from "@/lib/api";
 import { formatRelative } from "@/lib/format";
 import { useAction } from "@/lib/useAction";
@@ -39,10 +39,10 @@ export function TaskCommentRow({ comment, path, onChanged }: { comment: TaskComm
         </p>
         {editing ? (
           <form className="mt-1 grid gap-2" onSubmit={save}>
-            <RichTextEditor label="Edit comment" placeholder="Write a comment" initial={comment.body} limit={5000} size="min-h-20" autoFocus value={body} onChange={setBody} />
+            <RichTextEditor label="Edit comment" placeholder="Write a comment" initial={comment.body} limit={commentLimit} size="min-h-20" autoFocus value={body} onChange={setBody} />
             <FormError message={error} />
             <div className="flex gap-2">
-              <button className="btn btn-primary" type="submit" disabled={pending || !body || body.length > 5000}>
+              <button className="btn btn-primary" type="submit" disabled={pending || !body || body.length > commentLimit}>
                 Save
               </button>
               <button className="btn" type="button" onClick={() => setEditing(false)}>

@@ -1,3 +1,5 @@
+import { type Priority } from "@/features/dashboard/priorities";
+
 export type Health = "on-track" | "at-risk" | "late";
 export type DeployStatus = "live" | "running" | "failed";
 
@@ -20,7 +22,6 @@ export type Deploy = {
   status: DeployStatus;
 };
 
-export type Priority = "urgent" | "high" | "normal";
 export type DueTask = { title: string; project: string; due: string; late: boolean; priority: Priority };
 
 export const projects: Project[] = [

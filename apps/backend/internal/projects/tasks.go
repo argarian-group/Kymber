@@ -16,24 +16,24 @@ import (
 const maxTaskRelations = 50
 
 type Task struct {
-	ID             string         `json:"id"`
-	ProjectID      string         `json:"project_id"`
-	ListID         string         `json:"list_id"`
-	Position       int            `json:"position"`
-	Title          string         `json:"title"`
-	HasDescription bool           `json:"has_description"`
-	Priority       string         `json:"priority"`
-	DueDate        *string        `json:"due_date"`
-	Assignees      []TaskAssignee `json:"assignees"`
-	LabelIDs       []string       `json:"label_ids"`
-	ChecklistDone  int            `json:"checklist_done"`
-	ChecklistTotal int            `json:"checklist_total"`
-	CommentCount   int            `json:"comment_count"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
+	ID             string     `json:"id"`
+	ProjectID      string     `json:"project_id"`
+	ListID         string     `json:"list_id"`
+	Position       int        `json:"position"`
+	Title          string     `json:"title"`
+	HasDescription bool       `json:"has_description"`
+	Priority       string     `json:"priority"`
+	DueDate        *string    `json:"due_date"`
+	Assignees      []TaskUser `json:"assignees"`
+	LabelIDs       []string   `json:"label_ids"`
+	ChecklistDone  int        `json:"checklist_done"`
+	ChecklistTotal int        `json:"checklist_total"`
+	CommentCount   int        `json:"comment_count"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
-type TaskAssignee struct {
+type TaskUser struct {
 	ID       uint64 `json:"id,string"`
 	Username string `json:"username"`
 }
@@ -114,7 +114,7 @@ func (h *Handler) loadTasks(ctx context.Context, projectID, taskID string) ([]Ta
 	tasks := make([]Task, 0)
 	index := make(map[string]int)
 	for rows.Next() {
-		task := Task{Assignees: []TaskAssignee{}, LabelIDs: []string{}}
+		task := Task{Assignees: []TaskUser{}, LabelIDs: []string{}}
 		var dueDate sql.NullString
 		if err := rows.Scan(&task.ID, &task.ProjectID, &task.ListID, &task.Position, &task.Title, &task.HasDescription, &task.Priority, &dueDate, &task.ChecklistDone, &task.ChecklistTotal, &task.CommentCount, &task.CreatedAt, &task.UpdatedAt); err != nil {
 			return nil, err
@@ -136,7 +136,7 @@ func (h *Handler) loadTasks(ctx context.Context, projectID, taskID string) ([]Ta
 	defer assignees.Close()
 	for assignees.Next() {
 		var id string
-		var assignee TaskAssignee
+		var assignee TaskUser
 		if err := assignees.Scan(&id, &assignee.ID, &assignee.Username); err != nil {
 			return nil, err
 		}
@@ -303,44 +303,38 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
-	statements := []func() error{
-		func() error {
-			_, err := tx.ExecContext(r.Context(), "UPDATE project_tasks SET title = ?, description = ?, priority = ?, due_date = ? WHERE id = ?", input.Title, input.Description, input.Priority, input.DueDate, taskID)
-			return err
-		},
-		func() error {
-			_, err := tx.ExecContext(r.Context(), "DELETE FROM task_assignees WHERE task_id = ?", taskID)
-			return err
-		},
-		func() error {
-			for _, id := range assigneeIDs {
-				if _, err := tx.ExecContext(r.Context(), "INSERT IGNORE INTO task_assignees (task_id, user_id) VALUES (?, ?)", taskID, id); err != nil {
-					return err
-				}
-			}
-			return nil
-		},
-		func() error {
-			_, err := tx.ExecContext(r.Context(), "DELETE FROM task_labels WHERE task_id = ?", taskID)
-			return err
-		},
-		func() error {
-			for _, id := range input.LabelIDs {
-				if _, err := tx.ExecContext(r.Context(), "INSERT IGNORE INTO task_labels (task_id, label_id) VALUES (?, ?)", taskID, id); err != nil {
-					return err
-				}
-			}
-			return nil
-		},
-		tx.Commit,
+	if err := saveTask(r.Context(), tx, taskID, input, assigneeIDs); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update task")
+		return
 	}
-	for _, statement := range statements {
-		if err := statement(); err != nil {
-			writeError(w, http.StatusInternalServerError, "could not update task")
-			return
-		}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update task")
+		return
 	}
 	h.writeTaskDetail(w, r, http.StatusOK, projectID, taskID)
+}
+
+func saveTask(ctx context.Context, tx *sql.Tx, taskID string, input taskPayload, assigneeIDs []uint64) error {
+	if _, err := tx.ExecContext(ctx, "UPDATE project_tasks SET title = ?, description = ?, priority = ?, due_date = ? WHERE id = ?", input.Title, input.Description, input.Priority, input.DueDate, taskID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM task_assignees WHERE task_id = ?", taskID); err != nil {
+		return err
+	}
+	for _, id := range assigneeIDs {
+		if _, err := tx.ExecContext(ctx, "INSERT IGNORE INTO task_assignees (task_id, user_id) VALUES (?, ?)", taskID, id); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM task_labels WHERE task_id = ?", taskID); err != nil {
+		return err
+	}
+	for _, id := range input.LabelIDs {
+		if _, err := tx.ExecContext(ctx, "INSERT IGNORE INTO task_labels (task_id, label_id) VALUES (?, ?)", taskID, id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (h *Handler) moveTask(w http.ResponseWriter, r *http.Request) {
@@ -432,7 +426,7 @@ func (h *Handler) authorizeTask(w http.ResponseWriter, r *http.Request, write bo
 func (h *Handler) scopeExists(w http.ResponseWriter, r *http.Request, query, notFound string, args ...any) bool {
 	var found bool
 	if err := h.db.QueryRowContext(r.Context(), query, args...).Scan(&found); err != nil {
-		writeError(w, http.StatusInternalServerError, "could not check "+strings.TrimSuffix(notFound, " not found"))
+		writeError(w, http.StatusInternalServerError, "could not check access")
 		return false
 	}
 	if !found {

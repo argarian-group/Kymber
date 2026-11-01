@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { RichTextEditor } from "@/components/richtext/RichTextEditor";
 import { RichTextView } from "@/components/richtext/RichTextView";
-
-const descriptionLimit = 20000;
+import { descriptionLimit } from "@/features/projects/tasks";
 
 export function TaskDescription({ value, onSave }: { value: string; onSave: (description: string) => void }) {
   const [draft, setDraft] = useState<string | null>(null);

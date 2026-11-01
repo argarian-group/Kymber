@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
@@ -94,10 +95,32 @@ func (h *Handler) listDeployTargets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string][]target{"servers": targets})
 }
 
-func (h *Handler) serverOnline(r *http.Request, id string) (bool, error) {
+func (h *Handler) requireServerOnline(w http.ResponseWriter, r *http.Request, id string) bool {
 	var online bool
-	err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM servers s WHERE s.id = ? AND "+serverStatusSQL+" = 'online')", id).Scan(&online)
-	return online, err
+	if err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM servers s WHERE s.id = ? AND "+serverStatusSQL+" = 'online')", id).Scan(&online); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not check server")
+		return false
+	}
+	if !online {
+		writeError(w, http.StatusConflict, "server is offline")
+		return false
+	}
+	return true
+}
+
+func serverName(w http.ResponseWriter, r *http.Request) (string, bool) {
+	var input struct {
+		Name string `json:"name"`
+	}
+	if !decodeJSON(w, r, &input) {
+		return "", false
+	}
+	name := strings.TrimSpace(input.Name)
+	if length := utf8.RuneCountInString(name); length < 1 || length > 120 {
+		writeError(w, http.StatusBadRequest, "name must be 1 to 120 characters")
+		return "", false
+	}
+	return name, true
 }
 
 func (h *Handler) createServer(w http.ResponseWriter, r *http.Request) {
@@ -105,15 +128,8 @@ func (h *Handler) createServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := auth.UserFromContext(r)
-	var input struct {
-		Name string `json:"name"`
-	}
-	if !decodeJSON(w, r, &input) {
-		return
-	}
-	input.Name = strings.TrimSpace(input.Name)
-	if len(input.Name) < 1 || len(input.Name) > 120 {
-		writeError(w, http.StatusBadRequest, "name must be 1 to 120 characters")
+	name, ok := serverName(w, r)
+	if !ok {
 		return
 	}
 	token, digest, err := newServerToken()
@@ -126,11 +142,11 @@ func (h *Handler) createServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not generate server id")
 		return
 	}
-	if _, err := h.db.ExecContext(r.Context(), "INSERT INTO servers (id, name, token_hash, created_by) VALUES (?, ?, ?, ?)", id, input.Name, digest[:], user.ID); err != nil {
+	if _, err := h.db.ExecContext(r.Context(), "INSERT INTO servers (id, name, token_hash, created_by) VALUES (?, ?, ?, ?)", id, name, digest[:], user.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not register server")
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"server": serverInfo{ID: id, Name: input.Name, Status: "pending", CreatedAt: time.Now().UTC()}, "token": token})
+	writeJSON(w, http.StatusCreated, map[string]any{"server": serverInfo{ID: id, Name: name, Status: "pending", CreatedAt: time.Now().UTC()}, "token": token})
 }
 
 func newServerToken() (string, [32]byte, error) {
@@ -150,15 +166,8 @@ func (h *Handler) renameServer(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var input struct {
-		Name string `json:"name"`
-	}
-	if !decodeJSON(w, r, &input) {
-		return
-	}
-	input.Name = strings.TrimSpace(input.Name)
-	if len(input.Name) < 1 || len(input.Name) > 120 {
-		writeError(w, http.StatusBadRequest, "name must be 1 to 120 characters")
+	name, ok := serverName(w, r)
+	if !ok {
 		return
 	}
 	var exists bool
@@ -170,7 +179,7 @@ func (h *Handler) renameServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "server not found")
 		return
 	}
-	if _, err := h.db.ExecContext(r.Context(), "UPDATE servers SET name = ? WHERE id = ?", input.Name, id); err != nil {
+	if _, err := h.db.ExecContext(r.Context(), "UPDATE servers SET name = ? WHERE id = ?", name, id); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not rename server")
 		return
 	}

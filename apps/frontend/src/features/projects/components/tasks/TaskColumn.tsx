@@ -1,8 +1,8 @@
 import { CheckCircle2, MoreHorizontal } from "lucide-react";
 import { Fragment, type DragEvent } from "react";
 import { AddInline } from "@/features/projects/components/tasks/AddInline";
-import { TaskDropLine } from "@/features/projects/components/tasks/TaskDropLine";
 import { TaskCard } from "@/features/projects/components/tasks/TaskCard";
+import { TaskDropLine } from "@/features/projects/components/tasks/TaskDropLine";
 import { type Task, type TaskLabel, type TaskListColumn } from "@/features/projects/tasks";
 
 type TaskColumnProps = {

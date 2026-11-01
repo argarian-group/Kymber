@@ -7,6 +7,8 @@ import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
 
+type DeployTarget = { id: string; name: string };
+
 const available: Record<string, { action: ServiceAction; label: string; primary?: boolean }[]> = {
   draft: [{ action: "deploy", label: "Deploy", primary: true }],
   running: [
@@ -25,13 +27,13 @@ export function ServiceActions({ service, path, workspaceId, onChanged }: { serv
   const user = useCurrentUser();
   const { pending, error, run } = useAction();
   const busy = isServiceBusy(service.status);
-  const [servers, setServers] = useState<{ id: string; name: string }[]>([]);
+  const [servers, setServers] = useState<DeployTarget[]>([]);
   const [serverId, setServerId] = useState("");
   const choosing = !service.server_id && !busy;
   const target = serverId || servers[0]?.id;
 
   useLoadEffect(
-    () => (choosing ? api<{ servers: { id: string; name: string }[] }>(`/workspaces/${workspaceId}/servers`) : Promise.resolve({ servers: [] })),
+    () => (choosing ? api<{ servers: DeployTarget[] }>(`/workspaces/${workspaceId}/servers`) : Promise.resolve({ servers: [] })),
     (response) => setServers(response.servers),
     () => setServers([]),
     [choosing, workspaceId],

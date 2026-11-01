@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
 import { boardPath, moveInBoard, type Board } from "./tasks";
@@ -10,7 +10,7 @@ export function useBoard() {
   const [board, setBoard] = useState<Board | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const reload = () => setAttempt((value) => value + 1);
+  const reload = useCallback(() => setAttempt((value) => value + 1), []);
 
   useLoadEffect(
     () => api<Board>(`${path}/board`),

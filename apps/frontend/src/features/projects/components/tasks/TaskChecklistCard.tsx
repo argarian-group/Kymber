@@ -1,9 +1,9 @@
 import { Trash2 } from "lucide-react";
+import { FormError } from "@/components/ui/FormError";
 import { AddInline } from "@/features/projects/components/tasks/AddInline";
 import { type Checklist, type ChecklistItem } from "@/features/projects/tasks";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
-import { FormError } from "@/components/ui/FormError";
 
 export function TaskChecklistCard({ checklist, path, onChanged }: { checklist: Checklist; path: string; onChanged: () => void }) {
   const { error, run } = useAction();

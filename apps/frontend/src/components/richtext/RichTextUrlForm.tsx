@@ -1,10 +1,17 @@
 import { useState } from "react";
-import { isSafeURL } from "@/components/richtext/richText";
+
+function hasProtocol(url: string, protocols: string[]) {
+  try {
+    return protocols.includes(new URL(url).protocol);
+  } catch {
+    return false;
+  }
+}
 
 type RichTextUrlFormProps = {
   label: string;
   initial: string;
-  protocols: string;
+  protocols: string[];
   onSubmit: (url: string) => void;
   onRemove?: () => void;
   onClose: () => void;
@@ -16,7 +23,7 @@ export function RichTextUrlForm({ label, initial, protocols, onSubmit, onRemove,
 
   function submit() {
     const value = url.trim();
-    if (!isSafeURL(value) || !protocols.split("|").some((protocol) => value.startsWith(protocol))) {
+    if (!hasProtocol(value, protocols)) {
       setInvalid(true);
       return;
     }
@@ -61,7 +68,7 @@ export function RichTextUrlForm({ label, initial, protocols, onSubmit, onRemove,
       </button>
       {invalid && (
         <p className="w-full text-xs text-ember" role="alert">
-          Enter a full URL starting with {protocols.split("|").join(" or ")}
+          Enter a full URL using {protocols.join(" or ")}
         </p>
       )}
     </div>

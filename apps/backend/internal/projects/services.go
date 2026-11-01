@@ -202,11 +202,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 	}
 	if action == "deploy" && !nullableServerID.Valid {
 		if requestedServer != "" {
-			if online, err := h.serverOnline(r, requestedServer); err != nil {
-				writeError(w, http.StatusInternalServerError, "could not check server")
-				return
-			} else if !online {
-				writeError(w, http.StatusConflict, "server is offline")
+			if !h.requireServerOnline(w, r, requestedServer) {
 				return
 			}
 			nullableServerID = sql.NullString{String: requestedServer, Valid: true}
@@ -226,11 +222,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "service has not been deployed")
 		return
 	}
-	if online, err := h.serverOnline(r, nullableServerID.String); err != nil {
-		writeError(w, http.StatusInternalServerError, "could not check server")
-		return
-	} else if !online {
-		writeError(w, http.StatusConflict, "server is offline")
+	if !h.requireServerOnline(w, r, nullableServerID.String) {
 		return
 	}
 	if action == "remove_container" || action == "remove_container_image" {
@@ -400,11 +392,7 @@ func (h *Handler) deleteService(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	if online, err := h.serverOnline(r, serverID.String); err != nil {
-		writeError(w, http.StatusInternalServerError, "could not check server")
-		return
-	} else if !online {
-		writeError(w, http.StatusConflict, "server is offline")
+	if !h.requireServerOnline(w, r, serverID.String) {
 		return
 	}
 	if err := h.queueServiceAction(r, serverID.String, serviceID, "delete", ""); err != nil {

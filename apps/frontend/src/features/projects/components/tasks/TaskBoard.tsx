@@ -16,7 +16,7 @@ type TaskBoardProps = {
   onDeleteList: (id: string) => Promise<void>;
 };
 
-type Drag = { kind: "task"; id: string } | { kind: "list"; id: string };
+type Drag = { kind: "task" | "list"; id: string };
 type Target = { listId: string; beforeTask: string | null } | { listId: string; side: "before" | "after" };
 
 export function TaskBoard({ board, visible, onOpen, onMoveTask, onReorderLists, onCreateTask, onCreateList, onUpdateList, onDeleteList }: TaskBoardProps) {

@@ -1,10 +1,10 @@
 import { type Editor } from "@tiptap/react";
-import { textColors } from "@/components/richtext/richText";
+import { palette } from "@/lib/palette";
 
 export function RichTextColors({ editor, onClose }: { editor: Editor; onClose: () => void }) {
   return (
     <div className="flex flex-wrap items-center gap-1 border-t border-line p-2" role="group" aria-label="Text color">
-      {textColors.map((color) => (
+      {Object.values(palette).map((color) => (
         <button
           className="focus-ring size-7 cursor-pointer rounded-sm"
           style={{ backgroundColor: color }}

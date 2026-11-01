@@ -1,7 +1,8 @@
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { Modal } from "@/components/ui/Modal";
 import { useProjects } from "@/features/projects/ProjectsContext";
 import { type TaskListColumn } from "@/features/projects/tasks";
 import { useAction } from "@/lib/useAction";
@@ -18,15 +19,10 @@ type TaskListDialogProps = {
 
 export function TaskListDialog({ list, index, count, onSave, onDelete, onMove, onClose }: TaskListDialogProps) {
   const { canWrite } = useProjects();
-  const dialog = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState(list.name);
   const [isDone, setIsDone] = useState(list.is_done);
   const [confirming, setConfirming] = useState(false);
   const { pending, error, run } = useAction();
-
-  useEffect(() => {
-    dialog.current?.showModal();
-  }, []);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -39,7 +35,7 @@ export function TaskListDialog({ list, index, count, onSave, onDelete, onMove, o
   }
 
   return (
-    <dialog ref={dialog} className="m-auto w-[calc(100%-2rem)] max-w-md rounded-panel bg-raised p-0 text-ink backdrop:bg-black/60" aria-label="Edit list" onClose={onClose}>
+    <Modal label="Edit list" className="max-w-md" onClose={onClose}>
       <form className="grid gap-4 p-4" onSubmit={submit}>
         <h2 className="section-title">Edit list</h2>
         <Field label="Name" required autoFocus maxLength={80} value={name} onChange={(event) => setName(event.target.value)} />
@@ -75,6 +71,6 @@ export function TaskListDialog({ list, index, count, onSave, onDelete, onMove, o
           )}
         </div>
       </form>
-    </dialog>
+    </Modal>
   );
 }
