@@ -113,6 +113,14 @@ func (h *Handler) dockerImageDetails(w http.ResponseWriter, r *http.Request) {
 			version = "latest"
 		}
 	}
+	// Busy repositories push latest out of the most recent tags.
+	if version != "latest" {
+		var latest struct{}
+		if err := fetchJSON(r.Context(), fmt.Sprintf("%s/v2/repositories/%s/tags/latest", dockerHubBaseURL, repository), "", &latest); err == nil {
+			version = "latest"
+			tags = append([]string{"latest"}, tags...)
+		}
+	}
 	// The user can fill port and data path by hand, so a registry failure must not block them.
 	port, dataPath, _ := inspectImage(r.Context(), repository, version)
 	writeJSON(w, http.StatusOK, map[string]any{"tags": tags, "default_version": version, "port": port, "data_path": dataPath})

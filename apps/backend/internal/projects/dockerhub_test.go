@@ -104,3 +104,30 @@ func TestSearchDockerHubKeepsOnlyPullableImages(t *testing.T) {
 		t.Errorf("images = %+v", response.Images)
 	}
 }
+
+func TestDockerImageDetailsPrefersLatestOutsideRecentTags(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/repositories/library/nginx/tags":
+			w.Write([]byte(`{"results":[{"name":"stable-trixie"},{"name":"1.29"}]}`))
+		case "/v2/repositories/library/nginx/tags/latest":
+			w.Write([]byte(`{"name":"latest"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	dockerHubBaseURL, registryAuthURL = server.URL, server.URL+"/token"
+	recorder := httptest.NewRecorder()
+	(&Handler{}).dockerImageDetails(recorder, httptest.NewRequest(http.MethodGet, "/image?repository=nginx", nil))
+	var response struct {
+		Tags           []string `json:"tags"`
+		DefaultVersion string   `json:"default_version"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.DefaultVersion != "latest" || len(response.Tags) != 3 || response.Tags[0] != "latest" {
+		t.Errorf("response = %+v", response)
+	}
+}
