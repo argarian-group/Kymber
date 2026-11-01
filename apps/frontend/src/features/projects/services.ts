@@ -9,6 +9,8 @@ export type Service = {
   engine: string;
   image: string;
   image_version: string;
+  server_id?: string;
+  server_name?: string;
   name: string;
   database_name: string;
   database_user: string;

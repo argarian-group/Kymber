@@ -16,7 +16,7 @@
 </div>
 
 > [!NOTE]
-> Kymber is in early development. Accounts, workspaces, members and projects run on the API. Apps run as Docker containers through a local server. The overview and each project's tasks still show sample data.
+> Kymber is in early development. Accounts, workspaces, members and projects run on the API. Apps run as Docker containers on the servers you register. The overview and each project's tasks still show sample data.
 
 ## Why Kymber
 
@@ -59,8 +59,8 @@ cp .env.example .env
 | `SERVER_PORT` | API port, `8080` when not set |
 | `SECURE_ONBOARD` | When `true`, the API listens only on localhost until the root account exists |
 | `SERVICE_ENCRYPTION_KEY` | Encrypts app settings. Required to create apps. Generate it with `openssl rand -hex 32` |
-| `KYMBER_API_URL` | API address used by the local server |
-| `KYMBER_SERVER_TOKEN` | Token shown when you register the server |
+| `KYMBER_API_URL` | API address used by a server |
+| `KYMBER_SERVER_TOKEN` | Token shown when you register a server |
 | `DB_HOST`, `DB_PORT`, `DB_NAME` | MariaDB address and database |
 | `DB_USER`, `DB_PASSWORD` | MariaDB application user |
 | `DB_ROOT_PASSWORD` | MariaDB root password |
@@ -87,7 +87,8 @@ Press `Ctrl+C` to stop the API and the frontend. MariaDB keeps running until you
 | `make run` | MariaDB and the API |
 | `make dev` | MariaDB and the API with live reload |
 | `make frontend` | The frontend |
-| `make server` | The local server that runs apps in Docker |
+| `make server` | A server that runs apps in Docker |
+| `make build-server` | Compiles a server to `apps/backend/build/kymber-server` |
 | `make build` | Compiles the API to `apps/backend/build/api` |
 
 To check that the API is running:
@@ -102,11 +103,21 @@ curl http://localhost:8080/health
 
 ### Run apps
 
-Root registers the server under **Servers**. Set the token it shows as `KYMBER_SERVER_TOKEN` in `.env`, then keep this running:
+Root registers servers under **Servers**, which shows the token once. An app stays on the server chosen at its first deploy.
+
+To run a server on this machine:
 
 ```bash
-make server
+KYMBER_SERVER_TOKEN=<token> make server
 ```
+
+To run a server on another machine with Docker, compile it with `make build-server`, copy `apps/backend/build/kymber-server` there, then run:
+
+```bash
+KYMBER_API_URL=https://<kymber-address> KYMBER_SERVER_TOKEN=<token> ./kymber-server
+```
+
+The API must be reachable from that machine. Addresses other than this machine require HTTPS.
 
 To delete all local data, stop the app and run `docker compose down -v`.
 
@@ -117,10 +128,10 @@ apps/
 ├── backend/
 │   ├── cmd/
 │   │   ├── api/         # API entry point
-│   │   ├── server/      # Local server that runs apps in Docker
+│   │   ├── server/      # Server that runs apps in Docker
 │   │   └── template-registry/  # Generates the template catalog
 │   └── internal/
-│       ├── agent/       # API used by the local server
+│       ├── agent/       # API used by servers
 │       ├── auth/        # Accounts, sessions, onboarding and invitations
 │       ├── database/    # Connection, migrations and IDs
 │       ├── logger/      # Colored log output
@@ -144,7 +155,7 @@ assets/                  # Logo, banner and background
 - [x] Workspaces, members and invitations
 - [x] Projects
 - [x] Connect accounts, workspaces and projects to the API
-- [x] Database apps deployed through a local server
+- [x] Database apps deployed to local and remote servers
 - [x] Project pages with sample tasks
 - [ ] Application apps and deploy history
 - [ ] Tasks in the API

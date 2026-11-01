@@ -18,6 +18,7 @@ export function ServersPage() {
   const [servers, setServers] = useState<Server[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [adding, setAdding] = useState(false);
   const [connecting, setConnecting] = useState<{ id: string; token: string } | null>(null);
   const reload = () => setAttempt((value) => value + 1);
 
@@ -44,14 +45,27 @@ export function ServersPage() {
 
   return (
     <>
-      <PageHeader title="Servers" description={`${servers.length} ${servers.length === 1 ? "server" : "servers"}`} />
+      <PageHeader
+        title="Servers"
+        description={`${servers.length} ${servers.length === 1 ? "server" : "servers"}`}
+        actions={
+          servers.length > 0 &&
+          !adding && (
+            <button className="btn btn-primary" type="button" onClick={() => setAdding(true)}>
+              Add server
+            </button>
+          )
+        }
+      />
       <div className="grid max-w-4xl gap-4 px-4 py-6 md:px-6">
         {connecting && connectingServer && <ServerConnectSteps server={connectingServer} token={connecting.token} onDone={() => setConnecting(null)} />}
-        {servers.length === 0 && (
+        {(servers.length === 0 || adding) && (
           <RegisterServerForm
+            onCancel={servers.length > 0 ? () => setAdding(false) : undefined}
             onRegistered={(server, token) => {
-              setServers([server]);
+              setServers([...servers, server]);
               setConnecting({ id: server.id, token });
+              setAdding(false);
             }}
           />
         )}

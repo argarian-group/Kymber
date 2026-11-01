@@ -14,6 +14,7 @@ import { ProjectDetail } from "@/features/projects/components/overview/ProjectDe
 import { SectionHeading } from "@/features/projects/components/overview/SectionHeading";
 import { useProjects } from "@/features/projects/ProjectsContext";
 import { isServiceBusy, type Service } from "@/features/projects/services";
+import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
 import { useServices } from "@/features/projects/useServices";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
@@ -21,6 +22,7 @@ import { useLoadEffect } from "@/lib/useLoadEffect";
 export function ProjectAppPage() {
   const { appId } = useParams();
   const { canWrite } = useProjects();
+  const { workspace } = useProjectOutlet();
   const { services, error, reload, path } = useServices();
   const [detail, setDetail] = useState<Service | null>(null);
   const service = services?.find(({ id }) => id === appId);
@@ -66,7 +68,7 @@ export function ProjectAppPage() {
               <ServiceStatus status={service.status} />
             </div>
           </div>
-          {canWrite && <ServiceActions service={service} path={path} onChanged={reload} />}
+          {canWrite && <ServiceActions service={service} path={path} workspaceId={workspace.id} onChanged={reload} />}
         </div>
         <ServiceLifecycle status={service.status} />
       </section>
@@ -102,6 +104,7 @@ export function ProjectAppPage() {
           <dl className="grid gap-4">
             <ProjectDetail label="Engine">{service.engine}</ProjectDetail>
             <ProjectDetail label="Version">{service.image_version}</ProjectDetail>
+            {service.server_name && <ProjectDetail label="Server">{service.server_name}</ProjectDetail>}
             {service.database_name && <ProjectDetail label="Database">{service.database_name}</ProjectDetail>}
             {service.database_user && <ProjectDetail label="Username">{service.database_user}</ProjectDetail>}
             {detail?.internal_host && (

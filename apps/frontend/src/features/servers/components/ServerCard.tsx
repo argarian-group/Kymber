@@ -47,7 +47,7 @@ export function ServerCard({ server, onChanged, onToken }: { server: Server; onC
         </span>
         <div className="min-w-0 flex-1 basis-40">
           <h2 className="section-title wrap-break-word">{server.name}</h2>
-          <p className="text-meta text-ink-soft">Local Docker</p>
+          <p className="font-mono text-xs text-ink-soft">{server.id}</p>
         </div>
         <ServerStatusBadge status={server.status} />
       </div>

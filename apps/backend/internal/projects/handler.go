@@ -45,6 +45,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/workspaces/{workspaceID}", auth.Authenticate(h.db, http.HandlerFunc(h.getWorkspace)))
 	mux.Handle("PUT /api/workspaces/{workspaceID}", auth.Authenticate(h.db, http.HandlerFunc(h.updateWorkspace)))
 	mux.Handle("DELETE /api/workspaces/{workspaceID}", auth.Authenticate(h.db, http.HandlerFunc(h.deleteWorkspace)))
+	mux.Handle("GET /api/workspaces/{workspaceID}/servers", auth.Authenticate(h.db, http.HandlerFunc(h.listDeployTargets)))
 	mux.Handle("GET /api/workspaces/{workspaceID}/members", auth.Authenticate(h.db, http.HandlerFunc(h.listMembers)))
 	mux.Handle("POST /api/workspaces/{workspaceID}/members", auth.Authenticate(h.db, http.HandlerFunc(h.addMember)))
 	mux.Handle("PUT /api/workspaces/{workspaceID}/members/{userID}", auth.Authenticate(h.db, http.HandlerFunc(h.updateMember)))

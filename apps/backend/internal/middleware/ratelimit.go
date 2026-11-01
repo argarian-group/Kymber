@@ -35,9 +35,11 @@ func RateLimit(next http.Handler) http.Handler {
 	limiter := &limiter{buckets: make(map[string]*bucket)}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := clientIP(r.RemoteAddr)
-		if ok, wait := limiter.allow(ip+"/all", policy{name: "all", burst: 120, period: time.Minute}); !ok {
-			reject(w, wait)
-			return
+		if !strings.HasPrefix(r.URL.Path, "/api/agent/") {
+			if ok, wait := limiter.allow(ip+"/all", policy{name: "all", burst: 120, period: time.Minute}); !ok {
+				reject(w, wait)
+				return
+			}
 		}
 		if p, ok := sensitivePolicy(r); ok {
 			if allowed, wait := limiter.allow(ip+"/"+p.name, p); !allowed {

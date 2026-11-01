@@ -1,7 +1,10 @@
-.PHONY: build run backend dev server frontend db up template-registry
+.PHONY: build build-server run backend dev server frontend db up template-registry
 
 build: template-registry
 	cd apps/backend && go build -o build/api ./cmd/api
+
+build-server: template-registry
+	cd apps/backend && go build -o build/kymber-server ./cmd/server
 
 run: backend
 

@@ -62,6 +62,44 @@ func (h *Handler) listServers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string][]serverInfo{"servers": items})
 }
 
+func (h *Handler) listDeployTargets(w http.ResponseWriter, r *http.Request) {
+	user, _ := auth.UserFromContext(r)
+	workspaceID, ok := pathID(w, r, "workspaceID")
+	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+		return
+	}
+	rows, err := h.db.QueryContext(r.Context(), "SELECT s.id, s.name FROM servers s WHERE "+serverStatusSQL+" = 'online' ORDER BY s.created_at")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not list servers")
+		return
+	}
+	defer rows.Close()
+	type target struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	targets := make([]target, 0)
+	for rows.Next() {
+		var item target
+		if err := rows.Scan(&item.ID, &item.Name); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not read servers")
+			return
+		}
+		targets = append(targets, item)
+	}
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read servers")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string][]target{"servers": targets})
+}
+
+func (h *Handler) serverOnline(r *http.Request, id string) (bool, error) {
+	var online bool
+	err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM servers s WHERE s.id = ? AND "+serverStatusSQL+" = 'online')", id).Scan(&online)
+	return online, err
+}
+
 func (h *Handler) createServer(w http.ResponseWriter, r *http.Request) {
 	if !h.requireRoot(w, r) {
 		return
@@ -76,15 +114,6 @@ func (h *Handler) createServer(w http.ResponseWriter, r *http.Request) {
 	input.Name = strings.TrimSpace(input.Name)
 	if len(input.Name) < 1 || len(input.Name) > 120 {
 		writeError(w, http.StatusBadRequest, "name must be 1 to 120 characters")
-		return
-	}
-	var count int
-	if err := h.db.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM servers").Scan(&count); err != nil {
-		writeError(w, http.StatusInternalServerError, "could not check servers")
-		return
-	}
-	if count > 0 {
-		writeError(w, http.StatusConflict, "only one local server is supported in this version")
 		return
 	}
 	token, digest, err := newServerToken()

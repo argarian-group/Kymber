@@ -24,6 +24,8 @@ type databaseService struct {
 	Engine        string           `json:"engine"`
 	Image         string           `json:"image"`
 	ImageVersion  string           `json:"image_version"`
+	ServerID      string           `json:"server_id,omitempty"`
+	ServerName    string           `json:"server_name,omitempty"`
 	Name          string           `json:"name"`
 	DatabaseName  string           `json:"database_name"`
 	DatabaseUser  string           `json:"database_user"`
@@ -47,7 +49,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), `SELECT id, workspace_id, project_id, engine, name, image_version, database_name, database_user, status, COALESCE(last_error, '') FROM database_services WHERE workspace_id = ? AND project_id = ? ORDER BY created_at`, workspaceID, projectID)
+	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, '') FROM database_services d LEFT JOIN servers v ON v.id = d.server_id WHERE d.workspace_id = ? AND d.project_id = ? ORDER BY d.created_at`, workspaceID, projectID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list services")
 		return
@@ -56,7 +58,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	services := make([]databaseService, 0)
 	for rows.Next() {
 		var service databaseService
-		if err := rows.Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError); err != nil {
+		if err := rows.Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read services")
 			return
 		}
@@ -163,15 +165,16 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "unsupported service action")
 		return
 	}
-	imageVersion := ""
+	imageVersion, requestedServer := "", ""
 	if action == "deploy" && r.ContentLength != 0 {
 		var input struct {
 			ImageVersion string `json:"image_version"`
+			ServerID     string `json:"server_id"`
 		}
 		if !decodeJSON(w, r, &input) {
 			return
 		}
-		imageVersion = input.ImageVersion
+		imageVersion, requestedServer = input.ImageVersion, input.ServerID
 	}
 	if action == "deploy" {
 		service, err := h.readService(r, workspaceID, projectID, serviceID, false)
@@ -193,8 +196,21 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "service not found")
 		return
 	}
+	if requestedServer != "" && nullableServerID.Valid && requestedServer != nullableServerID.String {
+		writeError(w, http.StatusConflict, "app already runs on another server")
+		return
+	}
 	if action == "deploy" && !nullableServerID.Valid {
-		if err := h.db.QueryRowContext(r.Context(), "SELECT s.id FROM servers s WHERE "+serverStatusSQL+" = 'online' ORDER BY s.created_at LIMIT 1").Scan(&nullableServerID); errors.Is(err, sql.ErrNoRows) {
+		if requestedServer != "" {
+			if online, err := h.serverOnline(r, requestedServer); err != nil {
+				writeError(w, http.StatusInternalServerError, "could not check server")
+				return
+			} else if !online {
+				writeError(w, http.StatusConflict, "server is offline")
+				return
+			}
+			nullableServerID = sql.NullString{String: requestedServer, Valid: true}
+		} else if err := h.db.QueryRowContext(r.Context(), "SELECT s.id FROM servers s WHERE "+serverStatusSQL+" = 'online' ORDER BY s.created_at LIMIT 1").Scan(&nullableServerID); errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusConflict, "no online server is available")
 			return
 		} else if err != nil {
@@ -208,6 +224,13 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 	}
 	if !nullableServerID.Valid {
 		writeError(w, http.StatusConflict, "service has not been deployed")
+		return
+	}
+	if online, err := h.serverOnline(r, nullableServerID.String); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not check server")
+		return
+	} else if !online {
+		writeError(w, http.StatusConflict, "server is offline")
 		return
 	}
 	if action == "remove_container" || action == "remove_container_image" {
@@ -328,7 +351,7 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) readService(r *http.Request, workspaceID, projectID string, serviceID string, includeSecret bool) (databaseService, error) {
 	var service databaseService
 	var encrypted []byte
-	err := h.db.QueryRowContext(r.Context(), `SELECT id, workspace_id, project_id, engine, name, image_version, database_name, database_user, status, COALESCE(last_error, ''), encrypted_config FROM database_services WHERE id = ? AND workspace_id = ? AND project_id = ?`, serviceID, workspaceID, projectID).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &encrypted)
+	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.encrypted_config FROM database_services d LEFT JOIN servers v ON v.id = d.server_id WHERE d.id = ? AND d.workspace_id = ? AND d.project_id = ?`, serviceID, workspaceID, projectID).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &encrypted)
 	if err != nil {
 		return service, err
 	}
@@ -375,6 +398,13 @@ func (h *Handler) deleteService(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if online, err := h.serverOnline(r, serverID.String); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not check server")
+		return
+	} else if !online {
+		writeError(w, http.StatusConflict, "server is offline")
 		return
 	}
 	if err := h.queueServiceAction(r, serverID.String, serviceID, "delete", ""); err != nil {

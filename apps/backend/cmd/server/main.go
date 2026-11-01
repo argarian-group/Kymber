@@ -56,9 +56,8 @@ func run() error {
 	if baseURL == "" || token == "" {
 		return errors.New("KYMBER_API_URL and KYMBER_SERVER_TOKEN are required")
 	}
-	parsedURL, err := url.Parse(baseURL)
-	if err != nil || parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" || parsedURL.Hostname() != "localhost" && (net.ParseIP(parsedURL.Hostname()) == nil || !net.ParseIP(parsedURL.Hostname()).IsLoopback()) || parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return errors.New("API URL must use loopback HTTP or HTTPS")
+	if err := validateAPIURL(baseURL); err != nil {
+		return err
 	}
 	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	for {
@@ -88,6 +87,20 @@ func run() error {
 			time.Sleep(5 * time.Second)
 		}
 	}
+}
+
+func validateAPIURL(raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return errors.New("API URL is invalid")
+	}
+	host := parsed.Hostname()
+	ip := net.ParseIP(host)
+	loopback := host == "localhost" || ip != nil && ip.IsLoopback()
+	if parsed.Scheme == "https" || parsed.Scheme == "http" && loopback {
+		return nil
+	}
+	return errors.New("API URL must use HTTPS unless it points to this machine")
 }
 
 func request(ctx context.Context, client *http.Client, baseURL, token, path string, body []byte, output any) error {
