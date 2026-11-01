@@ -16,7 +16,7 @@
 </div>
 
 > [!NOTE]
-> Kymber is in early development. Accounts, workspaces, members and projects run on the API. The overview and each project's apps, deploys and tasks still show sample data.
+> Kymber is in early development. Accounts, workspaces, members and projects run on the API. Apps run as Docker containers through a local server. The overview and each project's tasks still show sample data.
 
 ## Why Kymber
 
@@ -30,12 +30,11 @@ Knowing how a project is doing usually means checking one tool for tasks, anothe
 - **Workspaces:** create, rename and delete workspaces, and switch between them.
 - **Team:** owner, admin and member roles, and invite links.
 - **Projects:** create, edit and delete projects inside a workspace.
+- **Apps:** create MySQL and Redis apps from templates, then deploy, start, stop and restart them in Docker.
 - **Appearance:** theme, accent color and density, saved in the browser.
 
 **In preview, with sample data**
 
-- **Apps and nodes:** apps grouped by node, such as Production and Staging, with their status.
-- **Deploys:** recent deploys in each project's overview.
 - **Tasks:** board, list and calendar views.
 
 ## Getting started
@@ -59,6 +58,9 @@ cp .env.example .env
 | --- | --- |
 | `SERVER_PORT` | API port, `8080` when not set |
 | `SECURE_ONBOARD` | When `true`, the API listens only on localhost until the root account exists |
+| `SERVICE_ENCRYPTION_KEY` | Encrypts app settings. Required to create apps. Generate it with `openssl rand -hex 32` |
+| `KYMBER_API_URL` | API address used by the local server |
+| `KYMBER_SERVER_TOKEN` | Token shown when you register the server |
 | `DB_HOST`, `DB_PORT`, `DB_NAME` | MariaDB address and database |
 | `DB_USER`, `DB_PASSWORD` | MariaDB application user |
 | `DB_ROOT_PASSWORD` | MariaDB root password |
@@ -85,6 +87,7 @@ Press `Ctrl+C` to stop the API and the frontend. MariaDB keeps running until you
 | `make run` | MariaDB and the API |
 | `make dev` | MariaDB and the API with live reload |
 | `make frontend` | The frontend |
+| `make server` | The local server that runs apps in Docker |
 | `make build` | Compiles the API to `apps/backend/build/api` |
 
 To check that the API is running:
@@ -97,6 +100,14 @@ curl http://localhost:8080/health
 {"status":"ok"}
 ```
 
+### Run apps
+
+Root registers the server under **Settings > System**. Set the token it shows as `KYMBER_SERVER_TOKEN` in `.env`, then keep this running:
+
+```bash
+make server
+```
+
 To delete all local data, stop the app and run `docker compose down -v`.
 
 ## Project structure
@@ -104,15 +115,21 @@ To delete all local data, stop the app and run `docker compose down -v`.
 ```text
 apps/
 ├── backend/
-│   ├── cmd/api/         # API entry point
+│   ├── cmd/
+│   │   ├── api/         # API entry point
+│   │   ├── server/      # Local server that runs apps in Docker
+│   │   └── template-registry/  # Generates the template catalog
 │   └── internal/
+│       ├── agent/       # API used by the local server
 │       ├── auth/        # Accounts, sessions, onboarding and invitations
 │       ├── database/    # Connection, migrations and IDs
 │       ├── logger/      # Colored log output
 │       ├── middleware/  # Rate limiting
-│       ├── projects/    # Workspaces, members and projects
+│       ├── projects/    # Workspaces, members, projects, apps and servers
 │       ├── routes/      # HTTP routes
-│       └── server/      # HTTP server
+│       ├── secrets/     # Encryption of app settings
+│       ├── server/      # HTTP server
+│       └── templates/   # MySQL and Redis templates
 └── frontend/src/        # React app (Vite, Tailwind CSS)
     ├── components/      # Shared layout and UI components
     ├── features/        # One folder per product area, with pages and components
@@ -127,7 +144,8 @@ assets/                  # Logo, banner and background
 - [x] Workspaces, members and invitations
 - [x] Projects
 - [x] Connect accounts, workspaces and projects to the API
-- [x] Project pages with sample apps, deploys and tasks
-- [ ] Apps, nodes and deploys in the API
+- [x] Database apps deployed through a local server
+- [x] Project pages with sample tasks
+- [ ] Application apps and deploy history
 - [ ] Tasks in the API
 - [ ] Collaboration and progress tracking

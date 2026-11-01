@@ -1,4 +1,5 @@
 import { type FormEvent, useRef, useState } from "react";
+import { CopyField } from "@/components/ui/CopyField";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { roles, RoleSelect } from "@/features/workspaces/components/RoleSelect";
@@ -10,9 +11,7 @@ export function InviteForm({ workspaceId, canAddDirectly, onAdded, onClose }: { 
   const [role, setRole] = useState("member");
   const { pending, error, run } = useAction();
   const [invite, setInvite] = useState<{ email: string; link: string } | null>(null);
-  const [copied, setCopied] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const linkRef = useRef<HTMLInputElement>(null);
 
   async function createInvite(event: FormEvent) {
     event.preventDefault();
@@ -31,33 +30,17 @@ export function InviteForm({ workspaceId, canAddDirectly, onAdded, onClose }: { 
     });
   }
 
-  async function copyLink() {
-    if (!invite) return;
-    try {
-      await navigator.clipboard.writeText(invite.link);
-      setCopied(true);
-    } catch {
-      linkRef.current?.select();
-    }
-  }
-
   if (invite) {
     return (
       <div className="mx-4 mt-4 rounded-panel bg-raised p-4 md:mx-6" role="status">
         <p className="font-medium wrap-break-word">Invite link for {invite.email}</p>
         <p className="mt-1 text-meta text-ink-soft">Kymber does not send this by email. Copy it now, because it will not be shown again. It expires in 7 days.</p>
-        <label className="mt-3 block">
-          <span className="sr-only">Invite link</span>
-          <input className="field" ref={linkRef} readOnly value={invite.link} onFocus={(event) => event.target.select()} />
-        </label>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button className="btn btn-primary" type="button" onClick={copyLink}>
-            {copied ? "Copied" : "Copy link"}
-          </button>
-          <button className="btn" type="button" onClick={onClose}>
-            Done
-          </button>
+        <div className="mt-3">
+          <CopyField label="Invite link" value={invite.link} />
         </div>
+        <button className="btn mt-3" type="button" onClick={onClose}>
+          Done
+        </button>
       </div>
     );
   }

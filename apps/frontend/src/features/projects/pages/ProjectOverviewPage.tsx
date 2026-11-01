@@ -1,8 +1,8 @@
-import { DeployList } from "@/features/projects/components/apps/DeployList";
-import { NodeSummary } from "@/features/projects/components/apps/NodeSummary";
+import { ServiceCard } from "@/features/projects/components/apps/ServiceCard";
 import { ProjectDetail } from "@/features/projects/components/overview/ProjectDetail";
 import { SectionHeading } from "@/features/projects/components/overview/SectionHeading";
-import { sampleColumns, sampleDeploys } from "@/features/projects/sampleData";
+import { sampleColumns } from "@/features/projects/sampleData";
+import { useServices } from "@/features/projects/useServices";
 import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
 import { formatDate } from "@/lib/format";
 
@@ -10,6 +10,7 @@ const columnFills = ["bg-white/25", "bg-pine", "bg-jade", "bg-seafoam"];
 
 export function ProjectOverviewPage() {
   const { project, workspace } = useProjectOutlet();
+  const { services, error } = useServices();
   const total = sampleColumns.reduce((sum, column) => sum + column.tasks.length, 0);
 
   return (
@@ -17,11 +18,15 @@ export function ProjectOverviewPage() {
       <div className="grid min-w-0 content-start gap-8 px-4 py-6 md:px-6">
         <section aria-labelledby="project-apps">
           <SectionHeading id="project-apps" title="Apps" to="apps" />
-          <NodeSummary />
-        </section>
-        <section aria-labelledby="project-deploys">
-          <SectionHeading id="project-deploys" title="Recent deploys" />
-          <DeployList deploys={sampleDeploys.slice(0, 3)} />
+          {error && !services && <p className="text-meta text-ember">{error}</p>}
+          {services?.length === 0 && <p className="text-meta text-ink-soft">No apps yet.</p>}
+          {services && services.length > 0 && (
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {services.map((service) => (
+                <ServiceCard service={service} to={`apps/${service.id}`} key={service.id} />
+              ))}
+            </ul>
+          )}
         </section>
         <section aria-labelledby="project-tasks">
           <SectionHeading id="project-tasks" title="Tasks" to="tasks" />

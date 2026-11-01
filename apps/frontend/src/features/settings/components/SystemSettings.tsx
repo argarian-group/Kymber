@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FormError } from "@/components/ui/FormError";
 import { LoadError } from "@/components/ui/LoadError";
+import { ServerSettings } from "@/features/settings/components/ServerSettings";
 import { SettingsSection } from "@/features/settings/components/SettingsSection";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
@@ -40,32 +41,35 @@ export function SystemSettings() {
   }
 
   return (
-    <SettingsSection title="Access">
-      <label className="flex cursor-pointer items-center justify-between gap-6 p-4">
-        <span>
-          <span className="block font-medium">Allow new registrations</span>
-          <span className="mt-0.5 block text-meta text-ink-soft">When this is off, new accounts cannot be created. Existing accounts keep working.</span>
-        </span>
-        <span className="relative flex-none">
-          <input
-            className="peer sr-only"
-            type="checkbox"
-            role="switch"
-            checked={enabled ?? false}
-            disabled={enabled === null || pending}
-            onChange={(event) => toggle(event.target.checked)}
-          />
-          <span
-            className="block h-6 w-10 rounded-full bg-white/20 transition-colors duration-150 peer-checked:bg-seafoam peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-seafoam peer-disabled:opacity-60 after:absolute after:top-0.5 after:left-0.5 after:size-5 after:rounded-full after:bg-ink after:transition-transform after:duration-150 peer-checked:after:translate-x-4 motion-reduce:after:transition-none"
-            aria-hidden="true"
-          />
-        </span>
-      </label>
-      {error && (
-        <div className="border-t border-line px-4 py-3">
-          <FormError message={error} />
-        </div>
-      )}
-    </SettingsSection>
+    <>
+      <SettingsSection title="Access">
+        <label className="flex cursor-pointer items-center justify-between gap-6 p-4">
+          <span>
+            <span className="block font-medium">Allow new registrations</span>
+            <span className="mt-0.5 block text-meta text-ink-soft">When this is off, new accounts cannot be created. Existing accounts keep working.</span>
+          </span>
+          <span className="relative flex-none">
+            <input
+              className="peer sr-only"
+              type="checkbox"
+              role="switch"
+              checked={enabled ?? false}
+              disabled={enabled === null || pending}
+              onChange={(event) => toggle(event.target.checked)}
+            />
+            <span
+              className="block h-6 w-10 rounded-full bg-white/20 transition-colors duration-150 peer-checked:bg-seafoam peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-seafoam peer-disabled:opacity-60 after:absolute after:top-0.5 after:left-0.5 after:size-5 after:rounded-full after:bg-ink after:transition-transform after:duration-150 peer-checked:after:translate-x-4 motion-reduce:after:transition-none"
+              aria-hidden="true"
+            />
+          </span>
+        </label>
+        {error && (
+          <div className="border-t border-line px-4 py-3">
+            <FormError message={error} />
+          </div>
+        )}
+      </SettingsSection>
+      <ServerSettings />
+    </>
   );
 }
