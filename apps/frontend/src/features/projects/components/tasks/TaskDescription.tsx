@@ -1,7 +1,21 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { RichTextEditor } from "@/components/richtext/RichTextEditor";
+import { RichTextView } from "@/components/richtext/RichTextView";
+
+const descriptionLimit = 20000;
 
 export function TaskDescription({ value, onSave }: { value: string; onSave: (description: string) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const unsaved = useRef<{ draft: string | null; value: string; onSave: (description: string) => void }>({ draft, value, onSave });
+  unsaved.current = { draft, value, onSave };
+
+  useEffect(
+    () => () => {
+      const { draft: pending, value: saved, onSave: save } = unsaved.current;
+      if (pending !== null && pending !== saved && pending.length <= descriptionLimit) save(pending);
+    },
+    [],
+  );
 
   return (
     <section aria-labelledby="task-description">
@@ -16,12 +30,13 @@ export function TaskDescription({ value, onSave }: { value: string; onSave: (des
         )}
       </div>
       {draft !== null ? (
-        <div className="grid gap-2">
-          <textarea className="field min-h-36 py-2" aria-label="Description" autoFocus maxLength={20000} value={draft} onChange={(event) => setDraft(event.target.value)} />
+        <div className="grid grid-cols-1 gap-2">
+          <RichTextEditor label="Description" placeholder="Add details, steps, links, tables…" initial={value} limit={descriptionLimit} size="min-h-48" autoFocus value={draft} onChange={setDraft} />
           <div className="flex gap-2">
             <button
               className="btn btn-primary"
               type="button"
+              disabled={draft.length > descriptionLimit}
               onClick={() => {
                 onSave(draft);
                 setDraft(null);
@@ -35,7 +50,7 @@ export function TaskDescription({ value, onSave }: { value: string; onSave: (des
           </div>
         </div>
       ) : value ? (
-        <p className="wrap-break-word whitespace-pre-wrap">{value}</p>
+        <RichTextView html={value} onToggleTask={onSave} />
       ) : (
         <button className="focus-ring min-h-16 w-full cursor-pointer rounded-control bg-sunken px-3 py-2 text-left text-ink-soft hover:text-ink" type="button" onClick={() => setDraft("")}>
           Add a description

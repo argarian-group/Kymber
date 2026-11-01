@@ -1,4 +1,6 @@
 import { type FormEvent, useState } from "react";
+import { RichTextEditor } from "@/components/richtext/RichTextEditor";
+import { RichTextView } from "@/components/richtext/RichTextView";
 import { FormError } from "@/components/ui/FormError";
 import { useCurrentUser } from "@/features/auth/AuthContext";
 import { useProjects } from "@/features/projects/ProjectsContext";
@@ -37,10 +39,10 @@ export function TaskCommentRow({ comment, path, onChanged }: { comment: TaskComm
         </p>
         {editing ? (
           <form className="mt-1 grid gap-2" onSubmit={save}>
-            <textarea className="field min-h-20 py-2" aria-label="Edit comment" required maxLength={5000} value={body} onChange={(event) => setBody(event.target.value)} />
+            <RichTextEditor label="Edit comment" placeholder="Write a comment" initial={comment.body} limit={5000} size="min-h-20" autoFocus value={body} onChange={setBody} />
             <FormError message={error} />
             <div className="flex gap-2">
-              <button className="btn btn-primary" type="submit" disabled={pending}>
+              <button className="btn btn-primary" type="submit" disabled={pending || !body || body.length > 5000}>
                 Save
               </button>
               <button className="btn" type="button" onClick={() => setEditing(false)}>
@@ -50,7 +52,9 @@ export function TaskCommentRow({ comment, path, onChanged }: { comment: TaskComm
           </form>
         ) : (
           <>
-            <p className="mt-1 wrap-break-word whitespace-pre-wrap">{comment.body}</p>
+            <div className="mt-1">
+              <RichTextView html={comment.body} />
+            </div>
             <FormError message={error} />
             <div className="mt-1 flex gap-3 text-xs">
               {isAuthor && (

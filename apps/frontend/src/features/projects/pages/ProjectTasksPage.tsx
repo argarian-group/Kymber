@@ -1,11 +1,10 @@
 import { CalendarDays, Columns3, List, type LucideIcon } from "lucide-react";
-import { useCallback } from "react";
+import { lazy, Suspense, useCallback } from "react";
 import { useSearchParams } from "react-router";
 import { LoadError } from "@/components/ui/LoadError";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { TaskBoard } from "@/features/projects/components/tasks/TaskBoard";
 import { TaskCalendar } from "@/features/projects/components/tasks/TaskCalendar";
-import { TaskDetailDialog } from "@/features/projects/components/tasks/TaskDetailDialog";
 import { TaskFiltersBar } from "@/features/projects/components/tasks/TaskFiltersBar";
 import { TaskList } from "@/features/projects/components/tasks/TaskList";
 import { matchesFilters, type Task, type TaskFilters } from "@/features/projects/tasks";
@@ -18,6 +17,8 @@ const views: { id: TaskView; label: string; icon: LucideIcon }[] = [
   { id: "list", label: "List", icon: List },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
 ];
+
+const TaskDetailDialog = lazy(() => import("@/features/projects/components/tasks/TaskDetailDialog").then(({ TaskDetailDialog: dialog }) => ({ default: dialog })));
 
 const filterNames: (keyof TaskFilters)[] = ["search", "assignee", "label", "priority", "due"];
 
@@ -92,7 +93,11 @@ export function ProjectTasksPage() {
       {view === "board" && <TaskBoard board={board} visible={visible} onOpen={openTask} onMoveTask={moveTask} onReorderLists={reorderLists} onCreateTask={createTask} onCreateList={createList} onUpdateList={updateList} onDeleteList={deleteList} />}
       {view === "list" && <TaskList board={board} visible={visible} onOpen={openTask} />}
       {view === "calendar" && <TaskCalendar tasks={visible} isDone={isDone} onOpen={openTask} />}
-      {openTaskId && <TaskDetailDialog taskId={openTaskId} board={board} path={path} onMove={moveTask} onChanged={stableReload} onClose={() => setParam("task", "")} key={openTaskId} />}
+      {openTaskId && (
+        <Suspense fallback={null}>
+          <TaskDetailDialog taskId={openTaskId} board={board} path={path} onMove={moveTask} onChanged={stableReload} onClose={() => setParam("task", "")} key={openTaskId} />
+        </Suspense>
+      )}
     </div>
   );
 }
