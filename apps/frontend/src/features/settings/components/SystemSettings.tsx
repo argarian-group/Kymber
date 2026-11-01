@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { FormError } from "@/components/ui/FormError";
 import { LoadError } from "@/components/ui/LoadError";
-import { ServerSettings } from "@/features/settings/components/ServerSettings";
 import { SettingsSection } from "@/features/settings/components/SettingsSection";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
@@ -69,7 +68,6 @@ export function SystemSettings() {
           </div>
         )}
       </SettingsSection>
-      <ServerSettings />
     </>
   );
 }

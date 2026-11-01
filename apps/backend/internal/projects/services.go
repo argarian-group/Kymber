@@ -194,7 +194,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if action == "deploy" && !nullableServerID.Valid {
-		if err := h.db.QueryRowContext(r.Context(), "SELECT id FROM servers WHERE status = 'online' ORDER BY created_at LIMIT 1").Scan(&nullableServerID); errors.Is(err, sql.ErrNoRows) {
+		if err := h.db.QueryRowContext(r.Context(), "SELECT s.id FROM servers s WHERE "+serverStatusSQL+" = 'online' ORDER BY s.created_at LIMIT 1").Scan(&nullableServerID); errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusConflict, "no online server is available")
 			return
 		} else if err != nil {

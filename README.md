@@ -102,7 +102,7 @@ curl http://localhost:8080/health
 
 ### Run apps
 
-Root registers the server under **Settings > System**. Set the token it shows as `KYMBER_SERVER_TOKEN` in `.env`, then keep this running:
+Root registers the server under **Servers**. Set the token it shows as `KYMBER_SERVER_TOKEN` in `.env`, then keep this running:
 
 ```bash
 make server

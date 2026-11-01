@@ -12,21 +12,35 @@ import (
 	"kymber/backend/internal/database"
 )
 
+const serverStatusSQL = `CASE
+	WHEN s.last_seen IS NULL THEN 'pending'
+	WHEN s.last_seen >= UTC_TIMESTAMP(6) - INTERVAL 30 SECOND OR EXISTS(SELECT 1 FROM server_tasks t WHERE t.server_id = s.id AND t.status = 'running') THEN 'online'
+	ELSE 'offline'
+END`
+
 type serverInfo struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
 	Status    string     `json:"status"`
 	LastSeen  *time.Time `json:"last_seen"`
 	CreatedAt time.Time  `json:"created_at"`
+	Apps      int        `json:"apps"`
 }
 
-func (h *Handler) listServers(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) requireRoot(w http.ResponseWriter, r *http.Request) bool {
 	user, _ := auth.UserFromContext(r)
 	if !user.IsRoot {
 		writeError(w, http.StatusForbidden, "root access required")
+		return false
+	}
+	return true
+}
+
+func (h *Handler) listServers(w http.ResponseWriter, r *http.Request) {
+	if !h.requireRoot(w, r) {
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), "SELECT id, name, status, last_seen, created_at FROM servers ORDER BY created_at")
+	rows, err := h.db.QueryContext(r.Context(), "SELECT s.id, s.name, "+serverStatusSQL+", s.last_seen, s.created_at, (SELECT COUNT(*) FROM database_services d WHERE d.server_id = s.id AND d.status <> 'deleted') FROM servers s ORDER BY s.created_at")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list servers")
 		return
@@ -35,7 +49,7 @@ func (h *Handler) listServers(w http.ResponseWriter, r *http.Request) {
 	items := make([]serverInfo, 0)
 	for rows.Next() {
 		var s serverInfo
-		if err := rows.Scan(&s.ID, &s.Name, &s.Status, &s.LastSeen, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.Status, &s.LastSeen, &s.CreatedAt, &s.Apps); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read servers")
 			return
 		}
@@ -49,11 +63,10 @@ func (h *Handler) listServers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createServer(w http.ResponseWriter, r *http.Request) {
-	user, _ := auth.UserFromContext(r)
-	if !user.IsRoot {
-		writeError(w, http.StatusForbidden, "root access required")
+	if !h.requireRoot(w, r) {
 		return
 	}
+	user, _ := auth.UserFromContext(r)
 	var input struct {
 		Name string `json:"name"`
 	}
@@ -74,13 +87,11 @@ func (h *Handler) createServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "only one local server is supported in this version")
 		return
 	}
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
+	token, digest, err := newServerToken()
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not generate server token")
 		return
 	}
-	token := base64.RawURLEncoding.EncodeToString(raw)
-	digest := sha256.Sum256([]byte(token))
 	id, err := database.NewShortID()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not generate server id")
@@ -91,4 +102,118 @@ func (h *Handler) createServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"server": serverInfo{ID: id, Name: input.Name, Status: "pending", CreatedAt: time.Now().UTC()}, "token": token})
+}
+
+func newServerToken() (string, [32]byte, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", [32]byte{}, err
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw)
+	return token, sha256.Sum256([]byte(token)), nil
+}
+
+func (h *Handler) renameServer(w http.ResponseWriter, r *http.Request) {
+	if !h.requireRoot(w, r) {
+		return
+	}
+	id, ok := pathID(w, r, "serverID")
+	if !ok {
+		return
+	}
+	var input struct {
+		Name string `json:"name"`
+	}
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	input.Name = strings.TrimSpace(input.Name)
+	if len(input.Name) < 1 || len(input.Name) > 120 {
+		writeError(w, http.StatusBadRequest, "name must be 1 to 120 characters")
+		return
+	}
+	var exists bool
+	if err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM servers WHERE id = ?)", id).Scan(&exists); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read server")
+		return
+	}
+	if !exists {
+		writeError(w, http.StatusNotFound, "server not found")
+		return
+	}
+	if _, err := h.db.ExecContext(r.Context(), "UPDATE servers SET name = ? WHERE id = ?", input.Name, id); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not rename server")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) rotateServerToken(w http.ResponseWriter, r *http.Request) {
+	if !h.requireRoot(w, r) {
+		return
+	}
+	id, ok := pathID(w, r, "serverID")
+	if !ok {
+		return
+	}
+	token, digest, err := newServerToken()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not generate server token")
+		return
+	}
+	result, err := h.db.ExecContext(r.Context(), "UPDATE servers SET token_hash = ?, last_seen = NULL, status = 'pending' WHERE id = ?", digest[:], id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not replace server token")
+		return
+	}
+	if changed, err := result.RowsAffected(); err != nil || changed == 0 {
+		writeError(w, http.StatusNotFound, "server not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"token": token})
+}
+
+func (h *Handler) deleteServer(w http.ResponseWriter, r *http.Request) {
+	if !h.requireRoot(w, r) {
+		return
+	}
+	id, ok := pathID(w, r, "serverID")
+	if !ok {
+		return
+	}
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not delete server")
+		return
+	}
+	defer tx.Rollback()
+	var apps int
+	if err := tx.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM database_services WHERE server_id = ? AND status <> 'deleted' FOR UPDATE", id).Scan(&apps); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not check server apps")
+		return
+	}
+	if apps > 0 {
+		writeError(w, http.StatusConflict, "delete this server's apps first")
+		return
+	}
+	for _, query := range []string{"DELETE FROM server_tasks WHERE server_id = ?", "DELETE FROM database_services WHERE server_id = ? AND status = 'deleted'"} {
+		if _, err := tx.ExecContext(r.Context(), query, id); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not delete server")
+			return
+		}
+	}
+	result, err := tx.ExecContext(r.Context(), "DELETE FROM servers WHERE id = ?", id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not delete server")
+		return
+	}
+	if deleted, err := result.RowsAffected(); err != nil || deleted == 0 {
+		writeError(w, http.StatusNotFound, "server not found")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not delete server")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

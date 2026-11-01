@@ -63,4 +63,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}", auth.Authenticate(h.db, http.HandlerFunc(h.deleteService)))
 	mux.Handle("GET /api/servers", auth.Authenticate(h.db, http.HandlerFunc(h.listServers)))
 	mux.Handle("POST /api/servers", auth.Authenticate(h.db, http.HandlerFunc(h.createServer)))
+	mux.Handle("PUT /api/servers/{serverID}", auth.Authenticate(h.db, http.HandlerFunc(h.renameServer)))
+	mux.Handle("POST /api/servers/{serverID}/token", auth.Authenticate(h.db, http.HandlerFunc(h.rotateServerToken)))
+	mux.Handle("DELETE /api/servers/{serverID}", auth.Authenticate(h.db, http.HandlerFunc(h.deleteServer)))
 }

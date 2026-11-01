@@ -27,21 +27,26 @@ export function ProjectAppsPage() {
   if (error && !services) return <LoadError title="Could not load apps" message={error} onRetry={reload} />;
   if (!services) return <PageSkeleton />;
 
-  const canCreate = canWrite && templates !== null && templates.length > 0;
+  const empty = services.length === 0;
+  const showForm = canWrite && templates !== null && templates.length > 0 && (creating || empty);
 
   return (
-    <div className="grid min-w-0 gap-4 px-4 py-6 md:px-6">
-      {canWrite && !creating && (
-        <div className="flex justify-end">
-          <button className="btn btn-primary" type="button" disabled={!canCreate} title={templatesError ?? undefined} onClick={() => setCreating(true)}>
-            New app
-          </button>
+    <div className="grid min-w-0 gap-6 px-4 py-6 md:px-6">
+      {!empty && (
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="section-title">
+            {services.length} {services.length === 1 ? "app" : "apps"}
+          </h2>
+          {canWrite && !creating && (
+            <button className="btn btn-primary" type="button" disabled={!templates?.length} title={templatesError ?? undefined} onClick={() => setCreating(true)}>
+              New app
+            </button>
+          )}
         </div>
       )}
-      {creating && templates && <CreateServiceForm templates={templates} path={path} onClose={() => setCreating(false)} />}
-      {services.length === 0 && !creating ? (
-        <EmptyState title="No apps yet" description={canWrite ? "Create a database app from a template." : "A workspace admin can create the first app."} />
-      ) : (
+      {showForm && <CreateServiceForm templates={templates} path={path} onClose={empty ? undefined : () => setCreating(false)} />}
+      {empty && !showForm && <EmptyState title="No apps yet" description={canWrite ? (templatesError ?? undefined) : "A workspace admin can create the first app."} />}
+      {!empty && (
         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {services.map((service) => (
             <ServiceCard service={service} to={service.id} key={service.id} />

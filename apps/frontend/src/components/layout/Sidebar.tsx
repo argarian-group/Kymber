@@ -3,10 +3,12 @@ import { NavLink } from "react-router";
 import { NavGroup, rowClass } from "@/components/layout/NavGroup";
 import { SidebarProfile } from "@/components/layout/SidebarProfile";
 import { organizationItems, workspaceItems } from "@/components/layout/navItems";
+import { useCurrentUser } from "@/features/auth/AuthContext";
 import { useProjects } from "@/features/projects/ProjectsContext";
 import { WorkspaceSwitcher } from "@/features/projects/components/WorkspaceSwitcher";
 
 export function Sidebar() {
+  const user = useCurrentUser();
   const { state } = useProjects();
   const projects = state.status === "ready" ? state.projects : [];
 
@@ -41,7 +43,7 @@ export function Sidebar() {
           </div>
         )}
 
-        <NavGroup title="Organization" items={organizationItems} />
+        <NavGroup title="Organization" items={organizationItems(user.is_root)} />
       </nav>
 
       <SidebarProfile />

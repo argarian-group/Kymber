@@ -14,6 +14,7 @@ import { ProjectOverviewPage } from "@/features/projects/pages/ProjectOverviewPa
 import { ProjectSettingsPage } from "@/features/projects/pages/ProjectSettingsPage";
 import { ProjectTasksPage } from "@/features/projects/pages/ProjectTasksPage";
 import { ProjectsPage } from "@/features/projects/pages/ProjectsPage";
+import { ServersPage } from "@/features/servers/pages/ServersPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { InviteAcceptPage } from "@/features/workspaces/pages/InviteAcceptPage";
 import { InviteSignupPage } from "@/features/workspaces/pages/InviteSignupPage";
@@ -59,6 +60,7 @@ export function AuthGate() {
                   <Route path="tasks" element={<Navigate to="/projects" replace />} />
                   <Route path="deploys" element={<Navigate to="/projects" replace />} />
                   <Route path="team" element={<TeamPage />} />
+                  <Route path="servers" element={<ServersPage />} />
                   <Route path="invite" element={<InviteAcceptPage />} />
                   <Route path="settings" element={<SettingsPage section="account" />} />
                   <Route path="settings/appearance" element={<SettingsPage section="appearance" />} />

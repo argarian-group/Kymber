@@ -1,19 +1,22 @@
 import { Link } from "react-router";
+import { EngineMark } from "@/features/projects/components/apps/EngineMark";
 import { ServiceStatus } from "@/features/projects/components/apps/ServiceStatus";
 import type { Service } from "@/features/projects/services";
 
 export function ServiceCard({ service, to }: { service: Service; to: string }) {
   return (
     <li className="min-w-0">
-      <Link className="row-link block h-full rounded-panel bg-raised p-4" to={to}>
-        <span className="flex items-center justify-between gap-3">
-          <span className="min-w-0 truncate font-medium">{service.name}</span>
-          <ServiceStatus status={service.status} />
+      <Link className="row-link flex h-full flex-col gap-4 rounded-panel bg-raised p-4" to={to}>
+        <span className="flex items-start gap-3">
+          <EngineMark engine={service.engine} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-display text-base font-semibold">{service.name}</span>
+            <span className="block truncate text-meta text-ink-soft">{service.engine}</span>
+          </span>
         </span>
-        <span className="mt-1 block truncate text-meta text-ink-soft">{service.engine}</span>
-        <span className="mt-3 block truncate text-meta text-ink-soft tabular-nums">
-          {service.image_version}
-          {service.database_name && `, ${service.database_name}`}
+        <span className="mt-auto flex items-center justify-between gap-3 border-t border-line pt-3">
+          <ServiceStatus status={service.status} />
+          <span className="min-w-0 truncate font-mono text-xs text-ink-soft">{service.image_version}</span>
         </span>
       </Link>
     </li>
