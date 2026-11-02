@@ -400,6 +400,8 @@ export const ptBR = {
   "Deployment": "Deploy",
   "Deployment complete": "Deploy concluído",
   "Deployment failed": "O deploy falhou",
+  "Force stop": "Forçar parada",
+  "Force-stopping deployment…": "Forçando parada do deploy…",
   "Deployment output": "Saída do deploy",
   "Description": "Descrição",
   "Details": "Detalhes",

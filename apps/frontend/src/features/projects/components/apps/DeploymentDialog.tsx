@@ -4,7 +4,7 @@ import { ProjectDetail } from "@/features/projects/components/overview/ProjectDe
 import { isServiceBusy, type Service } from "@/features/projects/services";
 import { t } from "@/lib/i18n";
 
-export function DeploymentDialog({ service, version, pending, error, output, onClose }: { service: Service; version: string; pending: boolean; error: string | null; output: string | null; onClose: () => void }) {
+export function DeploymentDialog({ service, version, pending, error, output, onForceStop, onClose }: { service: Service; version: string; pending: boolean; error: string | null; output: string | null; onForceStop: () => Promise<boolean>; onClose: () => void }) {
   const failed = !pending && (Boolean(error) || service.status === "failed");
   const working = !failed && (pending || isServiceBusy(service.status));
   const title = failed ? t("Deployment failed") : working ? t("Deploying…") : t("Deployment complete");
@@ -24,6 +24,7 @@ export function DeploymentDialog({ service, version, pending, error, output, onC
           <ProjectDetail label={t("Server")}>{service.server_name ?? t("Assigning…")}</ProjectDetail>
         </dl>
         <pre className={`max-h-[50vh] min-h-32 overflow-auto rounded-control bg-canvas p-4 font-mono text-xs whitespace-pre-wrap ${failed ? "text-ember" : "text-ink-soft"}`} tabIndex={0} aria-label={t("Deployment output")}>{text}</pre>
+        {working && <button className="btn btn-danger w-fit" type="button" disabled={pending} onClick={() => void onForceStop()}>{pending ? t("Force-stopping deployment…") : t("Force stop")}</button>}
         {!working && !failed && (
           <Link className="text-button w-fit text-meta" to="logs" onClick={onClose}>
             {t("View runtime logs")}

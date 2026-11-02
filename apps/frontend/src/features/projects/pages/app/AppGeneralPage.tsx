@@ -65,7 +65,10 @@ export function AppGeneralPage() {
           <ProjectDetail label={t("App ID")}>{service.id}</ProjectDetail>
         </dl>
       </AppSection>
-      {deploying && <DeploymentDialog service={service} version={deploying} pending={pending} error={error} output={deployOutput} onClose={() => setDeploying(null)} />}
+      {deploying && <DeploymentDialog service={service} version={deploying} pending={pending} error={error} output={deployOutput} onForceStop={() => run(async () => {
+        await api(`${path}/${service.id}/cancel-deploy`, { method: "POST" });
+        onChanged();
+      })} onClose={() => setDeploying(null)} />}
     </div>
   );
 }
