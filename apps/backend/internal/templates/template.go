@@ -42,9 +42,7 @@ type Template struct {
 	HealthCmd      string     `json:"-"`
 	Fields         []Field    `json:"fields"`
 	Connection     Connection `json:"connection"`
-	// Custom templates take their image, port and data path from each service.
 	Custom bool `json:"custom,omitempty"`
-	// Category groups the template in the UI; custom images get theirs from Docker Hub.
 	Category string `json:"category,omitempty"`
 }
 
@@ -57,7 +55,6 @@ var repositoryRegexp = regexp.MustCompile(`^` + repositoryPattern + `$`)
 var imageRegexp = regexp.MustCompile(`^docker\.io/` + repositoryPattern + `$`)
 var dataPathRegexp = regexp.MustCompile(`^(?:/[A-Za-z0-9_.-]+)+$`)
 
-// ParseRepository returns the namespaced Docker Hub path of a repository; official images live under library/.
 func ParseRepository(repository string) (string, error) {
 	if !strings.Contains(repository, "/") {
 		repository = "library/" + repository
@@ -68,7 +65,6 @@ func ParseRepository(repository string) (string, error) {
 	return repository, nil
 }
 
-// ValidDataPath accepts an empty path (no volume) or a clean absolute path; a colon would change the --volume meaning.
 func ValidDataPath(dataPath string) bool {
 	return dataPath == "" || len(dataPath) <= 255 && dataPathRegexp.MatchString(dataPath) && path.Clean(dataPath) == dataPath
 }

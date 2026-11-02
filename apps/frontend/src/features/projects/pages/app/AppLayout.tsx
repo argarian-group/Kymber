@@ -16,7 +16,6 @@ import { useServices } from "@/features/projects/useServices";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
 
-// Custom images have no declared fields, so the saved variables are the fields.
 function appTemplate(template: DatabaseTemplate | null, detail: Service | null): DatabaseTemplate | null {
   if (!template?.custom) return template;
   return { ...template, fields: Object.keys(detail?.environment ?? {}).sort().map((name) => ({ name, label: name, type: "password", secret: true })) };

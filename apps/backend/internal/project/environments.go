@@ -14,7 +14,6 @@ type projectEnvironment struct {
 	Name string `json:"name"`
 }
 
-// environmentName returns the trimmed name, or an empty string when it is invalid.
 func environmentName(raw string) string {
 	name := strings.TrimSpace(raw)
 	if utf8.RuneCountInString(name) > 64 || strings.ContainsFunc(name, unicode.IsControl) {
@@ -87,7 +86,6 @@ func (h *Handler) deleteEnvironment(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// The conditional delete keeps the check and the removal in one statement.
 	result, err := h.db.ExecContext(r.Context(), "DELETE FROM project_environments WHERE id = ? AND project_id = ? AND NOT EXISTS (SELECT 1 FROM database_services d WHERE d.environment_id = ? AND d.status <> 'deleted')", id, projectID, id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not delete environment")
