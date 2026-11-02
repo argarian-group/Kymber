@@ -31,6 +31,7 @@ export function ServiceActions({ service, path, workspaceId, onChanged }: { serv
   const [servers, setServers] = useState<DeployTarget[]>([]);
   const [serverId, setServerId] = useState("");
   const [showLogs, setShowLogs] = useState(false);
+  const [watchingDeploy, setWatchingDeploy] = useState(false);
   const [logs, setLogs] = useState("Starting deployment…");
   const [deployStatus, setDeployStatus] = useState(service.status);
   const choosing = !service.server_id && !busy;
@@ -69,6 +70,7 @@ export function ServiceActions({ service, path, workspaceId, onChanged }: { serv
     if (action === "deploy") {
       setLogs("Starting deployment…");
       setDeployStatus("deploying");
+      setWatchingDeploy(true);
       setShowLogs(true);
     }
     return run(async () => {
@@ -76,6 +78,12 @@ export function ServiceActions({ service, path, workspaceId, onChanged }: { serv
       await api(`${path}/${service.id}/${action}`, { method: "POST", body });
       onChanged();
     });
+  }
+
+  function openLogs() {
+    setLogs("Loading logs…");
+    setWatchingDeploy(false);
+    setShowLogs(true);
   }
 
   return (
@@ -98,6 +106,11 @@ export function ServiceActions({ service, path, workspaceId, onChanged }: { serv
             {label}
           </button>
         ))}
+        {service.server_id && !busy && (
+          <button className="btn" type="button" onClick={openLogs}>
+            Logs
+          </button>
+        )}
       </div>
       <FormError message={error} />
       {error === "no online server is available" && user.is_root && (
@@ -106,10 +119,10 @@ export function ServiceActions({ service, path, workspaceId, onChanged }: { serv
         </Link>
       )}
       {showLogs && (
-        <Modal label="Deployment logs" className="max-w-3xl" onClose={() => setShowLogs(false)} onCancel={() => setShowLogs(false)}>
+        <Modal label={watchingDeploy ? "Deployment logs" : "Container logs"} className="max-w-3xl" onClose={() => setShowLogs(false)} onCancel={() => setShowLogs(false)}>
           <div className="grid gap-4 p-5">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="font-display text-lg font-semibold">{deployStatus === "running" ? "Deployment complete" : deployStatus === "failed" ? "Deployment failed" : "Deployment logs"}</h2>
+              <h2 className="font-display text-lg font-semibold">{!watchingDeploy ? "Container logs" : deployStatus === "running" ? "Deployment complete" : deployStatus === "failed" ? "Deployment failed" : "Deployment logs"}</h2>
               <button className="btn" type="button" onClick={() => setShowLogs(false)}>Close</button>
             </div>
             <pre className="max-h-[60vh] min-h-48 overflow-auto rounded-control bg-canvas p-4 font-mono text-xs whitespace-pre-wrap text-ink-soft" aria-live="polite">{logs}</pre>

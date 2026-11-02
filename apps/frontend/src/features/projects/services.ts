@@ -31,7 +31,7 @@ export type Service = {
 
 export type ProjectEnvironment = { id: string; name: string };
 
-export type ServiceAction = "deploy" | "start" | "stop" | "restart" | "remove_container";
+export type ServiceAction = "deploy" | "start" | "stop" | "restart" | "remove_container" | "remove_container_image";
 
 const statuses: Record<string, { label: string; icon: LucideIcon; iconTone: string; labelTone: string }> = {
   draft: { label: "Draft", icon: CircleDashed, iconTone: "text-ink-faint", labelTone: "text-ink-soft" },

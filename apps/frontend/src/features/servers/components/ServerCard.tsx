@@ -54,8 +54,8 @@ export function ServerCard({ server, onChanged }: { server: Server; onChanged: (
           <dd className="font-display text-lg font-semibold tabular-nums">{server.apps}</dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-xs text-ink-soft">Last seen</dt>
-          <dd className="mt-1 tabular-nums">{server.last_seen ? formatRelative(server.last_seen) : "Never"}</dd>
+          <dt className="text-xs text-ink-soft">{server.ssh_configured ? "Connection" : "Last seen"}</dt>
+          <dd className="mt-1 tabular-nums">{server.ssh_configured ? "SSH" : server.last_seen ? formatRelative(server.last_seen) : "Never"}</dd>
         </div>
         <div className="min-w-0">
           <dt className="text-xs text-ink-soft">Registered</dt>
