@@ -14,6 +14,7 @@ import { AppFilesPage } from "@/features/projects/pages/app/AppFilesPage";
 import { AppGeneralPage } from "@/features/projects/pages/app/AppGeneralPage";
 import { AppLayout } from "@/features/projects/pages/app/AppLayout";
 import { AppLogsPage } from "@/features/projects/pages/app/AppLogsPage";
+import { AppMetricsPage } from "@/features/projects/pages/app/AppMetricsPage";
 import { AppStoragePage } from "@/features/projects/pages/app/AppStoragePage";
 import { AppTerminalPage } from "@/features/projects/pages/app/AppTerminalPage";
 import { ProjectNewAppPage } from "@/features/projects/pages/ProjectNewAppPage";
@@ -71,6 +72,7 @@ export function AuthGate() {
                       <Route path="files" element={<AppFilesPage />} />
                       <Route path="terminal" element={<AppTerminalPage />} />
                       <Route path="logs" element={<AppLogsPage />} />
+                      <Route path="metrics" element={<AppMetricsPage />} />
                       <Route path="storage" element={<AppStoragePage />} />
                       <Route path="danger" element={<AppDangerPage />} />
                     </Route>

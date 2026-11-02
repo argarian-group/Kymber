@@ -19,6 +19,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/monitoring"
 	"kymber/backend/internal/secrets"
 )
 
@@ -42,6 +43,7 @@ type serverInfo struct {
 	LastSeen      *time.Time `json:"last_seen"`
 	CreatedAt     time.Time  `json:"created_at"`
 	Apps          int        `json:"apps"`
+	Monitoring    bool       `json:"monitoring"`
 }
 
 func (h *Handler) requireRoot(w http.ResponseWriter, r *http.Request) bool {
@@ -57,7 +59,7 @@ func (h *Handler) listServers(w http.ResponseWriter, r *http.Request) {
 	if !h.requireRoot(w, r) {
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), "SELECT s.id, s.name, s.connection_type, COALESCE(s.host, ''), s.ssh_port, COALESCE(s.ssh_user, ''), s.encrypted_ssh_key IS NOT NULL, "+serverStatusSQL+", s.last_seen, s.created_at, (SELECT COUNT(*) FROM database_services d WHERE d.server_id = s.id AND d.status <> 'deleted') FROM servers s ORDER BY s.created_at")
+	rows, err := h.db.QueryContext(r.Context(), "SELECT s.id, s.name, s.connection_type, COALESCE(s.host, ''), s.ssh_port, COALESCE(s.ssh_user, ''), s.encrypted_ssh_key IS NOT NULL, "+serverStatusSQL+", s.last_seen, s.created_at, (SELECT COUNT(*) FROM database_services d WHERE d.server_id = s.id AND d.status <> 'deleted'), s.monitoring_installed_at IS NOT NULL FROM servers s ORDER BY s.created_at")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list servers")
 		return
@@ -66,7 +68,7 @@ func (h *Handler) listServers(w http.ResponseWriter, r *http.Request) {
 	items := make([]serverInfo, 0)
 	for rows.Next() {
 		var s serverInfo
-		if err := rows.Scan(&s.ID, &s.Name, &s.Type, &s.Host, &s.Port, &s.SSHUser, &s.SSHConfigured, &s.Status, &s.LastSeen, &s.CreatedAt, &s.Apps); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.Type, &s.Host, &s.Port, &s.SSHUser, &s.SSHConfigured, &s.Status, &s.LastSeen, &s.CreatedAt, &s.Apps, &s.Monitoring); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read servers")
 			return
 		}
@@ -431,6 +433,7 @@ func (h *Handler) deleteServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "delete this server's apps first")
 		return
 	}
+	monitoring.Remove(r.Context(), h.db, id)
 	for _, query := range []string{"DELETE FROM server_tasks WHERE server_id = ?", "DELETE FROM database_services WHERE server_id = ? AND status = 'deleted'"} {
 		if _, err := tx.ExecContext(r.Context(), query, id); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not delete server")

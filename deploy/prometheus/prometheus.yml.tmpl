@@ -1,0 +1,43 @@
+global:
+  scrape_interval: 30s
+  scrape_timeout: 25s
+  evaluation_interval: 30s
+
+rule_files:
+  - /etc/kymber/rules.yml
+
+scrape_configs:
+  - job_name: kymber-node
+    authorization:
+      credentials_file: /prometheus/metrics-token
+    http_sd_configs:
+      - url: http://__KYMBER_API__/internal/metrics/targets?exporter=node
+        refresh_interval: 30s
+        authorization:
+          credentials_file: /prometheus/metrics-token
+
+  - job_name: kymber-cadvisor
+    authorization:
+      credentials_file: /prometheus/metrics-token
+    http_sd_configs:
+      - url: http://__KYMBER_API__/internal/metrics/targets?exporter=cadvisor
+        refresh_interval: 30s
+        authorization:
+          credentials_file: /prometheus/metrics-token
+    metric_relabel_configs:
+      - source_labels: [container_label_kymber_service]
+        regex: ""
+        action: drop
+      - source_labels: [container_label_kymber_service]
+        target_label: service_id
+      - regex: container_label_kymber_service
+        action: labeldrop
+
+  - job_name: traefik
+    static_configs:
+      - targets: ["traefik:8082"]
+    metric_relabel_configs:
+      - source_labels: [router]
+        regex: "kymber-([0-9a-f]{6})(-http)?@docker"
+        target_label: service_id
+        replacement: "$1"

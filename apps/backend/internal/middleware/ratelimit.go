@@ -38,7 +38,7 @@ func RateLimit(next http.Handler) http.Handler {
 	trustProxy := os.Getenv("KYMBER_TRUST_PROXY") == "true"
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := clientIP(r, trustProxy)
-		if !strings.HasPrefix(r.URL.Path, "/api/agent/") {
+		if !strings.HasPrefix(r.URL.Path, "/api/agent/") && !strings.HasPrefix(r.URL.Path, "/internal/metrics/") {
 			if ok, wait := limiter.allow(ip+"/all", policy{name: "all", burst: 120, period: time.Minute}); !ok {
 				reject(w, wait)
 				return

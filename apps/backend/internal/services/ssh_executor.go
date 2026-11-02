@@ -4,12 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net"
-	"strconv"
-	"time"
 
 	"golang.org/x/crypto/ssh"
-	"kymber/backend/internal/secrets"
+	"kymber/backend/internal/sshclient"
 )
 
 func (h *Handler) executeSSH(ctx context.Context, serverID string, command string) ([]byte, error) {
@@ -17,26 +14,7 @@ func (h *Handler) executeSSH(ctx context.Context, serverID string, command strin
 }
 
 func (h *Handler) connectSSH(ctx context.Context, serverID string) (*ssh.Client, error) {
-	var host, username string
-	var port int
-	var encryptedKey, encodedHostKey []byte
-	err := h.db.QueryRowContext(ctx, "SELECT host, ssh_port, ssh_user, encrypted_ssh_key, ssh_host_key FROM servers WHERE id = ? AND encrypted_ssh_key IS NOT NULL", serverID).Scan(&host, &port, &username, &encryptedKey, &encodedHostKey)
-	if err != nil {
-		return nil, err
-	}
-	privateKey, err := secrets.Decrypt(encryptedKey)
-	if err != nil {
-		return nil, err
-	}
-	signer, err := ssh.ParsePrivateKey(privateKey)
-	if err != nil {
-		return nil, err
-	}
-	hostKey, err := ssh.ParsePublicKey(encodedHostKey)
-	if err != nil {
-		return nil, err
-	}
-	return ssh.Dial("tcp", net.JoinHostPort(host, strconv.Itoa(port)), &ssh.ClientConfig{User: username, Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)}, HostKeyCallback: ssh.FixedHostKey(hostKey), HostKeyAlgorithms: []string{hostKey.Type()}, Timeout: 15 * time.Second})
+	return sshclient.Connect(ctx, h.db, serverID)
 }
 
 func (h *Handler) executeSSHInput(ctx context.Context, serverID string, command string, stdin []byte) ([]byte, error) {

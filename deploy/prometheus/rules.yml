@@ -1,0 +1,20 @@
+groups:
+  - name: kymber
+    rules:
+      - alert: ServerDown
+        expr: up{job="kymber-node"} == 0
+        for: 2m
+      - alert: DiskAlmostFull
+        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) > 90
+        for: 10m
+      - alert: MemoryHigh
+        expr: 100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 90
+        for: 10m
+      - alert: AppRestartLoop
+        expr: sum by (service_id) (changes(container_start_time_seconds{service_id!=""}[15m])) > 3
+      - alert: AppHttpErrors
+        expr: |
+          sum by (service_id) (rate(traefik_router_requests_total{service_id!="",code=~"5.."}[5m]))
+            / sum by (service_id) (rate(traefik_router_requests_total{service_id!=""}[5m])) > 0.05
+          and sum by (service_id) (rate(traefik_router_requests_total{service_id!=""}[5m])) > 0.1
+        for: 5m

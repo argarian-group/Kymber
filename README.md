@@ -113,6 +113,14 @@ The root-account onboarding also offers an optional domain for the Kymber panel.
 
 Apps can alternatively publish an HTTP host port from their **Connection** settings. Choose an unused port, save, then deploy; access it at `http://<server-ipv4>:<port>`. This bypasses the Docker network, exposes the app to anyone who can reach that host port, and does not enable TLS. Domain and host-port publishing are mutually exclusive.
 
+### Monitoring
+
+Kymber collects server and app metrics with Prometheus, which `make up` and `docker compose up` start next to the API. Under **Servers**, choose **Enable monitoring** on a server: Kymber starts `node-exporter` and `cAdvisor` there over SSH, bound to `127.0.0.1`, so no new port is opened. Prometheus scrapes them through the API, which reaches each exporter over the server's SSH connection, and keeps 15 days of history. The SSH server must allow TCP forwarding (`AllowTcpForwarding yes`, the OpenSSH default).
+
+Charts appear on each server card and on each app's **Metrics** tab. Apps with a public domain also show requests, server errors and response time from Traefik. Alerts for an unresponsive server, a nearly full disk or memory, an app restarting repeatedly and a high rate of 5xx errors appear under **Needs attention** on the overview.
+
+For a Docker Compose install, set a random `KYMBER_METRICS_TOKEN` in `.env`; `make up` generates one in `.local/metrics-token`. Prometheus listens only on `127.0.0.1:9090` (`PROMETHEUS_PORT`).
+
 To delete all local data, stop the app and run `docker compose down -v`.
 
 ## Project structure

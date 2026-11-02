@@ -8,6 +8,7 @@ import (
 	"kymber/backend/internal/agent"
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/middleware"
+	"kymber/backend/internal/monitoring"
 	"kymber/backend/internal/projects"
 )
 
@@ -17,6 +18,7 @@ func New(db *sql.DB, secureOnboard bool) http.Handler {
 	auth.New(db, secureOnboard).RegisterRoutes(mux)
 	projects.New(db).RegisterRoutes(mux)
 	agent.New(db).RegisterRoutes(mux)
+	monitoring.New(db).RegisterRoutes(mux)
 	return middleware.RateLimit(mux)
 }
 

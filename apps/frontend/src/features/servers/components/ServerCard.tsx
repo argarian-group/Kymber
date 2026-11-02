@@ -1,8 +1,10 @@
-import { Server as ServerIcon } from "lucide-react";
+import { Server as ServerIcon, TriangleAlert } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { alertLabel, type Alert } from "@/features/monitoring/metrics";
+import { ServerMetrics } from "@/features/monitoring/ServerMetrics";
 import { ServerStatusBadge } from "@/features/servers/components/ServerStatusBadge";
 import type { Server } from "@/features/servers/types";
 import { api } from "@/lib/api";
@@ -12,7 +14,7 @@ import { t } from "@/lib/i18n";
 
 type Mode = "view" | "rename" | "delete";
 
-export function ServerCard({ server, onChanged }: { server: Server; onChanged: () => void }) {
+export function ServerCard({ server, alerts, onChanged }: { server: Server; alerts: Alert[]; onChanged: () => void }) {
   const [mode, setMode] = useState<Mode>("view");
   const [name, setName] = useState(server.name);
   const { pending, error, run } = useAction();
@@ -30,6 +32,11 @@ export function ServerCard({ server, onChanged }: { server: Server; onChanged: (
     const removed = await run(() => api(`/servers/${server.id}`, { method: "DELETE" }));
     if (removed) onChanged();
     else setMode("view");
+  }
+
+  async function setMonitoring(enabled: boolean) {
+    const changed = await run(() => api(`/servers/${server.id}/monitoring`, { method: enabled ? "POST" : "DELETE" }));
+    if (changed) onChanged();
   }
 
   async function setupSSH() {
@@ -50,6 +57,16 @@ export function ServerCard({ server, onChanged }: { server: Server; onChanged: (
         </div>
         <ServerStatusBadge status={server.status} />
       </div>
+      {alerts.length > 0 && (
+        <ul className="grid gap-1 border-t border-line px-4 py-3" aria-label={t("Active alerts")}>
+          {alerts.map((alert) => (
+            <li className="flex items-center gap-2 text-meta font-medium text-ember" key={alert.name}>
+              <TriangleAlert aria-hidden="true" size={15} />
+              {alertLabel(alert.name)}
+            </li>
+          ))}
+        </ul>
+      )}
       <dl className="grid grid-cols-3 gap-4 border-t border-line p-4 text-meta">
         <div>
           <dt className="text-xs text-ink-soft">{t("Apps")}</dt>
@@ -64,6 +81,11 @@ export function ServerCard({ server, onChanged }: { server: Server; onChanged: (
           <dd className="mt-1 tabular-nums">{formatDate(server.created_at)}</dd>
         </div>
       </dl>
+      {server.monitoring && (
+        <div className="border-t border-line p-4">
+          <ServerMetrics serverId={server.id} />
+        </div>
+      )}
       <div className="border-t border-line p-4">
         {mode === "view" && (
           <div className="flex flex-wrap gap-2">
@@ -72,6 +94,11 @@ export function ServerCard({ server, onChanged }: { server: Server; onChanged: (
               <Link className="btn" to={`/terminal?server=${server.id}`}>
                 {t("Terminal")}
               </Link>
+            )}
+            {server.ssh_configured && (
+              <button className={`btn ${server.monitoring ? "" : "btn-primary"}`} type="button" disabled={pending} onClick={() => setMonitoring(!server.monitoring)}>
+                {pending ? t("Working…") : server.monitoring ? t("Disable monitoring") : t("Enable monitoring")}
+              </button>
             )}
             <button className="btn" type="button" onClick={() => setMode("rename")}>
               {t("Rename")}

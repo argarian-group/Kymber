@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { LoadError } from "@/components/ui/LoadError";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { useCurrentUser } from "@/features/auth/AuthContext";
+import { useAlerts } from "@/features/monitoring/useMetrics";
 import { RegisterServerForm } from "@/features/servers/components/RegisterServerForm";
 import { ServerCard } from "@/features/servers/components/ServerCard";
 import { ServerConnectSteps } from "@/features/servers/components/ServerConnectSteps";
@@ -22,6 +23,7 @@ export function ServersPage() {
   const [adding, setAdding] = useState(false);
   const [connecting, setConnecting] = useState<{ id: string; publicKey: string } | null>(null);
   const reload = () => setAttempt((value) => value + 1);
+  const alerts = useAlerts(user.is_root);
 
   useLoadEffect(
     () => api<{ servers: Server[] }>("/servers"),
@@ -71,7 +73,7 @@ export function ServersPage() {
           />
         )}
         {servers.map((server) => (
-          <ServerCard server={server} onChanged={reload} key={server.id} />
+          <ServerCard server={server} alerts={alerts.filter(({ server_id }) => server_id === server.id)} onChanged={reload} key={server.id} />
         ))}
       </div>
     </>

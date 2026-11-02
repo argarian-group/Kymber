@@ -1,12 +1,27 @@
-import { CircleAlert, Clock } from "lucide-react";
+import { CircleAlert, Clock, TriangleAlert } from "lucide-react";
 import { Link } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
 import { type Overview } from "@/features/dashboard/overview";
+import { alertLabel } from "@/features/monitoring/metrics";
+import { useAlerts } from "@/features/monitoring/useMetrics";
+import { useCurrentUser } from "@/features/auth/AuthContext";
 import { dueLabel } from "@/features/projects/tasks";
 import { t } from "@/lib/i18n";
 
 export function AttentionPanel({ overview }: { overview: Overview }) {
+  const user = useCurrentUser();
+  const projects = new Map(overview.summaries.map(({ project }) => [project.id, project]));
+  const monitored = useAlerts()
+    .filter((alert) => (alert.project_id ? projects.has(alert.project_id) : user.is_root))
+    .map((alert) => ({
+      key: `alert-${alert.name}-${alert.service_id ?? alert.server_id}`,
+      icon: TriangleAlert,
+      title: `${alert.service_name ?? alert.server_name}: ${alertLabel(alert.name)}`,
+      detail: alert.project_id ? (projects.get(alert.project_id)?.name ?? "") : t("Server"),
+      when: "",
+      to: alert.project_id ? `/projects/${alert.project_id}/apps/${alert.service_id}/metrics` : "/servers",
+    }));
   const failed = overview.apps
     .filter(({ service }) => service.status === "failed")
     .map(({ service, project }) => ({ key: `app-${service.id}`, icon: CircleAlert, title: t("{name} failed", { name: service.name }), detail: project.name, when: "", to: `/projects/${project.id}/apps/${service.id}` }));
@@ -14,12 +29,12 @@ export function AttentionPanel({ overview }: { overview: Overview }) {
     .filter((item) => item.late)
     .sort((a, b) => (a.task.due_date ?? "").localeCompare(b.task.due_date ?? ""))
     .map(({ task, project, done }) => ({ key: `task-${task.id}`, icon: Clock, title: task.title, detail: project.name, when: dueLabel(task, done), to: `/projects/${project.id}/tasks?task=${task.id}` }));
-  const items = [...failed, ...late];
+  const items = [...monitored, ...failed, ...late];
 
   return (
     <Panel title={t("Needs attention")} aside={items.length > 0 && <span className="text-meta text-ink-soft tabular-nums">{items.length}</span>}>
       {items.length === 0 ? (
-        <EmptyState title={t("Nothing needs attention")} description={t("No failed apps or late tasks.")} />
+        <EmptyState title={t("Nothing needs attention")} description={t("No alerts, failed apps or late tasks.")} />
       ) : (
         <ul className="mx-4 overflow-hidden rounded-panel bg-raised md:mx-6">
           {items.map(({ key, icon: Icon, title, detail, when, to }) => (

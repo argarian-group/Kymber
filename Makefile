@@ -7,7 +7,9 @@ DEV_ENV = SERVICE_ENCRYPTION_KEY_FILE=$(CURDIR)/.local/service-encryption-key \
 	KYMBER_LOCAL_SSH_HOST_KEY_FILE=/etc/ssh/ssh_host_ed25519_key.pub \
 	KYMBER_LOCAL_SSH_HOST=127.0.0.1 \
 	TRAEFIK_PANEL_API_TARGET=http://host.docker.internal:8080 \
-	TRAEFIK_PANEL_WEB_TARGET=http://host.docker.internal:5173
+	TRAEFIK_PANEL_WEB_TARGET=http://host.docker.internal:5173 \
+	KYMBER_METRICS_TOKEN_FILE=$(CURDIR)/.local/metrics-token \
+	KYMBER_PROMETHEUS_URL=http://127.0.0.1:9090
 
 build: template-registry
 	cd apps/backend && go build -o build/api ./cmd/api
@@ -54,6 +56,7 @@ local-secrets:
 	@test -w .local || { echo "$(CURDIR)/.local is not writable; fix its ownership before continuing" >&2; exit 1; }
 	@chmod 700 .local
 	@umask 077; test -s .local/service-encryption-key || openssl rand -hex 32 > .local/service-encryption-key
+	@umask 077; test -s .local/metrics-token || openssl rand -hex 32 > .local/metrics-token
 
 docker-build:
 	docker compose build
@@ -71,6 +74,7 @@ up:
 	$(MAKE) check-user
 	$(MAKE) init
 	TRAEFIK_CONFIG_URL=http://host.docker.internal:8080/internal/traefik/panel-domain docker compose up -d traefik
+	KYMBER_API_HOST=host.docker.internal:8080 KYMBER_METRICS_TOKEN=$$(cat .local/metrics-token) docker compose up -d prometheus
 	SERVICE_ENCRYPTION_KEY_FILE=$(CURDIR)/.local/service-encryption-key \
 	KYMBER_SERVER_TOKEN_FILE=$(CURDIR)/.local/server-token \
 	KYMBER_LOCAL_SSH_PRIVATE_KEY_FILE=$(CURDIR)/.local/kymber-local-ssh \

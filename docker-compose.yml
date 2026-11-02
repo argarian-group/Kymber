@@ -22,6 +22,10 @@ services:
       - --certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL:-}
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
       - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --entrypoints.metrics.address=:8082
+      - --metrics.prometheus=true
+      - --metrics.prometheus.entrypoint=metrics
+      - --metrics.prometheus.addRoutersLabels=true
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${APP_PORT:-3000}:80"
@@ -77,6 +81,8 @@ services:
       DB_NAME: ${DB_NAME:-kymber}
       DB_USER: ${DB_USER:-kymber}
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      KYMBER_METRICS_TOKEN: ${KYMBER_METRICS_TOKEN:-}
+      KYMBER_PROMETHEUS_URL: http://prometheus:9090
     networks:
       - data
       - proxy
@@ -120,6 +126,28 @@ services:
     networks:
       - proxy
 
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sed "s#__KYMBER_API__#$${KYMBER_API_HOST}#g" /etc/kymber/prometheus.yml.tmpl > /prometheus/prometheus.yml
+        printf '%s' "$${KYMBER_METRICS_TOKEN}" > /prometheus/metrics-token
+        exec /bin/prometheus --config.file=/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=15d
+    environment:
+      KYMBER_API_HOST: ${KYMBER_API_HOST:-backend:8080}
+      KYMBER_METRICS_TOKEN: ${KYMBER_METRICS_TOKEN:-}
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./deploy/prometheus:/etc/kymber:ro
+      - prometheus_data:/prometheus
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks:
+      - proxy
+
   server:
     profiles: [monitoring]
     build:
@@ -141,6 +169,7 @@ volumes:
   mariadb_data:
   kymber_secrets:
   traefik_certs:
+  prometheus_data:
 
 networks:
   data:
