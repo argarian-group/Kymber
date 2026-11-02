@@ -44,6 +44,12 @@ export function SettingsPage({ section }: { section: "account" | "appearance" | 
       {section === "appearance" && <AppearanceSettings />}
       {section === "workspace" && <WorkspaceSettings />}
       {section === "system" && <SystemSettings />}
+      <p className="px-4 pt-2 pb-8 text-xs text-ink-soft md:px-6">
+        {t("Kymber is free software under the AGPL-3.0 license.")}{" "}
+        <a className="text-button" href="https://github.com/argarian-group/Kymber" target="_blank" rel="noreferrer">
+          {t("Source code")}
+        </a>
+      </p>
     </>
   );
 }
