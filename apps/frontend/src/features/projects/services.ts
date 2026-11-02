@@ -25,6 +25,10 @@ export type Service = {
   data_path?: string;
   logo_url?: string;
   category: AppCategory;
+  compose?: boolean;
+  compose_file?: string;
+  containers?: { name: string; container_name: string; image: string; state: string; status: string; ports: string[] }[];
+  containers_error?: string;
   environment_id?: string;
   environment_name?: string;
   connection_url?: string;

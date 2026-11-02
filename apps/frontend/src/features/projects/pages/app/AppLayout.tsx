@@ -69,21 +69,37 @@ export function AppLayout() {
     reload();
     setRevision((value) => value + 1);
   };
-  const sections = [
-    { label: t("General"), to: "", end: true, icon: Settings2 },
-    { label: t("Logs"), to: "logs", end: false, icon: ScrollText },
-    { label: t("Metrics"), to: "metrics", end: false, icon: Activity },
-    ...(canWrite
-      ? [
-          { label: t("Environment"), to: "environment", end: false, icon: KeyRound },
-          { label: t("Connection"), to: "connection", end: false, icon: Plug },
-          { label: t("Files"), to: "files", end: false, icon: FolderOpen },
-        ]
-      : []),
-    ...(canTerminal ? [{ label: t("Terminal"), to: "terminal", end: false, icon: SquareTerminal }] : []),
-    { label: t("Storage"), to: "storage", end: false, icon: HardDrive },
-    ...(canWrite ? [{ label: t("Danger zone"), to: "danger", end: false, icon: TriangleAlert }] : []),
-  ];
+  const sections = service.compose
+    ? [
+        { label: t("General"), to: "", end: true, icon: Settings2 },
+        { label: t("Logs"), to: "logs", end: false, icon: ScrollText },
+        ...(canWrite
+          ? [
+              { label: t("Environment"), to: "environment", end: false, icon: KeyRound },
+              { label: t("Connection"), to: "connection", end: false, icon: Plug },
+              { label: t("Files"), to: "files", end: false, icon: FolderOpen },
+            ]
+          : []),
+        ...(canTerminal ? [{ label: t("Terminal"), to: "terminal", end: false, icon: SquareTerminal }] : []),
+        { label: t("Storage"), to: "storage", end: false, icon: HardDrive },
+        ...(canWrite ? [{ label: t("Danger zone"), to: "danger", end: false, icon: TriangleAlert }] : []),
+      ]
+    : [
+        { label: t("General"), to: "", end: true, icon: Settings2 },
+        { label: t("Logs"), to: "logs", end: false, icon: ScrollText },
+        { label: t("Metrics"), to: "metrics", end: false, icon: Activity },
+        ...(canWrite
+          ? [
+              { label: t("Environment"), to: "environment", end: false, icon: KeyRound },
+              { label: t("Connection"), to: "connection", end: false, icon: Plug },
+              { label: t("Files"), to: "files", end: false, icon: FolderOpen },
+              { label: t("Terminal"), to: "terminal", end: false, icon: SquareTerminal },
+            ]
+          : []),
+        ...(canTerminal ? [{ label: t("Terminal"), to: "terminal", end: false, icon: SquareTerminal }] : []),
+        { label: t("Storage"), to: "storage", end: false, icon: HardDrive },
+        ...(canWrite ? [{ label: t("Danger zone"), to: "danger", end: false, icon: TriangleAlert }] : []),
+      ];
   const context: AppOutlet = {
     service,
     detail,
@@ -95,6 +111,8 @@ export function AppLayout() {
     onChanged,
     deployOutput,
   };
+  const portConflict = service.last_error?.match(/failed to bind host port .*?:(\d+)\/(?:tcp|udp): address already in use/i);
+  const orphanContainers = service.last_error?.match(/Found orphan containers \(([^)]+)\) for this project/i);
 
   return (
     <div className="grid min-w-0 gap-5 px-4 py-6 md:px-6">
@@ -109,7 +127,7 @@ export function AppLayout() {
           <div className="min-w-0 flex-1 basis-48">
             <h2 className="font-display text-xl leading-tight font-semibold wrap-break-word">{service.name}</h2>
             <p className="mt-1 font-mono text-xs wrap-break-word text-ink-soft">
-              {service.image}:{service.image_version}
+              {service.compose ? t("Docker Compose stack") : `${service.image}:${service.image_version}`}
             </p>
             <div className="mt-2">
               <ServiceStatus status={service.status} />
@@ -122,7 +140,8 @@ export function AppLayout() {
 
       {service.status === "failed" && service.last_error && (
         <p className="rounded-panel border border-ember/40 p-4 text-meta wrap-break-word text-ember" role="alert">
-          {service.last_error}
+          {portConflict ? t("Host port {port} is already in use. Choose another published host port or remove its conflicting Compose mapping, then deploy again.", { port: portConflict[1] }) : service.last_error}
+          {orphanContainers && <span className="mt-2 block">{t("Obsolete Compose containers were found ({containers}); they will be removed on the next deployment.", { containers: orphanContainers[1] })}</span>}
         </p>
       )}
 
