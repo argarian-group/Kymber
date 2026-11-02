@@ -20,8 +20,8 @@ export function ServerConnectSteps({ server, token, onDone }: { server: Server; 
         <h2 className="section-title wrap-break-word">Connect {server.name}</h2>
         <ServerStatusBadge status={server.status} />
       </div>
-      <p className="text-meta text-ink-soft">The token is shown only once, so copy the command now.</p>
-      <fieldset className="flex flex-wrap gap-2">
+      {server.connection_type === "ssh" ? <><p className="text-meta text-ink-soft">Install this generated public key in the remote user's ~/.ssh/authorized_keys.</p><CopyField label="Kymber SSH public key" value={token} /><p className="text-meta text-ink-soft">The host key was pinned during registration. Deployments will connect directly over SSH.</p></> : <p className="text-meta text-ink-soft">The token is shown only once, so copy the command now.</p>}
+      {server.connection_type === "local" && <fieldset className="flex flex-wrap gap-2">
         <legend className="mb-1 text-meta font-medium">Where will it run?</legend>
         {places.map(({ id, label }) => (
           <label className="cursor-pointer" key={id}>
@@ -29,8 +29,8 @@ export function ServerConnectSteps({ server, token, onDone }: { server: Server; 
             <span className={`block rounded-control border-2 px-3 py-1.5 text-meta font-medium transition-colors duration-100 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-seafoam ${place === id ? "border-seafoam" : "border-line-strong hover:border-ink-faint"}`}>{label}</span>
           </label>
         ))}
-      </fieldset>
-      {place === "this" ? (
+      </fieldset>}
+      {server.connection_type === "ssh" ? <button className="btn btn-primary" type="button" onClick={onDone}>Done</button> : place === "this" ? (
         <CopyField label="Run in the project folder and keep it open" value={`KYMBER_SERVER_TOKEN=${token} make server`} secret />
       ) : (
         <>

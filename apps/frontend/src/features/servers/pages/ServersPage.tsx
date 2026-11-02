@@ -64,13 +64,13 @@ export function ServersPage() {
             onCancel={servers.length > 0 ? () => setAdding(false) : undefined}
             onRegistered={(server, token) => {
               setServers([...servers, server]);
-              setConnecting({ id: server.id, token });
+              if (server.connection_type === "ssh") setConnecting({ id: server.id, token });
               setAdding(false);
             }}
           />
         )}
         {servers.map((server) => (
-          <ServerCard server={server} onChanged={reload} onToken={(token) => setConnecting({ id: server.id, token })} key={server.id} />
+          <ServerCard server={server} onChanged={reload} key={server.id} />
         ))}
       </div>
     </>

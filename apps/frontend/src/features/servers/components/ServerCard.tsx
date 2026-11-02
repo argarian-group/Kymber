@@ -8,9 +8,9 @@ import { api } from "@/lib/api";
 import { formatDate, formatRelative } from "@/lib/format";
 import { useAction } from "@/lib/useAction";
 
-type Mode = "view" | "rename" | "rotate" | "delete";
+type Mode = "view" | "rename" | "delete";
 
-export function ServerCard({ server, onChanged, onToken }: { server: Server; onChanged: () => void; onToken: (token: string) => void }) {
+export function ServerCard({ server, onChanged }: { server: Server; onChanged: () => void }) {
   const [mode, setMode] = useState<Mode>("view");
   const [name, setName] = useState(server.name);
   const { pending, error, run } = useAction();
@@ -24,19 +24,15 @@ export function ServerCard({ server, onChanged, onToken }: { server: Server; onC
     }
   }
 
-  async function rotate() {
-    await run(async () => {
-      const { token } = await api<{ token: string }>(`/servers/${server.id}/token`, { method: "POST" });
-      setMode("view");
-      onToken(token);
-      onChanged();
-    });
-  }
-
   async function remove() {
     const removed = await run(() => api(`/servers/${server.id}`, { method: "DELETE" }));
     if (removed) onChanged();
     else setMode("view");
+  }
+
+  async function setupSSH() {
+    const configured = await run(() => api(`/servers/${server.id}/ssh`, { method: "POST" }));
+    if (configured) onChanged();
   }
 
   return (
@@ -48,6 +44,7 @@ export function ServerCard({ server, onChanged, onToken }: { server: Server; onC
         <div className="min-w-0 flex-1 basis-40">
           <h2 className="section-title wrap-break-word">{server.name}</h2>
           <p className="font-mono text-xs text-ink-soft">{server.id}</p>
+          <p className="text-xs text-ink-soft">{server.connection_type === "ssh" ? `${server.ssh_user}@${server.host}:${server.ssh_port}` : server.ssh_configured ? "Local host via SSH" : "Local host · SSH not configured"}</p>
         </div>
         <ServerStatusBadge status={server.status} />
       </div>
@@ -68,11 +65,9 @@ export function ServerCard({ server, onChanged, onToken }: { server: Server; onC
       <div className="border-t border-line p-4">
         {mode === "view" && (
           <div className="flex flex-wrap gap-2">
+            {server.connection_type === "local" && !server.ssh_configured && <button className="btn btn-primary" type="button" disabled={pending} onClick={setupSSH}>{pending ? "Configuring…" : "Enable SSH for local host"}</button>}
             <button className="btn" type="button" onClick={() => setMode("rename")}>
               Rename
-            </button>
-            <button className="btn" type="button" onClick={() => setMode("rotate")}>
-              Replace token
             </button>
             <button className="btn btn-danger" type="button" disabled={server.apps > 0} title={server.apps > 0 ? "Delete this server's apps first" : undefined} onClick={() => setMode("delete")}>
               Delete server
@@ -92,12 +87,12 @@ export function ServerCard({ server, onChanged, onToken }: { server: Server; onC
             </div>
           </form>
         )}
-        {(mode === "rotate" || mode === "delete") && (
+        {mode === "delete" && (
           <div className="grid gap-3">
-            <p>{mode === "rotate" ? "Replace the token? The server disconnects until you update .env and restart it." : `Delete ${server.name}? You can register a new one afterwards.`}</p>
+              <p>{`Delete ${server.name}? You can register a new one afterwards.`}</p>
             <div className="flex flex-wrap gap-2">
-              <button className="btn btn-danger" type="button" disabled={pending} onClick={mode === "rotate" ? rotate : remove}>
-                {mode === "rotate" ? "Confirm replace" : "Confirm delete"}
+              <button className="btn btn-danger" type="button" disabled={pending} onClick={remove}>
+                Confirm delete
               </button>
               <button className="btn" type="button" disabled={pending} onClick={() => setMode("view")}>
                 Cancel
