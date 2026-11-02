@@ -357,8 +357,9 @@ func (h *Handler) startServiceDeploySSH(r *http.Request, serverID, serviceID, im
 		return err
 	}
 	logFile, statusFile := deploymentLogFiles(serviceID)
-	script := "(" + command + ") > " + shellQuote(logFile) + " 2>&1; code=$?; printf '%s' \"$code\" > " + shellQuote(statusFile+".tmp") + "; mv " + shellQuote(statusFile+".tmp") + " " + shellQuote(statusFile)
-	launch := ": > " + shellQuote(logFile) + "; rm -f " + shellQuote(statusFile) + "; nohup sh -c " + shellQuote(script) + " </dev/null >/dev/null 2>&1 &"
+	pidFile := deploymentProcessFile(serviceID)
+	script := "echo $$ > " + shellQuote(pidFile) + "; (" + command + ") > " + shellQuote(logFile) + " 2>&1; code=$?; rm -f " + shellQuote(pidFile) + "; printf '%s' \"$code\" > " + shellQuote(statusFile+".tmp") + "; mv " + shellQuote(statusFile+".tmp") + " " + shellQuote(statusFile)
+	launch := ": > " + shellQuote(logFile) + "; rm -f " + shellQuote(statusFile) + " " + shellQuote(pidFile) + "; nohup setsid sh -c " + shellQuote(script) + " </dev/null >/dev/null 2>&1 &"
 	_, err = h.executeSSH(r.Context(), serverID, launch)
 	return err
 }
@@ -366,6 +367,10 @@ func (h *Handler) startServiceDeploySSH(r *http.Request, serverID, serviceID, im
 func deploymentLogFiles(serviceID string) (string, string) {
 	base := "/tmp/kymber-service-" + serviceID
 	return base + ".log", base + ".exit"
+}
+
+func deploymentProcessFile(serviceID string) string {
+	return "/tmp/kymber-service-" + serviceID + ".pid"
 }
 
 func shellQuote(value string) string {
@@ -432,7 +437,7 @@ func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, imag
 	}
 	prepare, storageArgs := storageDeployCommand(s.ID, storages)
 	portCheck, portArgs := portDeployCommand(ports)
-	command := "set -eu; n=" + quote(name) + "; f=$(mktemp); trap 'rm -f \"$f\"' EXIT; " + portCheck + env.String() + prepare + "docker network inspect " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null 2>&1 || docker network create --label kymber.managed=true " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null; docker rm -f \"$n\" >/dev/null 2>&1 || true; docker run --pull=missing -d --name \"$n\" --restart unless-stopped --network " + quote("kymber-workspace-"+s.WorkspaceID) + " --network-alias " + quote(t.InternalHost(s.ID)) + " --label kymber.managed=true --label " + quote("kymber.service="+s.ID)
+	command := "set -eu; n=" + quote(name) + "; f=$(mktemp); trap 'rm -f \"$f\"' EXIT; " + portCheck + env.String() + prepare + "if docker image inspect " + quote(image) + " >/dev/null 2>&1; then echo 'Image found locally.'; else echo 'Image not found locally; pulling…'; docker pull " + quote(image) + "; fi; docker network inspect " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null 2>&1 || docker network create --label kymber.managed=true " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null; docker rm -f \"$n\" >/dev/null 2>&1 || true; docker run --pull=never -d --name \"$n\" --restart unless-stopped --network " + quote("kymber-workspace-"+s.WorkspaceID) + " --network-alias " + quote(t.InternalHost(s.ID)) + " --label kymber.managed=true --label " + quote("kymber.service="+s.ID)
 	if s.Domain != "" {
 		if t.Port < 1 || t.Port > 65535 {
 			return "", fmt.Errorf("public domain requires an HTTP port")
