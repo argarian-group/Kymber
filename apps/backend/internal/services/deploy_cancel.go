@@ -4,12 +4,13 @@ import (
 	"net/http"
 
 	"kymber/backend/internal/auth"
+	"kymber/backend/internal/permissions"
 )
 
 func (h *Handler) cancelServiceDeploy(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.AppsManage) {
 		return
 	}
 	projectID, ok := pathID(w, r, "projectID")
