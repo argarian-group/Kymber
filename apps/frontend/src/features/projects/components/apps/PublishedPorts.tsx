@@ -13,6 +13,50 @@ import { useLoadEffect } from "@/lib/useLoadEffect";
 import { t } from "@/lib/i18n";
 
 type ServicePort = { id: string; host_port: number; container_port: number; protocol: "tcp" | "udp"; bind: string; applied: boolean };
+type ComposePort = ServicePort & { line: number };
+
+function composePorts(file: string, containers: NonNullable<ReturnType<typeof useAppOutlet>["detail"]>["containers"]): ComposePort[] {
+  const lines = file.split("\n");
+  const ports: ComposePort[] = [];
+  let inServices = false;
+  let inPorts = false;
+  for (const [line, source] of lines.entries()) {
+    const trimmed = source.trim();
+    const indent = source.length - source.trimStart().length;
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    if (indent === 0) {
+      if (trimmed === "services:") inServices = true;
+      else inServices = false;
+      inPorts = false;
+      continue;
+    }
+    if (!inServices) continue;
+    if (indent === 2 && trimmed.endsWith(":")) {
+      inPorts = false;
+      continue;
+    }
+    if (indent === 4) {
+      inPorts = trimmed === "ports:";
+      continue;
+    }
+    if (!inPorts || indent !== 6 || !trimmed.startsWith("- ")) continue;
+    let value = trimmed.slice(2).trim();
+    try {
+      value = JSON.parse(value) as string;
+    } catch {
+      value = value.replace(/^['"]|['"]$/g, "");
+    }
+    const match = value.match(/^(?:(\d{1,3}(?:\.\d{1,3}){3}):)?(\d+):(\d+)(?:\/(tcp|udp))?$/);
+    if (!match) continue;
+    const hostPort = Number(match[2]);
+    const containerPort = Number(match[3]);
+    const protocol = match[4] === "udp" ? "udp" : "tcp";
+    const bind = match[1] || "0.0.0.0";
+    const applied = containers?.some(({ ports: runningPorts }) => runningPorts.some((running) => running.endsWith(`${hostPort}→${containerPort}/${protocol}`))) ?? false;
+    ports.push({ id: `compose-${line}`, line, host_port: hostPort, container_port: containerPort, protocol, bind, applied });
+  }
+  return ports;
+}
 
 function AddPortForm({ url, defaultContainerPort, defaultBind, onAdded, onCancel }: { url: string; defaultContainerPort: string; defaultBind: string; onAdded: () => void; onCancel: () => void }) {
   const [hostPort, setHostPort] = useState("");
@@ -102,8 +146,31 @@ function PortRow({ port, address, url, locked, canWrite, onChanged }: { port: Se
   );
 }
 
+function ComposePortRow({ port, address, file, path, serviceId, locked, canWrite, onChanged }: { port: ComposePort; address: string; file: string; path: string; serviceId: string; locked: boolean; canWrite: boolean; onChanged: () => void }) {
+  const { pending, error, run } = useAction();
+  const local = port.bind === "127.0.0.1";
+
+  async function makePublic() {
+    const lines = file.split("\n");
+    lines[port.line] = lines[port.line].replace("127.0.0.1:", "");
+    if (await run(() => api(`${path}/${serviceId}`, { method: "PUT", body: { compose_file: lines.join("\n") } }))) onChanged();
+  }
+
+  return <li className="grid gap-3 border-t border-line p-4 first:border-t-0">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="min-w-0 flex-1 basis-56">
+        <p className="flex flex-wrap items-center gap-2 text-xs text-ink-soft">{port.protocol.toUpperCase()} · {local ? t("This server only") : t("Anywhere")}{!port.applied && <span className="rounded-sm bg-seafoam/15 px-1.5 text-seafoam">{t("Pending deploy")}</span>}</p>
+        <code className="mt-1 block font-mono text-meta">{port.host_port} → {port.container_port}</code>
+      </div>
+      {canWrite && local && <button className="btn" type="button" disabled={locked || pending} onClick={() => void makePublic()}>{pending ? t("Saving…") : t("Make public")}</button>}
+    </div>
+    {port.applied && !local && <CopyField label={t("Address")} value={`${address}:${port.host_port}`} />}
+    <FormError message={error} />
+  </li>;
+}
+
 export function PublishedPorts() {
-  const { service, detail, path, canWrite } = useAppOutlet();
+  const { service, detail, path, canWrite, onChanged } = useAppOutlet();
   const [ports, setPorts] = useState<ServicePort[] | null>(null);
   const [host, setHost] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -112,6 +179,8 @@ export function PublishedPorts() {
   const [changed, setChanged] = useState(false);
   const url = `${path}/${service.id}/ports`;
   const locked = isServiceBusy(service.status);
+  const composeFile = detail?.compose_file || service.compose_file || "";
+  const composePortRows = service.compose ? composePorts(composeFile, detail?.containers) : [];
 
   useLoadEffect(
     () => api<{ ports: ServicePort[]; host: string }>(url),
@@ -131,7 +200,7 @@ export function PublishedPorts() {
 
   if (loadError && !ports) return <LoadError title={t("Could not load ports")} message={loadError} onRetry={() => setAttempt((value) => value + 1)} />;
 
-  const pendingDeploy = changed || ports?.some(({ applied }) => !applied);
+  const pendingDeploy = changed || ports?.some(({ applied }) => !applied) || composePortRows.some(({ applied }) => !applied);
 
   return (
     <AppSection title={t("Published ports")} description={t("Reach this app from outside the server's internal network. Changes apply on the next deploy.")}>
@@ -140,11 +209,10 @@ export function PublishedPorts() {
           {t("Deploy the app to apply these changes.")}
         </p>
       )}
-      {ports?.length === 0 && <p className="p-4 text-meta text-ink-soft">{t("No published ports, so this app cannot be reached from outside the server.")}</p>}
+      {ports?.length === 0 && composePortRows.length === 0 && <p className="p-4 text-meta text-ink-soft">{t("No published ports, so this app cannot be reached from outside the server.")}</p>}
       <ul>
-        {ports?.map((port) => (
-          <PortRow port={port} address={host || window.location.hostname} url={url} locked={locked} canWrite={canWrite} onChanged={refresh} key={port.id} />
-        ))}
+        {ports?.filter((port) => !composePortRows.some((composePort) => composePort.host_port === port.host_port && composePort.container_port === port.container_port && composePort.protocol === port.protocol && composePort.bind === port.bind)).map((port) => <PortRow port={port} address={host || window.location.hostname} url={url} locked={locked} canWrite={canWrite} onChanged={refresh} key={port.id} />)}
+        {composePortRows.map((port) => <ComposePortRow port={port} address={host || window.location.hostname} file={composeFile} path={path} serviceId={service.id} locked={locked} canWrite={canWrite} onChanged={onChanged} key={port.id} />)}
       </ul>
       {canWrite &&
         (adding ? (
