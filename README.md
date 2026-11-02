@@ -154,6 +154,27 @@ assets/                  # Logo, banner and background
 - [x] Tasks in the API
 - [ ] Collaboration and progress tracking
 
+## Contributing
+
+Contributions are welcome. For anything larger than a small fix, open an issue first so the approach can be agreed before you write the code.
+
+1. Fork the repository and create a branch from `main`.
+2. Set up the project as described in [Getting started](#getting-started) and run it with `make up`.
+3. Keep each change focused on one thing, and follow the structure of the code around it: backend domains live in `apps/backend/internal/`, frontend product areas in `apps/frontend/src/features/`.
+4. Before opening a pull request, make sure the checks pass:
+
+   ```bash
+   (cd apps/backend && go vet ./... && go test ./...)
+   (cd apps/frontend && pnpm build)
+   ```
+
+5. Write commit messages in the [Conventional Commits](https://www.conventionalcommits.org/) format, for example `feat(services): add port publishing` or `fix(frontend): keep logs scrolled to the bottom`.
+6. Open a pull request against `main` that explains what changed and why. Add screenshots for UI changes.
+
+Write code, comments, documentation and product text in English. Do not commit secrets, `.env` files, or local tool folders such as `.claude/` or `.cursor/`.
+
+By contributing, you agree that your contributions are licensed under the project's [AGPL-3.0 license](LICENSE).
+
 ## License
 
 Kymber is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only). If you modify Kymber and offer it to users over a network, you must make your modified source code available to them.
