@@ -5,6 +5,7 @@ import { FormError } from "@/components/ui/FormError";
 import { roles, RoleSelect } from "@/features/workspaces/components/RoleSelect";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 export function InviteForm({ workspaceId, canAddDirectly, onAdded, onClose }: { workspaceId: string; canAddDirectly: boolean; onAdded: () => void; onClose: () => void }) {
   const [email, setEmail] = useState("");
@@ -33,27 +34,27 @@ export function InviteForm({ workspaceId, canAddDirectly, onAdded, onClose }: { 
   if (invite) {
     return (
       <div className="mx-4 mt-4 rounded-panel bg-raised p-4 md:mx-6" role="status">
-        <p className="font-medium wrap-break-word">Invite link for {invite.email}</p>
-        <p className="mt-1 text-meta text-ink-soft">Kymber does not send this by email. Copy it now, because it will not be shown again. It expires in 7 days.</p>
+        <p className="font-medium wrap-break-word">{t("Invite link for {email}", { email: invite.email })}</p>
+        <p className="mt-1 text-meta text-ink-soft">{t("Kymber does not send this by email. Copy it now, because it will not be shown again. It expires in 7 days.")}</p>
         <div className="mt-3">
-          <CopyField label="Invite link" value={invite.link} />
+          <CopyField label={t("Invite link")} value={invite.link} />
         </div>
         <button className="btn mt-3" type="button" onClick={onClose}>
-          Done
+          {t("Done")}
         </button>
       </div>
     );
   }
 
   return (
-    <form className="mx-4 mt-4 rounded-panel bg-raised p-4 md:mx-6" ref={formRef} onSubmit={createInvite} aria-label="Invite member">
+    <form className="mx-4 mt-4 rounded-panel bg-raised p-4 md:mx-6" ref={formRef} onSubmit={createInvite} aria-label={t("Invite member")}>
       <div className="grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
-        <Field label="Email" type="email" required autoFocus value={email} onChange={(event) => setEmail(event.target.value)} />
+        <Field label={t("Email")} type="email" required autoFocus value={email} onChange={(event) => setEmail(event.target.value)} />
         <div className="sm:self-start">
           <span className="mb-1 block text-meta font-medium" aria-hidden="true">
-            Role
+            {t("Role")}
           </span>
-          <RoleSelect id="new-member-role" label="Role" value={role} options={canAddDirectly ? roles : roles.filter((item) => item !== "owner")} onChange={setRole} />
+          <RoleSelect id="new-member-role" label={t("Role")} value={role} options={canAddDirectly ? roles : roles.filter((item) => item !== "owner")} onChange={setRole} />
         </div>
       </div>
       <div className="mt-3">
@@ -61,15 +62,15 @@ export function InviteForm({ workspaceId, canAddDirectly, onAdded, onClose }: { 
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
         <button className="btn btn-primary" type="submit" disabled={pending}>
-          {pending ? "Creating…" : "Create invite link"}
+          {pending ? t("Creating…") : t("Create invite link")}
         </button>
         {canAddDirectly && (
           <button className="btn" type="button" onClick={addDirectly} disabled={pending}>
-            Add existing account
+            {t("Add existing account")}
           </button>
         )}
         <button className="btn" type="button" onClick={onClose} disabled={pending}>
-          Cancel
+          {t("Cancel")}
         </button>
       </div>
     </form>

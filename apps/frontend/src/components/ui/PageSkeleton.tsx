@@ -1,6 +1,7 @@
+import { t } from "@/lib/i18n";
 export function PageSkeleton() {
   return (
-    <div className="motion-safe:animate-pulse" role="status" aria-label="Loading page">
+    <div className="motion-safe:animate-pulse" role="status" aria-label={t("Loading page")}>
       <div className="flex min-h-14 items-center border-b border-line px-4 md:px-6">
         <div className="h-4 w-28 rounded-sm bg-white/10" />
       </div>

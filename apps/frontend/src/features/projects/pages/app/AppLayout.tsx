@@ -16,6 +16,7 @@ import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
 import { useServices } from "@/features/projects/useServices";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
+import { t } from "@/lib/i18n";
 
 function appTemplate(template: DatabaseTemplate | null, detail: Service | null): DatabaseTemplate | null {
   if (!template?.custom) return template;
@@ -47,15 +48,15 @@ export function AppLayout() {
     [],
   );
 
-  if (error && !services) return <LoadError title="Could not load this app" message={error} onRetry={reload} />;
+  if (error && !services) return <LoadError title={t("Could not load this app")} message={error} onRetry={reload} />;
   if (!services) return <PageSkeleton />;
   if (!service) {
     return (
       <EmptyState
-        title="App not found"
+        title={t("App not found")}
         action={
           <Link className="btn" to="../apps">
-            Go to apps
+            {t("Go to apps")}
           </Link>
         }
       />
@@ -67,18 +68,18 @@ export function AppLayout() {
     setRevision((value) => value + 1);
   };
   const sections = [
-    { label: "General", to: "", end: true, icon: Settings2 },
-    { label: "Logs", to: "logs", end: false, icon: ScrollText },
+    { label: t("General"), to: "", end: true, icon: Settings2 },
+    { label: t("Logs"), to: "logs", end: false, icon: ScrollText },
     ...(canWrite
       ? [
-          { label: "Environment", to: "environment", end: false, icon: KeyRound },
-          { label: "Connection", to: "connection", end: false, icon: Plug },
-          { label: "Files", to: "files", end: false, icon: FolderOpen },
-          { label: "Terminal", to: "terminal", end: false, icon: SquareTerminal },
+          { label: t("Environment"), to: "environment", end: false, icon: KeyRound },
+          { label: t("Connection"), to: "connection", end: false, icon: Plug },
+          { label: t("Files"), to: "files", end: false, icon: FolderOpen },
+          { label: t("Terminal"), to: "terminal", end: false, icon: SquareTerminal },
         ]
       : []),
-    { label: "Storage", to: "storage", end: false, icon: HardDrive },
-    ...(canWrite ? [{ label: "Danger zone", to: "danger", end: false, icon: TriangleAlert }] : []),
+    { label: t("Storage"), to: "storage", end: false, icon: HardDrive },
+    ...(canWrite ? [{ label: t("Danger zone"), to: "danger", end: false, icon: TriangleAlert }] : []),
   ];
   const context: AppOutlet = {
     service,
@@ -95,7 +96,7 @@ export function AppLayout() {
     <div className="grid min-w-0 gap-5 px-4 py-6 md:px-6">
       <Link className="focus-ring inline-flex w-fit items-center gap-1 rounded-sm text-meta text-ink-soft hover:text-ink" to="../apps">
         <ArrowLeft aria-hidden="true" size={14} />
-        All apps
+        {t("All apps")}
       </Link>
 
       <section className="grid gap-5 rounded-panel bg-raised p-5" aria-label={service.name}>
@@ -122,7 +123,7 @@ export function AppLayout() {
       )}
 
       <div className="grid items-start gap-5 lg:grid-cols-[200px_minmax(0,1fr)]">
-        <nav className="flex gap-1 overflow-x-auto lg:sticky lg:top-4 lg:grid" aria-label="App sections">
+        <nav className="flex gap-1 overflow-x-auto lg:sticky lg:top-4 lg:grid" aria-label={t("App sections")}>
           {sections.map(({ label, to, end, icon: Icon }) => (
             <NavLink
               className={({ isActive }) =>

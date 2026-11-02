@@ -4,6 +4,7 @@ import { useAction } from "@/lib/useAction";
 import type { User } from "@/features/auth/AuthContext";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { t } from "@/lib/i18n";
 
 type CreateAccountFormProps<T> = {
   endpoint: string;
@@ -19,7 +20,7 @@ export function CreateAccountForm<T extends { user: User }>({ endpoint, submitLa
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (confirmPassword !== form.password) {
-      setError("The passwords do not match.");
+      setError(t("The passwords do not match."));
       return;
     }
     await run(async () => onCreated(await api<T>(endpoint, { method: "POST", body: form })));
@@ -29,13 +30,13 @@ export function CreateAccountForm<T extends { user: User }>({ endpoint, submitLa
 
   return (
     <form className="grid gap-4" onSubmit={submit}>
-      <Field label="Username" autoComplete="username" required autoFocus minLength={3} maxLength={32} hint="3 to 32 letters, numbers, _ or -." value={form.username} onChange={update("username")} />
-      <Field label="Email" type="email" autoComplete="email" required value={form.email} onChange={update("email")} />
-      <Field label="Password" type="password" autoComplete="new-password" required minLength={8} maxLength={128} hint="8 to 128 characters." value={form.password} onChange={update("password")} />
-      <Field label="Confirm password" type="password" autoComplete="new-password" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
+      <Field label={t("Username")} autoComplete="username" required autoFocus minLength={3} maxLength={32} hint={t("3 to 32 letters, numbers, _ or -.")} value={form.username} onChange={update("username")} />
+      <Field label={t("Email")} type="email" autoComplete="email" required value={form.email} onChange={update("email")} />
+      <Field label={t("Password")} type="password" autoComplete="new-password" required minLength={8} maxLength={128} hint={t("8 to 128 characters.")} value={form.password} onChange={update("password")} />
+      <Field label={t("Confirm password")} type="password" autoComplete="new-password" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
       <FormError message={error} />
       <button className="btn btn-primary justify-center" type="submit" disabled={pending}>
-        {pending ? "Creating account…" : submitLabel}
+        {pending ? t("Creating account…") : submitLabel}
       </button>
     </form>
   );

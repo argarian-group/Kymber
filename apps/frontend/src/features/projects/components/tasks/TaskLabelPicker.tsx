@@ -3,6 +3,7 @@ import { useState } from "react";
 import { TaskLabelChip } from "@/features/projects/components/tasks/TaskLabelChip";
 import { TaskLabelEditor } from "@/features/projects/components/tasks/TaskLabelEditor";
 import { type TaskLabel } from "@/features/projects/tasks";
+import { t } from "@/lib/i18n";
 
 type TaskLabelPickerProps = {
   labels: TaskLabel[];
@@ -21,7 +22,7 @@ export function TaskLabelPicker({ labels, selected, path, onToggle, onChanged }:
 
   return (
     <fieldset>
-      <legend className="mb-1 text-meta font-medium">Labels</legend>
+      <legend className="mb-1 text-meta font-medium">{t("Labels")}</legend>
       <ul className="grid gap-1">
         {labels.map((label) =>
           editing === label.id ? (
@@ -34,7 +35,7 @@ export function TaskLabelPicker({ labels, selected, path, onToggle, onChanged }:
                 <input className="size-4 flex-none cursor-pointer accent-seafoam" type="checkbox" checked={selected.includes(label.id)} onChange={(event) => onToggle(label.id, event.target.checked)} />
                 <TaskLabelChip label={label} />
               </label>
-              <button className="btn min-h-7 border-transparent px-1.5" type="button" aria-label={`Edit label ${label.name}`} onClick={() => setEditing(label.id)}>
+              <button className="btn min-h-7 border-transparent px-1.5" type="button" aria-label={t("Edit label {name}", { name: label.name })} onClick={() => setEditing(label.id)}>
                 <Pencil aria-hidden="true" size={13} />
               </button>
             </li>
@@ -46,7 +47,7 @@ export function TaskLabelPicker({ labels, selected, path, onToggle, onChanged }:
           <TaskLabelEditor label={null} path={path} onDone={done} />
         ) : (
           <button className="text-button text-meta" type="button" onClick={() => setEditing("new")}>
-            New label
+            {t("New label")}
           </button>
         )}
       </div>

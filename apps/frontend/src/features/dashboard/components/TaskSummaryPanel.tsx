@@ -1,19 +1,20 @@
 import { Panel } from "@/components/ui/Panel";
 import { type OverviewTask } from "@/features/dashboard/overview";
+import { t } from "@/lib/i18n";
 
 export function TaskSummaryPanel({ tasks }: { tasks: OverviewTask[] }) {
   const done = tasks.filter((item) => item.done).length;
   const late = tasks.filter((item) => item.late).length;
   const percent = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
   const stats = [
-    { name: "Open", value: tasks.length - done, tone: "" },
-    { name: "Late", value: late, tone: late > 0 ? "text-ember" : "" },
-    { name: "Done", value: done, tone: "" },
+    { name: t("Open"), value: tasks.length - done, tone: "" },
+    { name: t("Late"), value: late, tone: late > 0 ? "text-ember" : "" },
+    { name: t("Done"), value: done, tone: "" },
   ];
 
   return (
-    <Panel title="Tasks" className="lg:col-span-2" aside={<span className="text-meta text-ink-soft tabular-nums">{tasks.length} total</span>}>
-      <div className="mx-4 mb-3 h-2 overflow-hidden rounded-full bg-white/10 md:mx-6" role="progressbar" aria-label="Tasks done" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
+    <Panel title={t("Tasks")} className="lg:col-span-2" aside={<span className="text-meta text-ink-soft tabular-nums">{t("{count} total", { count: tasks.length })}</span>}>
+      <div className="mx-4 mb-3 h-2 overflow-hidden rounded-full bg-white/10 md:mx-6" role="progressbar" aria-label={t("Tasks done")} aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
         <div className="h-full rounded-full bg-seafoam" style={{ width: `${percent}%` }} />
       </div>
       <dl className="grid grid-cols-3 gap-2 px-4 md:px-6">

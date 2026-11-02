@@ -1,20 +1,21 @@
+import { t } from "@/lib/i18n";
 export const themes = [
-  { id: "pine", label: "Pine", sunken: "#062621", canvas: "#0a302a", raised: "#114239" },
-  { id: "midnight", label: "Midnight", sunken: "#0b1424", canvas: "#111c30", raised: "#1a2842" },
-  { id: "graphite", label: "Graphite", sunken: "#131517", canvas: "#1a1d20", raised: "#25292d" },
+  { id: "pine", label: t("Pine"), sunken: "#062621", canvas: "#0a302a", raised: "#114239" },
+  { id: "midnight", label: t("Midnight"), sunken: "#0b1424", canvas: "#111c30", raised: "#1a2842" },
+  { id: "graphite", label: t("Graphite"), sunken: "#131517", canvas: "#1a1d20", raised: "#25292d" },
 ] as const;
 
 export const accents = [
-  { id: "seafoam", label: "Seafoam", color: "#47cbb7" },
-  { id: "sky", label: "Sky", color: "#5cc4f2" },
-  { id: "violet", label: "Violet", color: "#b49cf7" },
-  { id: "amber", label: "Amber", color: "#f2c14e" },
-  { id: "rose", label: "Rose", color: "#f28fb0" },
+  { id: "seafoam", label: t("Seafoam"), color: "#47cbb7" },
+  { id: "sky", label: t("Sky"), color: "#5cc4f2" },
+  { id: "violet", label: t("Violet"), color: "#b49cf7" },
+  { id: "amber", label: t("Amber"), color: "#f2c14e" },
+  { id: "rose", label: t("Rose"), color: "#f28fb0" },
 ] as const;
 
 export const densities = [
-  { id: "comfortable", label: "Comfortable", description: "More room between rows." },
-  { id: "compact", label: "Compact", description: "More content on screen." },
+  { id: "comfortable", label: t("Comfortable"), description: t("More room between rows.") },
+  { id: "compact", label: t("Compact"), description: t("More content on screen.") },
 ] as const;
 
 export type Appearance = {

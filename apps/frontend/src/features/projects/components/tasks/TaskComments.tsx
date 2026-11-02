@@ -5,6 +5,7 @@ import { TaskCommentRow } from "@/features/projects/components/tasks/TaskComment
 import { commentLimit, type TaskComment } from "@/features/projects/tasks";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 export function TaskComments({ comments, path, taskId, onChanged }: { comments: TaskComment[]; path: string; taskId: string; onChanged: () => void }) {
   const [body, setBody] = useState("");
@@ -26,15 +27,15 @@ export function TaskComments({ comments, path, taskId, onChanged }: { comments: 
   return (
     <section aria-labelledby="task-comments">
       <h3 id="task-comments" className="mb-2 font-medium">
-        Comments
+        {t("Comments")}
       </h3>
       <form className="grid grid-cols-1 gap-2" onSubmit={submit}>
-        <RichTextEditor label="New comment" placeholder="Write a comment" initial="" limit={commentLimit} size="min-h-20" value={body} onChange={setBody} key={editorKey} />
+        <RichTextEditor label={t("New comment")} placeholder={t("Write a comment")} initial="" limit={commentLimit} size="min-h-20" value={body} onChange={setBody} key={editorKey} />
         <FormError message={error} />
         {body && (
           <div>
             <button className="btn btn-primary" type="submit" disabled={pending || body.length > commentLimit}>
-              Comment
+              {t("Comment")}
             </button>
           </div>
         )}

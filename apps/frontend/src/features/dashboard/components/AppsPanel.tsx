@@ -4,6 +4,7 @@ import { Panel } from "@/components/ui/Panel";
 import { type OverviewApp } from "@/features/dashboard/overview";
 import { EngineMark } from "@/features/projects/components/apps/EngineMark";
 import { ServiceStatus } from "@/features/projects/components/apps/ServiceStatus";
+import { t } from "@/lib/i18n";
 
 const visibleApps = 6;
 const statusOrder = ["failed", "deploying", "queued", "running", "stopped", "draft"];
@@ -12,9 +13,9 @@ export function AppsPanel({ apps }: { apps: OverviewApp[] }) {
   const sorted = [...apps].sort((a, b) => statusOrder.indexOf(a.service.status) - statusOrder.indexOf(b.service.status));
 
   return (
-    <Panel title="Apps" aside={apps.length > visibleApps && <span className="text-meta text-ink-soft tabular-nums">{apps.length} total</span>}>
+    <Panel title={t("Apps")} aside={apps.length > visibleApps && <span className="text-meta text-ink-soft tabular-nums">{t("{count} total", { count: apps.length })}</span>}>
       {apps.length === 0 ? (
-        <EmptyState title="No apps yet" />
+        <EmptyState title={t("No apps yet")} />
       ) : (
         <ul>
           {sorted.slice(0, visibleApps).map(({ service, project }) => (

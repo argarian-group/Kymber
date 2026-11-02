@@ -4,10 +4,11 @@ import { FormError } from "@/components/ui/FormError";
 import type { Service, ServiceAction } from "@/features/projects/services";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 const removals = [
-  { action: "remove_container", label: "Remove container", prompt: "Remove the container", result: "Container removed." },
-  { action: "remove_container_image", label: "Remove container and image", prompt: "Remove the container and image", result: "Container and image removed." },
+  { action: "remove_container", label: t("Remove container"), prompt: t("Remove the container of {name}? Its data is kept. Use Deploy to run it again, because Start needs the container."), result: t("Container removed.") },
+  { action: "remove_container_image", label: t("Remove container and image"), prompt: t("Remove the container and image of {name}? Its data is kept. Use Deploy to run it again, because Start needs the container."), result: t("Container and image removed.") },
 ] satisfies { action: ServiceAction; label: string; prompt: string; result: string }[];
 
 export function ServiceDanger({ service, path, appsPath, onChanged }: { service: Service; path: string; appsPath: string; onChanged: () => void }) {
@@ -39,25 +40,25 @@ export function ServiceDanger({ service, path, appsPath, onChanged }: { service:
     <div className="grid gap-3 p-4">
       {removal ? (
         <>
-          <p>{removal.prompt} of {service.name}? Its data is kept. Use Deploy to run it again, because Start needs the container.</p>
+          <p>{removal.prompt.replace("{name}", service.name)}</p>
           <div className="flex flex-wrap gap-2">
             <button className="btn btn-danger" type="button" disabled={pending} onClick={() => remove(removal)}>
-              Confirm removal
+              {t("Confirm removal")}
             </button>
             <button className="btn" type="button" disabled={pending} onClick={() => setRemoval(null)}>
-              Cancel
+              {t("Cancel")}
             </button>
           </div>
         </>
       ) : confirming ? (
         <>
-          <p>Delete {service.name}, its container, and all its data? This cannot be undone.</p>
+          <p>{t("Delete {name}, its container, and all its data? This cannot be undone.", { name: service.name })}</p>
           <div className="flex flex-wrap gap-2">
             <button className="btn btn-danger" type="button" disabled={pending} onClick={confirm}>
-              Confirm delete
+              {t("Confirm delete")}
             </button>
             <button className="btn" type="button" disabled={pending} onClick={() => setConfirming(false)}>
-              Cancel
+              {t("Cancel")}
             </button>
           </div>
         </>
@@ -71,7 +72,7 @@ export function ServiceDanger({ service, path, appsPath, onChanged }: { service:
               </button>
             ))}
           <button className="btn btn-danger" type="button" disabled={pending} onClick={() => setConfirming(true)}>
-            Delete app
+            {t("Delete app")}
           </button>
         </div>
       )}

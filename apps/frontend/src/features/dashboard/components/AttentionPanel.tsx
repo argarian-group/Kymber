@@ -4,11 +4,12 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
 import { type Overview } from "@/features/dashboard/overview";
 import { dueLabel } from "@/features/projects/tasks";
+import { t } from "@/lib/i18n";
 
 export function AttentionPanel({ overview }: { overview: Overview }) {
   const failed = overview.apps
     .filter(({ service }) => service.status === "failed")
-    .map(({ service, project }) => ({ key: `app-${service.id}`, icon: CircleAlert, title: `${service.name} failed`, detail: project.name, when: "", to: `/projects/${project.id}/apps/${service.id}` }));
+    .map(({ service, project }) => ({ key: `app-${service.id}`, icon: CircleAlert, title: t("{name} failed", { name: service.name }), detail: project.name, when: "", to: `/projects/${project.id}/apps/${service.id}` }));
   const late = overview.tasks
     .filter((item) => item.late)
     .sort((a, b) => (a.task.due_date ?? "").localeCompare(b.task.due_date ?? ""))
@@ -16,9 +17,9 @@ export function AttentionPanel({ overview }: { overview: Overview }) {
   const items = [...failed, ...late];
 
   return (
-    <Panel title="Needs attention" aside={items.length > 0 && <span className="text-meta text-ink-soft tabular-nums">{items.length}</span>}>
+    <Panel title={t("Needs attention")} aside={items.length > 0 && <span className="text-meta text-ink-soft tabular-nums">{items.length}</span>}>
       {items.length === 0 ? (
-        <EmptyState title="Nothing needs attention" description="No failed apps or late tasks." />
+        <EmptyState title={t("Nothing needs attention")} description={t("No failed apps or late tasks.")} />
       ) : (
         <ul className="mx-4 overflow-hidden rounded-panel bg-raised md:mx-6">
           {items.map(({ key, icon: Icon, title, detail, when, to }) => (

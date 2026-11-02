@@ -17,6 +17,7 @@ import { type Member } from "@/features/workspaces/types";
 import { api, errorMessage } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
+import { t } from "@/lib/i18n";
 
 type TaskDetailDialogProps = {
   taskId: string;
@@ -111,7 +112,7 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
 
   return (
     <Modal
-      label={edit?.title ?? "Task"}
+      label={edit?.title ?? t("Task")}
       className="max-h-[calc(100dvh-2rem)] max-w-3xl"
       onCancel={() => {
         if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
@@ -121,10 +122,10 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
       {!edit || !detail ? (
         <div className="grid gap-3 p-4">
           <FormError message={error} />
-          {!error && <p className="text-ink-soft">Loading task…</p>}
+          {!error && <p className="text-ink-soft">{t("Loading task…")}</p>}
           <div>
             <button className="btn" type="button" onClick={onClose}>
-              Close
+              {t("Close")}
             </button>
           </div>
         </div>
@@ -133,7 +134,7 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
           <div className="flex items-start gap-2">
             <textarea
               className="focus-ring min-w-0 flex-1 resize-none rounded-sm bg-transparent page-title field-sizing-content"
-              aria-label="Task title"
+              aria-label={t("Task title")}
               rows={1}
               maxLength={200}
               key={edit.title}
@@ -150,7 +151,7 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
                 else event.target.value = edit.title;
               }}
             />
-            <button className="btn px-2" type="button" aria-label="Close task" onClick={onClose}>
+            <button className="btn px-2" type="button" aria-label={t("Close task")} onClick={onClose}>
               <X aria-hidden="true" size={16} />
             </button>
           </div>
@@ -162,8 +163,8 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
                 <TaskChecklistCard checklist={checklist} path={path} onChanged={refresh} key={checklist.id} />
               ))}
               <AddInline
-                label="Add checklist"
-                placeholder="Checklist title"
+                label={t("Add checklist")}
+                placeholder={t("Checklist title")}
                 maxLength={120}
                 onAdd={async (title) => {
                   await api(`${taskPath}/checklists`, { method: "POST", body: { title } });
@@ -173,7 +174,7 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
               <TaskComments comments={detail.comments} path={path} taskId={taskId} onChanged={refresh} />
             </div>
             <aside className="grid min-w-0 grid-cols-1 content-start gap-4">
-              <SelectField label="List" value={listId} onChange={(event) => onMove(taskId, event.target.value, tasksInList(board.tasks, event.target.value).length)}>
+              <SelectField label={t("List")} value={listId} onChange={(event) => onMove(taskId, event.target.value, tasksInList(board.tasks, event.target.value).length)}>
                 {[...board.lists]
                   .sort((a, b) => a.position - b.position)
                   .map(({ id, name }) => (
@@ -182,14 +183,14 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
                     </option>
                   ))}
               </SelectField>
-              <SelectField label="Position" value={position} onChange={(event) => onMove(taskId, listId, Number(event.target.value))}>
+              <SelectField label={t("Position")} value={position} onChange={(event) => onMove(taskId, listId, Number(event.target.value))}>
                 {siblings.map((sibling, index) => (
                   <option value={index} key={sibling.id}>
                     {index + 1}
                   </option>
                 ))}
               </SelectField>
-              <SelectField label="Priority" value={edit.priority} onChange={(event) => save({ priority: event.target.value as Priority })}>
+              <SelectField label={t("Priority")} value={edit.priority} onChange={(event) => save({ priority: event.target.value as Priority })}>
                 {Object.entries(priorities).map(([id, { label }]) => (
                   <option value={id} key={id}>
                     {label}
@@ -197,7 +198,7 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
                 ))}
               </SelectField>
               <Field
-                label="Due date"
+                label={t("Due date")}
                 type="date"
                 defaultValue={edit.due_date ?? ""}
                 onChange={(event) => {
@@ -207,7 +208,7 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
                 }}
               />
               <fieldset>
-                <legend className="mb-1 text-meta font-medium">Assignees</legend>
+                <legend className="mb-1 text-meta font-medium">{t("Assignees")}</legend>
                 <ul className="grid gap-1">
                   {members.map((member) => (
                     <li key={member.user_id}>
@@ -224,7 +225,7 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
                 <div>
                   <FormError message={removal.error} />
                   <button className="btn btn-danger mt-1" type="button" onClick={confirming ? confirmDelete : () => setConfirming(true)} disabled={removal.pending}>
-                    {confirming ? "Confirm delete" : "Delete task"}
+                    {confirming ? t("Confirm delete") : t("Delete task")}
                   </button>
                 </div>
               )}

@@ -5,27 +5,28 @@ import { AccountSettings } from "./components/AccountSettings";
 import { AppearanceSettings } from "./components/AppearanceSettings";
 import { SystemSettings } from "./components/SystemSettings";
 import { WorkspaceSettings } from "./components/WorkspaceSettings";
+import { t } from "@/lib/i18n";
 
 const descriptions: Partial<Record<string, string>> = {
-  account: "Your profile and password.",
-  workspace: "Name and lifecycle of your workspaces.",
-  system: "Options for everyone on this server.",
+  account: t("Your profile and password."),
+  workspace: t("Name and lifecycle of your workspaces."),
+  system: t("Options for everyone on this server."),
 };
 
 export function SettingsPage({ section }: { section: "account" | "appearance" | "workspace" | "system" }) {
   const user = useCurrentUser();
   if (section === "system" && !user.is_root) return <Navigate to="/settings" replace />;
   const tabs = [
-    { label: "Account", to: "/settings" },
-    { label: "Appearance", to: "/settings/appearance" },
-    { label: "Workspace", to: "/settings/workspace" },
-    ...(user.is_root ? [{ label: "System", to: "/settings/system" }] : []),
+    { label: t("Account"), to: "/settings" },
+    { label: t("Appearance"), to: "/settings/appearance" },
+    { label: t("Workspace"), to: "/settings/workspace" },
+    ...(user.is_root ? [{ label: t("System"), to: "/settings/system" }] : []),
   ];
 
   return (
     <>
-      <PageHeader title="Settings" description={descriptions[section]} />
-      <nav className="mt-4 flex gap-5 overflow-x-auto border-b border-line px-4 md:px-6" aria-label="Settings sections">
+      <PageHeader title={t("Settings")} description={descriptions[section]} />
+      <nav className="mt-4 flex gap-5 overflow-x-auto border-b border-line px-4 md:px-6" aria-label={t("Settings sections")}>
         {tabs.map(({ label, to }) => (
           <NavLink
             className={({ isActive }) =>

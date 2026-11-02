@@ -5,6 +5,7 @@ import { useProjects } from "@/features/projects/ProjectsContext";
 import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
 import { SettingsSection } from "@/features/settings/components/SettingsSection";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 export function DeleteProject() {
   const { project } = useProjectOutlet();
@@ -22,21 +23,21 @@ export function DeleteProject() {
   }
 
   return (
-    <SettingsSection title="Delete project">
+    <SettingsSection title={t("Delete project")}>
       <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-        <p className="min-w-0 wrap-break-word">{confirming ? `Delete ${project.name}? This cannot be undone.` : `Permanently delete ${project.name}.`}</p>
+        <p className="min-w-0 wrap-break-word">{confirming ? t("Delete {name}? This cannot be undone.", { name: project.name }) : t("Permanently delete {name}.", { name: project.name })}</p>
         {confirming ? (
           <span className="flex gap-2">
             <button className="btn btn-danger" type="button" onClick={confirmDelete} disabled={pending}>
-              {pending ? "Deleting…" : "Confirm delete"}
+              {pending ? t("Deleting…") : t("Confirm delete")}
             </button>
             <button className="btn" type="button" onClick={() => setConfirming(false)} disabled={pending}>
-              Cancel
+              {t("Cancel")}
             </button>
           </span>
         ) : (
           <button className="btn btn-danger" type="button" onClick={() => setConfirming(true)}>
-            Delete project
+            {t("Delete project")}
           </button>
         )}
       </div>

@@ -9,6 +9,7 @@ import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { FormFooter } from "@/features/settings/components/FormFooter";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 export function AppEnvironmentPage() {
   const { service, detail, template, path, canWrite, onChanged } = useAppOutlet();
@@ -29,21 +30,21 @@ export function AppEnvironmentPage() {
     await run(async () => {
       await api(`${path}/${service.id}`, { method: "PUT", body: { environment: edits } });
       setEdits({});
-      setSaved("Saved.");
+      setSaved(t("Saved."));
       onChanged();
     });
   }
 
-  if (template.fields.length === 0) return <EmptyState title="No environment variables" />;
+  if (template.fields.length === 0) return <EmptyState title={t("No environment variables")} />;
 
   return (
-    <AppSection title="Environment variables" description={draft ? "These go into the container at deploy." : "Variables can only change before the first deploy."}>
+    <AppSection title={t("Environment variables")} description={draft ? t("These go into the container at deploy.") : t("Variables can only change before the first deploy.")}>
       {draft ? (
         <form onSubmit={submit}>
           <div className="grid items-start gap-4 p-4 sm:grid-cols-2">
             {template.fields.map((field) => (
               <Field
-                label={field.label}
+                label={t(field.label)}
                 type={field.secret ? "password" : "text"}
                 autoComplete="off"
                 required={field.required}
@@ -59,7 +60,7 @@ export function AppEnvironmentPage() {
           </div>
           <FormFooter error={error} saved={saved}>
             <button className="btn btn-primary" type="submit" disabled={pending || !changed}>
-              {pending ? "Saving…" : "Save variables"}
+              {pending ? t("Saving…") : t("Save variables")}
             </button>
           </FormFooter>
         </form>

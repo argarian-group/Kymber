@@ -5,6 +5,7 @@ import { useProjects } from "@/features/projects/ProjectsContext";
 import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
 import { SettingsSection } from "@/features/settings/components/SettingsSection";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 const maxBytes = 5 * 1024 * 1024;
 const accepted = "image/png,image/jpeg,image/webp,image/gif,image/avif,image/svg+xml,image/x-icon,image/vnd.microsoft.icon,image/bmp,.ico,.svg,.avif";
@@ -25,24 +26,24 @@ export function ProjectLogoForm() {
   }
 
   return (
-    <SettingsSection title="Logo" description="PNG, JPEG, WebP, GIF, AVIF, SVG, ICO or BMP, up to 5 MB.">
+    <SettingsSection title={t("Logo")} description={t("PNG, JPEG, WebP, GIF, AVIF, SVG, ICO or BMP, up to 5 MB.")}>
       <div className="flex flex-wrap items-center gap-4 p-4">
         <ProjectMark project={project} />
-        <input className="sr-only" ref={inputRef} type="file" accept={accepted} aria-label="Project logo file" onChange={choose} />
+        <input className="sr-only" ref={inputRef} type="file" accept={accepted} aria-label={t("Project logo file")} onChange={choose} />
         <div className="flex flex-wrap gap-2">
           <button className="btn" type="button" disabled={pending} onClick={() => inputRef.current?.click()}>
-            {pending ? "Saving…" : project.logo_version ? "Replace logo" : "Upload logo"}
+            {pending ? t("Saving…") : project.logo_version ? t("Replace logo") : t("Upload logo")}
           </button>
           {project.logo_version && (
             <button className="btn" type="button" disabled={pending} onClick={() => run(() => removeProjectLogo(project.id))}>
-              Remove
+              {t("Remove")}
             </button>
           )}
         </div>
       </div>
       {(tooLarge || error) && (
         <div className="border-t border-line px-4 py-3">
-          <FormError message={tooLarge ? "The logo must be 5 MB or smaller." : error} />
+          <FormError message={tooLarge ? t("The logo must be 5 MB or smaller.") : error} />
         </div>
       )}
     </SettingsSection>

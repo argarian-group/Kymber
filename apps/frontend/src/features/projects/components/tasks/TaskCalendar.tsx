@@ -4,6 +4,7 @@ import { CalendarTask } from "@/features/projects/components/tasks/CalendarTask"
 import { TaskAssignees } from "@/features/projects/components/tasks/TaskAssignees";
 import { TaskPriority } from "@/features/projects/components/tasks/TaskPriority";
 import { dueDay, type Task } from "@/features/projects/tasks";
+import { language, t } from "@/lib/i18n";
 
 function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -14,7 +15,7 @@ export function TaskCalendar({ tasks, isDone, onOpen }: { tasks: Task[]; isDone:
   const [month, setMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const year = month.getFullYear();
   const days = Array.from({ length: new Date(year, month.getMonth() + 1, 0).getDate() }, (_, index) => new Date(year, month.getMonth(), index + 1));
-  const weekdays = Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(new Date(2023, 0, 1 + index)));
+  const weekdays = Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(language, { weekday: "short" }).format(new Date(2023, 0, 1 + index)));
   const tasksOn = (day: Date) => tasks.filter((task) => {
     const due = dueDay(task);
     return due !== null && sameDay(due, day);
@@ -24,19 +25,19 @@ export function TaskCalendar({ tasks, isDone, onOpen }: { tasks: Task[]; isDone:
   const step = (offset: number) => setMonth(new Date(year, month.getMonth() + offset, 1));
 
   return (
-    <section aria-label="Calendar">
+    <section aria-label={t("Calendar")}>
       <div className="mb-3 flex items-center gap-2">
         <h2 className="font-medium first-letter:uppercase" aria-live="polite">
-          {new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(month)}
+          {new Intl.DateTimeFormat(language, { month: "long", year: "numeric" }).format(month)}
         </h2>
         <span className="ml-auto flex gap-1">
-          <button className="btn px-2" type="button" onClick={() => step(-1)} aria-label="Previous month">
+          <button className="btn px-2" type="button" onClick={() => step(-1)} aria-label={t("Previous month")}>
             <ChevronLeft aria-hidden="true" size={16} />
           </button>
           <button className="btn" type="button" onClick={() => setMonth(new Date(today.getFullYear(), today.getMonth(), 1))}>
-            Today
+            {t("Today")}
           </button>
-          <button className="btn px-2" type="button" onClick={() => step(1)} aria-label="Next month">
+          <button className="btn px-2" type="button" onClick={() => step(1)} aria-label={t("Next month")}>
             <ChevronRight aria-hidden="true" size={16} />
           </button>
         </span>
@@ -69,7 +70,7 @@ export function TaskCalendar({ tasks, isDone, onOpen }: { tasks: Task[]; isDone:
 
       <div className="md:hidden">
         {daysWithTasks.length === 0 ? (
-          <p className="py-6 text-center text-meta text-ink-soft">No tasks this month.</p>
+          <p className="py-6 text-center text-meta text-ink-soft">{t("No tasks this month.")}</p>
         ) : (
           <ol className="border-t border-line">
             {daysWithTasks.map((day) => (
@@ -91,7 +92,7 @@ export function TaskCalendar({ tasks, isDone, onOpen }: { tasks: Task[]; isDone:
           </ol>
         )}
       </div>
-      {undated > 0 && <p className="mt-3 text-meta text-ink-soft">{undated === 1 ? "1 task has" : `${undated} tasks have`} no due date.</p>}
+      {undated > 0 && <p className="mt-3 text-meta text-ink-soft">{undated === 1 ? t("1 task has no due date.") : t("{count} tasks have no due date.", { count: undated })}</p>}
     </section>
   );
 }

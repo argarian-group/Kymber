@@ -1,19 +1,20 @@
 import { FolderKanban, LayoutDashboard, Server, Settings, SquareTerminal, Users } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 export const workspaceItems = [
-  { label: "Overview", to: "/", icon: LayoutDashboard },
-  { label: "Projects", to: "/projects", icon: FolderKanban },
+  { label: t("Overview"), to: "/", icon: LayoutDashboard },
+  { label: t("Projects"), to: "/projects", icon: FolderKanban },
 ];
 
 export function organizationItems(isRoot: boolean) {
   return [
-    { label: "Team", to: "/team", icon: Users },
+    { label: t("Team"), to: "/team", icon: Users },
     ...(isRoot
       ? [
-          { label: "Servers", to: "/servers", icon: Server },
-          { label: "Terminal", to: "/terminal", icon: SquareTerminal },
+          { label: t("Servers"), to: "/servers", icon: Server },
+          { label: t("Terminal"), to: "/terminal", icon: SquareTerminal },
         ]
       : []),
-    { label: "Settings", to: "/settings", icon: Settings },
+    { label: t("Settings"), to: "/settings", icon: Settings },
   ];
 }

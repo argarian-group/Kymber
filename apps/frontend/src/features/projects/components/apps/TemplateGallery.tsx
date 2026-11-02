@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router";
 import { EngineMark } from "@/features/projects/components/apps/EngineMark";
 import { appCategories, engineLabel, engines } from "@/features/projects/engines";
 import type { DatabaseTemplate } from "@/features/projects/services";
+import { t } from "@/lib/i18n";
 
 function GalleryCard({ engine, to, title, description }: { engine: string; to: string; title: string; description: string }) {
   return (
@@ -35,7 +36,7 @@ export function TemplateGallery({ templates }: { templates: DatabaseTemplate[] }
               .map(({ engine, image }) => (
                 <GalleryCard engine={engine} to={`?template=${engine}${suffix}`} title={engineLabel(engine)} description={engines[engine]?.description ?? image} key={engine} />
               ))}
-            {custom && <GalleryCard engine={custom.engine} to={`?template=${custom.engine}&category=${id}${suffix}`} title={engineLabel(custom.engine)} description={`Any ${item} from Docker Hub`} />}
+            {custom && <GalleryCard engine={custom.engine} to={`?template=${custom.engine}&category=${id}${suffix}`} title={engineLabel(custom.engine)} description={t("Any {item} from Docker Hub", { item })} />}
           </ul>
         </section>
       ))}

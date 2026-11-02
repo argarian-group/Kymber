@@ -4,6 +4,7 @@ import { AddInline } from "@/features/projects/components/tasks/AddInline";
 import { TaskCard } from "@/features/projects/components/tasks/TaskCard";
 import { TaskDropLine } from "@/features/projects/components/tasks/TaskDropLine";
 import { type Task, type TaskLabel, type TaskListColumn } from "@/features/projects/tasks";
+import { t } from "@/lib/i18n";
 
 type TaskColumnProps = {
   list: TaskListColumn;
@@ -43,10 +44,10 @@ export function TaskColumn({ list, tasks, total, labels, draggingTaskId, dropBef
         }}
         onDragEnd={onDragEnd}
       >
-        {list.is_done && <CheckCircle2 className="flex-none text-seafoam" aria-label="Done list" size={14} />}
+        {list.is_done && <CheckCircle2 className="flex-none text-seafoam" aria-label={t("Done list")} size={14} />}
         <h2 className="min-w-0 flex-1 truncate font-medium">{list.name}</h2>
         <span className="text-meta text-ink-soft tabular-nums">{tasks.length === total ? total : `${tasks.length}/${total}`}</span>
-        <button className="btn min-h-7 border-transparent px-1.5" type="button" aria-label={`Edit list ${list.name}`} onClick={onEdit}>
+        <button className="btn min-h-7 border-transparent px-1.5" type="button" aria-label={t("Edit list {name}", { name: list.name })} onClick={onEdit}>
           <MoreHorizontal aria-hidden="true" size={16} />
         </button>
       </div>
@@ -60,7 +61,7 @@ export function TaskColumn({ list, tasks, total, labels, draggingTaskId, dropBef
         {dropBefore === null && <TaskDropLine />}
       </ul>
       <div className="mt-2">
-        <AddInline label="Add task" placeholder="Task title" maxLength={200} keepOpen onAdd={onAdd} />
+        <AddInline label={t("Add task")} placeholder={t("Task title")} maxLength={200} keepOpen onAdd={onAdd} />
       </div>
     </section>
   );

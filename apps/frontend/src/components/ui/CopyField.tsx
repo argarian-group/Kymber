@@ -1,5 +1,6 @@
 import { Check, Copy, Eye, EyeOff } from "lucide-react";
 import { useRef, useState } from "react";
+import { t } from "@/lib/i18n";
 
 export function CopyField({ label, value, secret = false }: { label: string; value: string; secret?: boolean }) {
   const [copied, setCopied] = useState(false);
@@ -25,11 +26,11 @@ export function CopyField({ label, value, secret = false }: { label: string; val
       <div className="flex items-center gap-1">
         <input className="field min-w-0 flex-1 font-mono text-meta" id={`copy-${label}`} ref={inputRef} type={revealed ? "text" : "password"} readOnly value={value} onFocus={(event) => event.target.select()} />
         {secret && (
-          <button className="btn size-9 flex-none justify-center px-0" type="button" aria-label={revealed ? `Hide ${label}` : `Show ${label}`} title={revealed ? "Hide" : "Show"} onClick={() => setRevealed(!revealed)}>
+          <button className="btn size-9 flex-none justify-center px-0" type="button" aria-label={revealed ? t("Hide {label}", { label }) : t("Show {label}", { label })} title={revealed ? t("Hide") : t("Show")} onClick={() => setRevealed(!revealed)}>
             {revealed ? <EyeOff aria-hidden="true" size={15} /> : <Eye aria-hidden="true" size={15} />}
           </button>
         )}
-        <button className="btn size-9 flex-none justify-center px-0" type="button" aria-label={copied ? `${label} copied` : `Copy ${label}`} title={copied ? "Copied" : "Copy"} onClick={copy}>
+        <button className="btn size-9 flex-none justify-center px-0" type="button" aria-label={copied ? t("{label} copied", { label }) : t("Copy {label}", { label })} title={copied ? t("Copied") : t("Copy")} onClick={copy}>
           {copied ? <Check className="text-ok" aria-hidden="true" size={15} /> : <Copy aria-hidden="true" size={15} />}
         </button>
       </div>

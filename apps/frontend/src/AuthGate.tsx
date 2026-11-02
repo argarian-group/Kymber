@@ -28,6 +28,7 @@ import { SettingsPage } from "@/features/settings/SettingsPage";
 import { InviteAcceptPage } from "@/features/workspaces/pages/InviteAcceptPage";
 import { InviteSignupPage } from "@/features/workspaces/pages/InviteSignupPage";
 import { TeamPage } from "@/features/workspaces/pages/TeamPage";
+import { t } from "@/lib/i18n";
 
 const TerminalPage = lazy(() => import("@/features/terminal/TerminalPage").then((module) => ({ default: module.TerminalPage })));
 const DashboardPage = lazy(() => import("@/features/dashboard/DashboardPage").then((module) => ({ default: module.DashboardPage })));
@@ -40,9 +41,9 @@ export function AuthGate() {
       return <PageSkeleton />;
     case "error":
       return (
-        <AuthScreen title="Kymber is unavailable" description={state.message}>
+        <AuthScreen title={t("Kymber is unavailable")} description={state.message}>
           <button className="btn" type="button" onClick={retry}>
-            Try again
+            {t("Try again")}
           </button>
         </AuthScreen>
       );

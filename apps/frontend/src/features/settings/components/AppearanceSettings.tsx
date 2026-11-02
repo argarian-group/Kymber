@@ -3,6 +3,7 @@ import { useState } from "react";
 import { accents, type Appearance, defaultAppearance, densities, readAppearance, saveAppearance, themes } from "@/features/settings/appearance";
 import { AppearancePreview } from "@/features/settings/components/AppearancePreview";
 import { SettingsSection } from "@/features/settings/components/SettingsSection";
+import { language, languages, setLanguage, t } from "@/lib/i18n";
 
 export function AppearanceSettings() {
   const [appearance, setAppearance] = useState(readAppearance);
@@ -17,20 +18,32 @@ export function AppearanceSettings() {
 
   return (
     <>
-      <SettingsSection title="Preview">
+      <SettingsSection title={t("Preview")}>
         <div className="p-4">
           <AppearancePreview />
           <div className="mt-3 flex justify-end">
             <button className="btn" type="button" disabled={isDefault} onClick={() => update(defaultAppearance)}>
-              Reset to default
+              {t("Reset to default")}
             </button>
           </div>
         </div>
       </SettingsSection>
 
-      <SettingsSection title="Theme">
+      <SettingsSection title={t("Language")} description={t("Changing it reloads the page.")}>
+        <div className="p-4">
+          <select className="field w-auto cursor-pointer" aria-label={t("Language")} value={language} onChange={(event) => setLanguage(event.target.value as typeof language)}>
+            {languages.map(({ id, label }) => (
+              <option value={id} key={id}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection title={t("Theme")}>
         <fieldset className="grid gap-3 p-4 sm:grid-cols-3">
-          <legend className="sr-only">Theme</legend>
+          <legend className="sr-only">{t("Theme")}</legend>
           {themes.map((theme) => {
             const selected = appearance.theme === theme.id;
             return (
@@ -56,9 +69,9 @@ export function AppearanceSettings() {
         </fieldset>
       </SettingsSection>
 
-      <SettingsSection title="Accent color">
+      <SettingsSection title={t("Accent color")}>
         <fieldset className="flex flex-wrap gap-x-5 gap-y-3 p-4">
-          <legend className="sr-only">Accent color</legend>
+          <legend className="sr-only">{t("Accent color")}</legend>
           {accents.map((accent) => {
             const selected = appearance.accent === accent.id;
             return (
@@ -77,9 +90,9 @@ export function AppearanceSettings() {
         </fieldset>
       </SettingsSection>
 
-      <SettingsSection title="Density">
+      <SettingsSection title={t("Density")}>
         <fieldset className="grid gap-2 p-4 sm:grid-cols-2">
-          <legend className="sr-only">Density</legend>
+          <legend className="sr-only">{t("Density")}</legend>
           {densities.map((density) => {
             const selected = appearance.density === density.id;
             return (

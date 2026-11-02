@@ -4,6 +4,7 @@ import { useProjects, type Workspace } from "@/features/projects/ProjectsContext
 import { FormFooter } from "@/features/settings/components/FormFooter";
 import { SettingsSection } from "@/features/settings/components/SettingsSection";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 export function RenameWorkspace({ workspace }: { workspace: Workspace }) {
   const { canWrite, renameWorkspace } = useProjects();
@@ -18,20 +19,20 @@ export function RenameWorkspace({ workspace }: { workspace: Workspace }) {
     await run(async () => {
       await renameWorkspace(name);
       setName(name.trim());
-      setSaved("Workspace renamed.");
+      setSaved(t("Workspace renamed."));
     });
   }
 
   return (
-    <SettingsSection title="General" description={[!canWrite && "Only admins and owners can rename this workspace.", workspace.created_by && `Created by ${workspace.created_by.username}.`].filter(Boolean).join(" ")}>
+    <SettingsSection title={t("General")} description={[!canWrite && t("Only admins and owners can rename this workspace."), workspace.created_by && t("Created by {name}.", { name: workspace.created_by.username })].filter(Boolean).join(" ")}>
       <form onSubmit={submit}>
         <div className="p-4">
-          <Field label="Workspace name" required maxLength={120} disabled={!canWrite} value={name} onChange={(event) => setName(event.target.value)} />
+          <Field label={t("Workspace name")} required maxLength={120} disabled={!canWrite} value={name} onChange={(event) => setName(event.target.value)} />
         </div>
         {canWrite && (
           <FormFooter error={error} saved={saved}>
             <button className="btn btn-primary" type="submit" disabled={pending || !changed}>
-              {pending ? "Saving…" : "Save name"}
+              {pending ? t("Saving…") : t("Save name")}
             </button>
           </FormFooter>
         )}

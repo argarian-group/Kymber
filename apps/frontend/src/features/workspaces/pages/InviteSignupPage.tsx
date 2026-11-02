@@ -8,6 +8,7 @@ import { rememberWorkspace } from "@/features/projects/ProjectsContext";
 import { type Acceptance } from "@/features/workspaces/types";
 import { api, ApiError } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 export function InviteSignupPage() {
   const { signIn } = useAuth();
@@ -20,7 +21,7 @@ export function InviteSignupPage() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (confirmPassword !== form.password) {
-      setError("The passwords do not match.");
+      setError(t("The passwords do not match."));
       return;
     }
     await run(async () => {
@@ -41,20 +42,20 @@ export function InviteSignupPage() {
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: event.target.value });
 
   return (
-    <AuthScreen title="Join a workspace" description="Create your account to accept this invitation.">
+    <AuthScreen title={t("Join a workspace")} description={t("Create your account to accept this invitation.")}>
       <form className="grid gap-4" onSubmit={submit}>
-        <Field label="Username" autoComplete="username" required autoFocus minLength={3} maxLength={32} hint="3 to 32 letters, numbers, _ or -." value={form.username} onChange={update("username")} />
-        <Field label="Password" type="password" autoComplete="new-password" required minLength={8} maxLength={128} hint="8 to 128 characters." value={form.password} onChange={update("password")} />
-        <Field label="Confirm password" type="password" autoComplete="new-password" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
+        <Field label={t("Username")} autoComplete="username" required autoFocus minLength={3} maxLength={32} hint={t("3 to 32 letters, numbers, _ or -.")} value={form.username} onChange={update("username")} />
+        <Field label={t("Password")} type="password" autoComplete="new-password" required minLength={8} maxLength={128} hint={t("8 to 128 characters.")} value={form.password} onChange={update("password")} />
+        <Field label={t("Confirm password")} type="password" autoComplete="new-password" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
         <FormError message={error} />
         <button className="btn btn-primary justify-center" type="submit" disabled={pending}>
-          {pending ? "Accepting…" : "Create account and join"}
+          {pending ? t("Accepting…") : t("Create account and join")}
         </button>
       </form>
       <p className="mt-4 text-meta text-ink-soft">
-        Already have an account?{" "}
+        {t("Already have an account?")}{" "}
         <button className="text-button" type="button" onClick={() => setLoggingIn(true)}>
-          Log in
+          {t("Log in")}
         </button>
       </p>
     </AuthScreen>

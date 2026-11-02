@@ -10,6 +10,7 @@ import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
+import { t } from "@/lib/i18n";
 
 type ServicePort = { id: string; host_port: number; container_port: number; protocol: "tcp" | "udp"; bind: string; applied: boolean };
 
@@ -27,27 +28,27 @@ function AddPortForm({ url, defaultContainerPort, defaultBind, onAdded, onCancel
   }
 
   return (
-    <form className="grid gap-4 border-t border-line p-4" onSubmit={submit} aria-label="Publish a port">
+    <form className="grid gap-4 border-t border-line p-4" onSubmit={submit} aria-label={t("Publish a port")}>
       <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Field label="Server port" required autoFocus type="number" min={1} max={65535} placeholder="8080" hint="Opened on the server." value={hostPort} onChange={(event) => setHostPort(event.target.value)} />
-        <Field label="Container port" required type="number" min={1} max={65535} placeholder="80" hint="Where the app listens." value={containerPort} onChange={(event) => setContainerPort(event.target.value)} />
-        <SelectField label="Protocol" value={protocol} onChange={(event) => setProtocol(event.target.value)}>
+        <Field label={t("Server port")} required autoFocus type="number" min={1} max={65535} placeholder="8080" hint={t("Opened on the server.")} value={hostPort} onChange={(event) => setHostPort(event.target.value)} />
+        <Field label={t("Container port")} required type="number" min={1} max={65535} placeholder="80" hint={t("Where the app listens.")} value={containerPort} onChange={(event) => setContainerPort(event.target.value)} />
+        <SelectField label={t("Protocol")} value={protocol} onChange={(event) => setProtocol(event.target.value)}>
           <option value="tcp">TCP</option>
           <option value="udp">UDP</option>
         </SelectField>
-        <SelectField label="Reachable from" value={bind} onChange={(event) => setBind(event.target.value)}>
-          <option value="0.0.0.0">Anywhere</option>
-          <option value="127.0.0.1">This server only</option>
+        <SelectField label={t("Reachable from")} value={bind} onChange={(event) => setBind(event.target.value)}>
+          <option value="0.0.0.0">{t("Anywhere")}</option>
+          <option value="127.0.0.1">{t("This server only")}</option>
         </SelectField>
       </div>
-      {bind === "0.0.0.0" && <p className="text-meta text-ember">Anyone who can reach the server can connect, and Docker can bypass firewalls such as ufw.</p>}
+      {bind === "0.0.0.0" && <p className="text-meta text-ember">{t("Anyone who can reach the server can connect, and Docker can bypass firewalls such as ufw.")}</p>}
       <FormError message={error} />
       <div className="flex flex-wrap gap-2">
         <button className="btn btn-primary" type="submit" disabled={pending}>
-          {pending ? "Adding…" : "Publish port"}
+          {pending ? t("Adding…") : t("Publish port")}
         </button>
         <button className="btn" type="button" disabled={pending} onClick={onCancel}>
-          Cancel
+          {t("Cancel")}
         </button>
       </div>
     </form>
@@ -69,8 +70,8 @@ function PortRow({ port, address, url, locked, canWrite, onChanged }: { port: Se
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1 basis-56">
           <p className="flex flex-wrap items-center gap-2 text-xs text-ink-soft">
-            {port.protocol.toUpperCase()} · {local ? "This server only" : "Anywhere"}
-            {!port.applied && <span className="rounded-sm bg-seafoam/15 px-1.5 text-seafoam">Pending deploy</span>}
+            {port.protocol.toUpperCase()} · {local ? t("This server only") : t("Anywhere")}
+            {!port.applied && <span className="rounded-sm bg-seafoam/15 px-1.5 text-seafoam">{t("Pending deploy")}</span>}
           </p>
           <code className="mt-1 block font-mono text-meta">
             {port.host_port} → {port.container_port}
@@ -78,20 +79,20 @@ function PortRow({ port, address, url, locked, canWrite, onChanged }: { port: Se
         </div>
         {canWrite && !confirming && (
           <button className="btn btn-danger" type="button" disabled={locked} onClick={() => setConfirming(true)}>
-            Remove
+            {t("Remove")}
           </button>
         )}
       </div>
-      {port.applied && !local && <CopyField label="Address" value={`${address}:${port.host_port}`} />}
+      {port.applied && !local && <CopyField label={t("Address")} value={`${address}:${port.host_port}`} />}
       {confirming && (
         <div className="grid gap-3">
-          <p>Stop publishing port {port.host_port}? It closes on the next deploy.</p>
+          <p>{t("Stop publishing port {port}? It closes on the next deploy.", { port: port.host_port })}</p>
           <div className="flex flex-wrap gap-2">
             <button className="btn btn-danger" type="button" disabled={pending} onClick={remove}>
-              {pending ? "Removing…" : "Confirm removal"}
+              {pending ? t("Removing…") : t("Confirm removal")}
             </button>
             <button className="btn" type="button" disabled={pending} onClick={() => setConfirming(false)}>
-              Cancel
+              {t("Cancel")}
             </button>
           </div>
         </div>
@@ -128,18 +129,18 @@ export function PublishedPorts() {
     setAttempt((value) => value + 1);
   }
 
-  if (loadError && !ports) return <LoadError title="Could not load ports" message={loadError} onRetry={() => setAttempt((value) => value + 1)} />;
+  if (loadError && !ports) return <LoadError title={t("Could not load ports")} message={loadError} onRetry={() => setAttempt((value) => value + 1)} />;
 
   const pendingDeploy = changed || ports?.some(({ applied }) => !applied);
 
   return (
-    <AppSection title="Published ports" description="Reach this app from outside the server's internal network. Changes apply on the next deploy.">
+    <AppSection title={t("Published ports")} description={t("Reach this app from outside the server's internal network. Changes apply on the next deploy.")}>
       {pendingDeploy && (
         <p className="border-b border-line p-4 text-meta text-seafoam" role="status">
-          Deploy the app to apply these changes.
+          {t("Deploy the app to apply these changes.")}
         </p>
       )}
-      {ports?.length === 0 && <p className="p-4 text-meta text-ink-soft">No published ports, so this app cannot be reached from outside the server.</p>}
+      {ports?.length === 0 && <p className="p-4 text-meta text-ink-soft">{t("No published ports, so this app cannot be reached from outside the server.")}</p>}
       <ul>
         {ports?.map((port) => (
           <PortRow port={port} address={host || window.location.hostname} url={url} locked={locked} canWrite={canWrite} onChanged={refresh} key={port.id} />
@@ -159,8 +160,8 @@ export function PublishedPorts() {
           />
         ) : (
           <div className="border-t border-line p-4">
-            <button className="btn" type="button" disabled={locked} title={locked ? "Wait for the current action to finish" : undefined} onClick={() => setAdding(true)}>
-              Publish port
+            <button className="btn" type="button" disabled={locked} title={locked ? t("Wait for the current action to finish") : undefined} onClick={() => setAdding(true)}>
+              {t("Publish port")}
             </button>
           </div>
         ))}

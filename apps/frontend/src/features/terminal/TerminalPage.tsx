@@ -9,6 +9,7 @@ import { useCurrentUser } from "@/features/auth/AuthContext";
 import type { Server } from "@/features/servers/types";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
+import { t } from "@/lib/i18n";
 
 const TerminalView = lazy(() => import("@/features/terminal/TerminalView"));
 
@@ -31,7 +32,7 @@ export function TerminalPage() {
   );
 
   if (!user.is_root) return <Navigate to="/" replace />;
-  if (error && !servers) return <LoadError title="Could not load servers" message={error} onRetry={() => setAttempt((value) => value + 1)} />;
+  if (error && !servers) return <LoadError title={t("Could not load servers")} message={error} onRetry={() => setAttempt((value) => value + 1)} />;
   if (!servers) return <PageSkeleton />;
 
   const selected = servers.find(({ id }) => id === params.get("server")) ?? servers[0];
@@ -39,23 +40,23 @@ export function TerminalPage() {
 
   return (
     <>
-      <PageHeader title="Terminal" description="A shell on your servers. App containers have their own terminal on the app's page." />
+      <PageHeader title={t("Terminal")} description={t("A shell on your servers. App containers have their own terminal on the app's page.")} />
       <div className="grid gap-4 px-4 py-6 md:px-6">
         {!selected ? (
           <EmptyState
-            title="No servers with SSH"
+            title={t("No servers with SSH")}
             action={
               <Link className="btn" to="/servers">
-                Go to servers
+                {t("Go to servers")}
               </Link>
             }
           />
         ) : (
-          <section className="grid gap-4 rounded-panel bg-raised p-4" aria-label="Server terminal">
+          <section className="grid gap-4 rounded-panel bg-raised p-4" aria-label={t("Server terminal")}>
             <div className="flex flex-wrap items-end gap-3">
               <div className="min-w-56 flex-1 sm:flex-none">
                 <SelectField
-                  label="Server"
+                  label={t("Server")}
                   value={selected.id}
                   onChange={(event) => {
                     setConnected(null);
@@ -71,20 +72,20 @@ export function TerminalPage() {
               </div>
               {isConnected ? (
                 <button className="btn" type="button" onClick={() => setConnected(null)}>
-                  Disconnect
+                  {t("Disconnect")}
                 </button>
               ) : (
                 <button className="btn btn-primary" type="button" onClick={() => setConnected(selected.id)}>
-                  Connect
+                  {t("Connect")}
                 </button>
               )}
             </div>
             <p className="text-meta text-ink-soft">
-              Connects as <code className="font-mono">{selected.ssh_user || "root"}</code>. Commands run directly on the server and can affect every app on it.
+              {t("Connects as")} <code className="font-mono">{selected.ssh_user || "root"}</code>. {t("Commands run directly on the server and can affect every app on it.")}
             </p>
             {isConnected && (
-              <Suspense fallback={<p className="text-meta text-ink-soft">Loading terminal…</p>}>
-                <TerminalView path={`/servers/${selected.id}/terminal`} label={`Terminal for ${selected.name}`} key={selected.id} />
+              <Suspense fallback={<p className="text-meta text-ink-soft">{t("Loading terminal…")}</p>}>
+                <TerminalView path={`/servers/${selected.id}/terminal`} label={t("Terminal for {name}", { name: selected.name })} key={selected.id} />
               </Suspense>
             )}
           </section>

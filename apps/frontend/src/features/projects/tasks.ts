@@ -1,5 +1,6 @@
 import { type Priority } from "@/features/dashboard/priorities";
 import { palette } from "@/lib/palette";
+import { language, t } from "@/lib/i18n";
 
 export type TaskPerson = { id: string; username: string };
 
@@ -89,13 +90,13 @@ export function dueLabel(task: Task, done: boolean) {
   if (!day) return "";
   const days = daysUntil(day);
   if (!done) {
-    if (days === 0) return "Today";
-    if (days === 1) return "Tomorrow";
-    if (days === -1) return "1 day late";
-    if (days < 0) return `${-days} days late`;
-    if (days < 7) return `In ${days} days`;
+    if (days === 0) return t("Today");
+    if (days === 1) return t("Tomorrow");
+    if (days === -1) return t("1 day late");
+    if (days < 0) return t("{count} days late", { count: -days });
+    if (days < 7) return t("In {count} days", { count: days });
   }
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(day);
+  return new Intl.DateTimeFormat(language, { month: "short", day: "numeric" }).format(day);
 }
 
 export function matchesFilters(task: Task, filters: TaskFilters, done: boolean) {

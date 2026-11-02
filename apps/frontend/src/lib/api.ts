@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -18,18 +19,18 @@ export async function api<T>(path: string, options: { method?: string; body?: un
       body: options.file ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
     });
   } catch {
-    throw new ApiError(0, "Could not reach the server. Check your connection and try again.");
+    throw new ApiError(0, t("Could not reach the server. Check your connection and try again."));
   }
 
   if (response.status === 204) return undefined as T;
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 401) window.dispatchEvent(new Event(unauthorizedEvent));
-    throw new ApiError(response.status, data?.error ?? "The server could not complete this request. Try again.");
+    throw new ApiError(response.status, typeof data?.error === "string" ? t(data.error) : t("The server could not complete this request. Try again."));
   }
   return data as T;
 }
 
 export function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Something went wrong. Try again.";
+  return error instanceof Error ? error.message : t("Something went wrong. Try again.");
 }

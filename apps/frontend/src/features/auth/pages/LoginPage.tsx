@@ -6,6 +6,7 @@ import { AuthScreen } from "@/features/auth/components/AuthScreen";
 import { RegisterForm } from "@/features/auth/components/RegisterForm";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 export function LoginPage() {
   const { signIn } = useAuth();
@@ -25,19 +26,19 @@ export function LoginPage() {
   if (registering) return <RegisterForm onLogIn={() => setRegistering(false)} />;
 
   return (
-    <AuthScreen title="Log in to Kymber">
+    <AuthScreen title={t("Log in to Kymber")}>
       <form className="grid gap-4" onSubmit={submit}>
-        <Field label="Email" type="email" autoComplete="email" required autoFocus value={email} onChange={(event) => setEmail(event.target.value)} />
-        <Field label="Password" type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} />
+        <Field label={t("Email")} type="email" autoComplete="email" required autoFocus value={email} onChange={(event) => setEmail(event.target.value)} />
+        <Field label={t("Password")} type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} />
         <FormError message={error} />
         <button className="btn btn-primary justify-center" type="submit" disabled={pending}>
-          {pending ? "Logging in…" : "Log in"}
+          {pending ? t("Logging in…") : t("Log in")}
         </button>
       </form>
       <p className="mt-4 text-meta text-ink-soft">
-        New to Kymber?{" "}
+        {t("New to Kymber?")}{" "}
         <button className="text-button" type="button" onClick={() => setRegistering(true)}>
-          Create account
+          {t("Create account")}
         </button>
       </p>
     </AuthScreen>

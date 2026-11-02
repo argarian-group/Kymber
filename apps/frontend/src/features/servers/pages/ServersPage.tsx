@@ -10,6 +10,7 @@ import { ServerConnectSteps } from "@/features/servers/components/ServerConnectS
 import type { Server } from "@/features/servers/types";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
+import { t } from "@/lib/i18n";
 
 const pollMs = 5000;
 
@@ -38,7 +39,7 @@ export function ServersPage() {
   }, []);
 
   if (!user.is_root) return <Navigate to="/" replace />;
-  if (error && !servers) return <LoadError title="Could not load servers" message={error} onRetry={reload} />;
+  if (error && !servers) return <LoadError title={t("Could not load servers")} message={error} onRetry={reload} />;
   if (!servers) return <PageSkeleton />;
 
   const connectingServer = servers.find(({ id }) => id === connecting?.id);
@@ -46,13 +47,13 @@ export function ServersPage() {
   return (
     <>
       <PageHeader
-        title="Servers"
-        description={`${servers.length} ${servers.length === 1 ? "server" : "servers"}`}
+        title={t("Servers")}
+        description={servers.length === 1 ? t("1 server") : t("{count} servers", { count: servers.length })}
         actions={
           servers.length > 0 &&
           !adding && (
             <button className="btn btn-primary" type="button" onClick={() => setAdding(true)}>
-              Add server
+              {t("Add server")}
             </button>
           )
         }

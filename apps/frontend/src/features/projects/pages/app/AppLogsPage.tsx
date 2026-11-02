@@ -6,15 +6,16 @@ import { AppSection } from "@/features/projects/components/apps/AppSection";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { api, errorMessage } from "@/lib/api";
 import { downloadText } from "@/lib/downloadText";
+import { language, t } from "@/lib/i18n";
 
 const lineLimits = [100, 500, 1000, 5000, 10000];
 const maxLines = 50000;
 const validLimit = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= maxLines;
 const refreshRates = [
-  { seconds: 0, label: "Off" },
-  { seconds: 5, label: "Every 5s" },
-  { seconds: 10, label: "Every 10s" },
-  { seconds: 30, label: "Every 30s" },
+  { seconds: 0, label: t("Off") },
+  { seconds: 5, label: t("Every {n}s", { n: 5 }) },
+  { seconds: 10, label: t("Every {n}s", { n: 10 }) },
+  { seconds: 30, label: t("Every {n}s", { n: 30 }) },
 ];
 const preferencesKey = "kymber.app-logs";
 const defaults = { limit: 100, seconds: 5, wrap: true };
@@ -124,21 +125,21 @@ export function AppLogsPage() {
     window.setTimeout(() => setCopied(null), 1500);
   }
 
-  if (!deployed) return <EmptyState title="No runtime logs yet" description="Logs appear here after the first deploy." />;
+  if (!deployed) return <EmptyState title={t("No runtime logs yet")} description={t("Logs appear here after the first deploy.")} />;
 
-  const placeholder = logs === null ? (error ? "Logs could not be loaded." : "Loading logs…") : limited.length === 0 ? "No output yet." : "No lines match this search.";
+  const placeholder = logs === null ? (error ? t("Logs could not be loaded.") : t("Loading logs…")) : limited.length === 0 ? t("No output yet.") : t("No lines match this search.");
 
   return (
-    <AppSection title="Runtime logs" description="Output from the running container. Refreshing pauses while this tab is in the background.">
+    <AppSection title={t("Runtime logs")} description={t("Output from the running container. Refreshing pauses while this tab is in the background.")}>
       <div className={`grid gap-3 bg-raised p-4 ${fullscreen ? "h-screen grid-rows-[auto_auto_auto_minmax(0,1fr)]" : ""}`} ref={panel}>
         <div className="flex flex-wrap items-center gap-2">
           <label className="relative min-w-40 flex-1">
-            <span className="sr-only">Search logs</span>
+            <span className="sr-only">{t("Search logs")}</span>
             <Search className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-ink-faint" aria-hidden="true" size={15} />
-            <input className="field pl-8" type="search" placeholder="Search logs" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <input className="field pl-8" type="search" placeholder={t("Search logs")} value={query} onChange={(event) => setQuery(event.target.value)} />
           </label>
           <label className="flex items-center gap-2 text-meta text-ink-soft">
-            Lines
+            {t("Lines")}
             <select
               className="field w-auto cursor-pointer"
               value={customLimit !== null || !lineLimits.includes(limit) ? "custom" : limit}
@@ -152,10 +153,10 @@ export function AppLogsPage() {
             >
               {lineLimits.map((value) => (
                 <option value={value} key={value}>
-                  {value.toLocaleString("en-US")}
+                  {value.toLocaleString(language)}
                 </option>
               ))}
-              <option value="custom">Custom{lineLimits.includes(limit) ? "" : ` (${limit.toLocaleString("en-US")})`}</option>
+              <option value="custom">{t("Custom")}{lineLimits.includes(limit) ? "" : ` (${limit.toLocaleString(language)})`}</option>
             </select>
           </label>
           {customLimit !== null && (
@@ -169,14 +170,14 @@ export function AppLogsPage() {
                 setCustomLimit(null);
               }}
             >
-              <input className="field w-28" type="number" autoFocus required min={1} max={maxLines} step={1} aria-label={`Number of lines, up to ${maxLines}`} value={customLimit} onChange={(event) => setCustomLimit(event.target.value)} />
+              <input className="field w-28" type="number" autoFocus required min={1} max={maxLines} step={1} aria-label={t("Number of lines, up to {max}", { max: maxLines })} value={customLimit} onChange={(event) => setCustomLimit(event.target.value)} />
               <button className="btn" type="submit">
-                Apply
+                {t("Apply")}
               </button>
             </form>
           )}
           <label className="flex items-center gap-2 text-meta text-ink-soft">
-            Auto-refresh
+            {t("Auto-refresh")}
             <select className="field w-auto cursor-pointer" value={seconds} onChange={(event) => save({ seconds: Number(event.target.value) })}>
               {refreshRates.map(({ seconds: value, label }) => (
                 <option value={value} key={value}>
@@ -189,24 +190,24 @@ export function AppLogsPage() {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <button className="btn" type="button" disabled={loading} onClick={load}>
             <RefreshCw className={loading ? "animate-spin motion-reduce:animate-none" : ""} aria-hidden="true" size={15} />
-            Refresh
+            {t("Refresh")}
           </button>
           <label className="flex cursor-pointer items-center gap-2 text-meta">
             <input className="size-4 cursor-pointer accent-seafoam" type="checkbox" checked={follow} onChange={(event) => setFollow(event.target.checked)} />
-            Follow
+            {t("Follow")}
           </label>
           <label className="flex cursor-pointer items-center gap-2 text-meta">
             <input className="size-4 cursor-pointer accent-seafoam" type="checkbox" checked={wrap} onChange={(event) => save({ wrap: event.target.checked })} />
-            Wrap lines
+            {t("Wrap lines")}
           </label>
           <div className="ml-auto flex gap-1">
-            <button className="btn size-9 justify-center px-0" type="button" disabled={!text} aria-label={copied === false ? "Could not copy logs" : copied ? "Logs copied" : "Copy logs"} title={copied === false ? "Could not copy" : copied ? "Copied" : "Copy"} onClick={copy}>
+            <button className="btn size-9 justify-center px-0" type="button" disabled={!text} aria-label={copied === false ? t("Could not copy logs") : copied ? t("Logs copied") : t("Copy logs")} title={copied === false ? t("Could not copy") : copied ? t("Copied") : t("Copy")} onClick={copy}>
               {copied ? <Check className="text-ok" aria-hidden="true" size={15} /> : <Copy aria-hidden="true" size={15} />}
             </button>
-            <button className="btn size-9 justify-center px-0" type="button" disabled={!text} aria-label="Download logs" title="Download" onClick={() => downloadText(`${service.name}-logs.txt`, `${text}\n`)}>
+            <button className="btn size-9 justify-center px-0" type="button" disabled={!text} aria-label={t("Download logs")} title={t("Download")} onClick={() => downloadText(`${service.name}-logs.txt`, `${text}\n`)}>
               <Download aria-hidden="true" size={15} />
             </button>
-            <button className="btn size-9 justify-center px-0" type="button" aria-label={fullscreen ? "Exit full screen" : "Full screen"} title={fullscreen ? "Exit full screen" : "Full screen"} onClick={() => (fullscreen ? document.exitFullscreen() : panel.current?.requestFullscreen())}>
+            <button className="btn size-9 justify-center px-0" type="button" aria-label={fullscreen ? t("Exit full screen") : t("Full screen")} title={fullscreen ? t("Exit full screen") : t("Full screen")} onClick={() => (fullscreen ? document.exitFullscreen() : panel.current?.requestFullscreen())}>
               {fullscreen ? <Minimize2 aria-hidden="true" size={15} /> : <Maximize2 aria-hidden="true" size={15} />}
             </button>
           </div>
@@ -214,15 +215,15 @@ export function AppLogsPage() {
         <div className="grid gap-2">
           <FormError message={error} />
           <p className="text-xs text-ink-soft tabular-nums">
-            {query.trim() ? `${shown.length} of ${limited.length} lines match` : `Showing ${limited.length} ${limited.length === 1 ? "line" : "lines"}`}
-            {updatedAt && ` · Updated ${updatedAt.toLocaleTimeString()}`}
+            {query.trim() ? t("{shown} of {total} lines match", { shown: shown.length, total: limited.length }) : limited.length === 1 ? t("Showing 1 line") : t("Showing {count} lines", { count: limited.length })}
+            {updatedAt && ` · ${t("Updated {time}", { time: updatedAt.toLocaleTimeString(language) })}`}
           </p>
         </div>
         <pre
           className={`overflow-auto rounded-control bg-canvas p-4 font-mono text-xs text-ink-soft ${wrap ? "whitespace-pre-wrap wrap-break-word" : "whitespace-pre"} ${fullscreen ? "min-h-0" : "max-h-[60vh] min-h-48"}`}
           ref={output}
           tabIndex={0}
-          aria-label="Log output"
+          aria-label={t("Log output")}
           onScroll={({ currentTarget: { scrollTop, clientHeight, scrollHeight } }) => {
             if (scrollHeight - scrollTop - clientHeight > 24) setFollow(false);
           }}

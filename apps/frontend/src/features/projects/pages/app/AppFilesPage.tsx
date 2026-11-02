@@ -10,6 +10,7 @@ import { downloadText } from "@/lib/downloadText";
 import { formatRelative } from "@/lib/format";
 import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
+import { t } from "@/lib/i18n";
 
 const CodeEditor = lazy(() => import("@/features/projects/components/files/CodeEditor"));
 
@@ -31,14 +32,14 @@ function formatSize(size: number) {
 
 function Durability({ target, mounts }: { target: string; mounts: FileMount[] }) {
   const mount = mountOf(target, mounts);
-  if (!mount) return <p className="text-xs text-ember">Not in a volume or mount: changes here are lost on the next deploy.</p>;
+  if (!mount) return <p className="text-xs text-ember">{t("Not in a volume or mount: changes here are lost on the next deploy.")}</p>;
   if (mount.kind === "file")
     return (
       <p className="text-xs text-ink-soft">
-        Managed in <Link className="text-button" to="../storage">Storage</Link>, which rewrites this file on every deploy.
+        {t("Managed in")} <Link className="text-button" to="../storage">{t("Storage")}</Link>{t(", which rewrites this file on every deploy.")}
       </p>
     );
-  return <p className="text-xs text-seafoam">Persistent: stored in {mount.path}, kept across deploys.</p>;
+  return <p className="text-xs text-seafoam">{t("Persistent: stored in {path}, kept across deploys.", { path: mount.path })}</p>;
 }
 
 export function AppFilesPage() {
@@ -71,14 +72,14 @@ export function AppFilesPage() {
   );
 
   if (!canWrite) return <Navigate to=".." replace />;
-  if (!running) return <EmptyState title="The app is not running" description="Start or deploy the app to browse and edit its files." />;
+  if (!running) return <EmptyState title={t("The app is not running")} description={t("Start or deploy the app to browse and edit its files.")} />;
 
   const mounts = listing?.mounts ?? [];
   const persistentMounts = mounts.filter(({ kind }) => kind !== "file");
   const fileName = open?.path.split("/").pop() ?? "";
   const crumbs = directory.split("/").filter(Boolean);
   const reload = () => setAttempt((value) => value + 1);
-  const canLeave = () => !dirty || window.confirm("Discard your unsaved changes?");
+  const canLeave = () => !dirty || window.confirm(t("Discard your unsaved changes?"));
   const managedFile = open ? mountOf(open.path, mounts)?.kind === "file" : false;
 
   function go(target: string) {
@@ -121,7 +122,7 @@ export function AppFilesPage() {
     event.preventDefault();
     if (!prompt) return;
     if (prompt.kind !== "delete" && !validName(name)) {
-      action.setError("Enter a name without slashes.");
+      action.setError(t("Enter a name without slashes."));
       return;
     }
     const entryPath = "entry" in prompt ? join(directory, prompt.entry.name) : "";
@@ -139,21 +140,21 @@ export function AppFilesPage() {
   }
 
   return (
-    <AppSection title="Files" description="Browse and edit the files inside the running container.">
+    <AppSection title={t("Files")} description={t("Browse and edit the files inside the running container.")}>
       <div className="grid gap-3 border-b border-line p-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="flex items-center gap-1 text-xs text-ink-soft">
             <HardDrive aria-hidden="true" size={13} />
-            Persistent
+            {t("Persistent")}
           </span>
           {persistentMounts.map((mount) => (
             <button className="btn min-h-7 px-2 font-mono text-xs" type="button" onClick={() => go(mount.path)} key={mount.path}>
               {mount.path}
             </button>
           ))}
-          {persistentMounts.length === 0 && <span className="text-xs text-ink-faint">No volumes yet. Add them in Storage.</span>}
+          {persistentMounts.length === 0 && <span className="text-xs text-ink-faint">{t("No volumes yet. Add them in Storage.")}</span>}
         </div>
-        <nav className="flex flex-wrap items-center gap-0.5 font-mono text-meta" aria-label="Current folder">
+        <nav className="flex flex-wrap items-center gap-0.5 font-mono text-meta" aria-label={t("Current folder")}>
           <button className="text-button px-1" type="button" onClick={() => go("/")}>/</button>
           {crumbs.map((crumb, index) => (
             <span className="flex items-center gap-0.5" key={index}>
@@ -168,43 +169,43 @@ export function AppFilesPage() {
         <div className="min-w-0 border-b border-line xl:border-r xl:border-b-0">
           <div className="flex flex-wrap gap-1 border-b border-line p-2">
             <button className="btn min-h-8 px-2 text-meta" type="button" onClick={() => ask({ kind: "file" })}>
-              <FilePlus aria-hidden="true" size={14} /> New file
+              <FilePlus aria-hidden="true" size={14} /> {t("New file")}
             </button>
             <button className="btn min-h-8 px-2 text-meta" type="button" onClick={() => ask({ kind: "directory" })}>
-              <FolderPlus aria-hidden="true" size={14} /> New folder
+              <FolderPlus aria-hidden="true" size={14} /> {t("New folder")}
             </button>
-            <button className="btn ml-auto size-8 justify-center px-0" type="button" aria-label="Refresh files" title="Refresh" onClick={reload}>
+            <button className="btn ml-auto size-8 justify-center px-0" type="button" aria-label={t("Refresh files")} title={t("Refresh")} onClick={reload}>
               <RefreshCw aria-hidden="true" size={14} />
             </button>
           </div>
           {prompt && (
             <form className="grid gap-2 border-b border-line p-3" onSubmit={confirm}>
               {prompt.kind === "delete" ? (
-                <p className="text-meta wrap-break-word">Delete {prompt.entry.name}{prompt.entry.type === "directory" ? " and everything in it" : ""}? This cannot be undone.</p>
+                <p className="text-meta wrap-break-word">{prompt.entry.type === "directory" ? t("Delete {name} and everything in it? This cannot be undone.", { name: prompt.entry.name }) : t("Delete {name}? This cannot be undone.", { name: prompt.entry.name })}</p>
               ) : (
                 <label className="grid gap-1 text-meta font-medium">
-                  {prompt.kind === "rename" ? `Rename ${prompt.entry.name}` : prompt.kind === "file" ? "File name" : "Folder name"}
+                  {prompt.kind === "rename" ? t("Rename {name}", { name: prompt.entry.name }) : prompt.kind === "file" ? t("File name") : t("Folder name")}
                   <input className="field font-mono" autoFocus required maxLength={255} value={name} onChange={(event) => setName(event.target.value)} />
                 </label>
               )}
               <FormError message={action.error} />
               <div className="flex gap-2">
                 <button className={`btn min-h-8 ${prompt.kind === "delete" ? "btn-danger" : "btn-primary"}`} type="submit" disabled={action.pending}>
-                  {prompt.kind === "delete" ? "Confirm delete" : prompt.kind === "rename" ? "Rename" : "Create"}
+                  {prompt.kind === "delete" ? t("Confirm delete") : prompt.kind === "rename" ? t("Rename") : t("Create")}
                 </button>
-                <button className="btn min-h-8" type="button" disabled={action.pending} onClick={() => setPrompt(null)}>Cancel</button>
+                <button className="btn min-h-8" type="button" disabled={action.pending} onClick={() => setPrompt(null)}>{t("Cancel")}</button>
               </div>
             </form>
           )}
           {listError && (
             <div className="p-3">
               <FormError message={listError} />
-              {directory !== "/" && <button className="text-button mt-2 text-meta" type="button" onClick={() => go("/")}>Go to the root folder</button>}
+              {directory !== "/" && <button className="text-button mt-2 text-meta" type="button" onClick={() => go("/")}>{t("Go to the root folder")}</button>}
             </div>
           )}
-          {!listError && !listing && <p className="p-4 text-meta text-ink-soft">Loading files…</p>}
+          {!listError && !listing && <p className="p-4 text-meta text-ink-soft">{t("Loading files…")}</p>}
           {!listError && listing && (
-            <ul className="max-h-[32rem] overflow-auto py-1" aria-label={`Files in ${directory}`}>
+            <ul className="max-h-[32rem] overflow-auto py-1" aria-label={t("Files in {directory}", { directory })}>
               {directory !== "/" && (
                 <li>
                   <button className="flex min-h-9 w-full items-center gap-2 px-3 text-left font-mono text-meta hover:bg-white/5" type="button" onClick={() => go(directory.slice(0, directory.lastIndexOf("/")) || "/")}>
@@ -212,7 +213,7 @@ export function AppFilesPage() {
                   </button>
                 </li>
               )}
-              {listing.entries.length === 0 && <li className="p-3 text-meta text-ink-soft">This folder is empty.</li>}
+              {listing.entries.length === 0 && <li className="p-3 text-meta text-ink-soft">{t("This folder is empty.")}</li>}
               {listing.entries.map((entry) => {
                 const target = join(directory, entry.name);
                 const isDirectory = entry.type === "directory";
@@ -222,23 +223,23 @@ export function AppFilesPage() {
                       className="flex min-h-9 min-w-0 flex-1 items-center gap-2 px-3 py-1 text-left disabled:cursor-default disabled:opacity-60"
                       type="button"
                       disabled={entry.type === "other"}
-                      title={entry.type === "other" ? "Special files cannot be opened" : `${entry.mode} · ${formatRelative(new Date(entry.modified * 1000).toISOString())}`}
+                      title={entry.type === "other" ? t("Special files cannot be opened") : `${entry.mode} · ${formatRelative(new Date(entry.modified * 1000).toISOString())}`}
                       onClick={() => (isDirectory ? go(target) : openFile(target))}
                     >
                       {isDirectory ? <Folder className="flex-none text-seafoam" aria-hidden="true" size={15} /> : <File className="flex-none text-ink-faint" aria-hidden="true" size={15} />}
                       <span className="min-w-0 flex-1 truncate font-mono text-meta">{entry.name}{entry.symlink ? " →" : ""}</span>
                       {!isDirectory && <span className="flex-none text-xs text-ink-faint tabular-nums">{formatSize(entry.size)}</span>}
                     </button>
-                    <button className="flex size-8 flex-none items-center justify-center text-ink-soft hover:text-ink" type="button" aria-label={`Rename ${entry.name}`} title="Rename" onClick={() => ask({ kind: "rename", entry })}>
+                    <button className="flex size-8 flex-none items-center justify-center text-ink-soft hover:text-ink" type="button" aria-label={t("Rename {name}", { name: entry.name })} title={t("Rename")} onClick={() => ask({ kind: "rename", entry })}>
                       <Pencil aria-hidden="true" size={13} />
                     </button>
-                    <button className="flex size-8 flex-none items-center justify-center text-ink-soft hover:text-ember" type="button" aria-label={`Delete ${entry.name}`} title="Delete" onClick={() => ask({ kind: "delete", entry })}>
+                    <button className="flex size-8 flex-none items-center justify-center text-ink-soft hover:text-ember" type="button" aria-label={t("Delete {name}", { name: entry.name })} title={t("Delete")} onClick={() => ask({ kind: "delete", entry })}>
                       <Trash2 aria-hidden="true" size={13} />
                     </button>
                   </li>
                 );
               })}
-              {listing.truncated && <li className="p-3 text-xs text-ink-soft">Only the first 2000 items are shown.</li>}
+              {listing.truncated && <li className="p-3 text-xs text-ink-soft">{t("Only the first {count} items are shown.", { count: 2000 })}</li>}
             </ul>
           )}
         </div>
@@ -252,12 +253,12 @@ export function AppFilesPage() {
                 </div>
                 {!open.binary && (
                   <div className="flex gap-2">
-                    <button className="btn size-9 justify-center px-0" type="button" aria-label="Download file" title="Download" onClick={() => downloadText(fileName, draft)}>
+                    <button className="btn size-9 justify-center px-0" type="button" aria-label={t("Download file")} title={t("Download")} onClick={() => downloadText(fileName, draft)}>
                       <Download aria-hidden="true" size={15} />
                     </button>
                     {!managedFile && (
                       <button className="btn btn-primary" type="button" disabled={!dirty || editor.pending} title="Ctrl+S" onClick={save}>
-                        {editor.pending ? "Saving…" : "Save"}
+                        {editor.pending ? t("Saving…") : t("Save")}
                       </button>
                     )}
                   </div>
@@ -268,13 +269,13 @@ export function AppFilesPage() {
                   <FormError message={editor.error} />
                 </div>
               )}
-              {saved && !dirty && !editor.error && <p className="border-b border-line p-3 text-meta text-ink-soft" role="status">Saved. The app may need a restart to use the new file.</p>}
+              {saved && !dirty && !editor.error && <p className="border-b border-line p-3 text-meta text-ink-soft" role="status">{t("Saved. The app may need a restart to use the new file.")}</p>}
               {open.binary ? (
-                <p className="p-4 text-meta text-ink-soft">This is a binary file, so it cannot be edited here.</p>
+                <p className="p-4 text-meta text-ink-soft">{t("This is a binary file, so it cannot be edited here.")}</p>
               ) : (
                 <div className="h-[32rem] min-h-0">
-                  <Suspense fallback={<p className="p-4 text-meta text-ink-soft">Loading editor…</p>}>
-                    <CodeEditor filename={fileName} value={open.content ?? ""} readOnly={managedFile} label={`Contents of ${open.path}`} onChange={setDraft} onSave={save} key={revision} />
+                  <Suspense fallback={<p className="p-4 text-meta text-ink-soft">{t("Loading editor…")}</p>}>
+                    <CodeEditor filename={fileName} value={open.content ?? ""} readOnly={managedFile} label={t("Contents of {path}", { path: open.path })} onChange={setDraft} onSave={save} key={revision} />
                   </Suspense>
                 </div>
               )}
@@ -282,7 +283,7 @@ export function AppFilesPage() {
           ) : (
             <div className="p-4">
               <FormError message={editor.error} />
-              <p className="text-meta text-ink-soft">{editor.pending ? "Opening file…" : "Choose a file to view or edit it."}</p>
+              <p className="text-meta text-ink-soft">{editor.pending ? t("Opening file…") : t("Choose a file to view or edit it.")}</p>
             </div>
           )}
         </div>

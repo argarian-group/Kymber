@@ -10,11 +10,12 @@ import { TaskSummaryPanel } from "@/features/dashboard/components/TaskSummaryPan
 import { healthMeta } from "@/features/dashboard/health";
 import { useOverview } from "@/features/dashboard/useOverview";
 import { type Project } from "@/features/projects/ProjectsContext";
+import { t } from "@/lib/i18n";
 
 export function OverviewContent({ projects }: { projects: Project[] }) {
   const { overview, error, retry } = useOverview(projects);
 
-  if (error && !overview) return <LoadError title="Could not load the overview" message={error} onRetry={retry} />;
+  if (error && !overview) return <LoadError title={t("Could not load the overview")} message={error} onRetry={retry} />;
   if (!overview) return <PageSkeleton />;
 
   const { summaries, tasks, apps } = overview;
@@ -24,16 +25,16 @@ export function OverviewContent({ projects }: { projects: Project[] }) {
   return (
     <>
       <PageHeader
-        title="Overview"
-        description={`${onTrack} of ${summaries.length} ${summaries.length === 1 ? "project" : "projects"} on track`}
+        title={t("Overview")}
+        description={summaries.length === 1 ? t("{done} of {count} project on track", { done: onTrack, count: summaries.length }) : t("{done} of {count} projects on track", { done: onTrack, count: summaries.length })}
         actions={
           <>
             <Link className="btn" to="/projects">
-              View projects
+              {t("View projects")}
             </Link>
             {focus && (
               <Link className="btn btn-primary" to={`/projects/${focus.project.id}`}>
-                Review {focus.project.name}
+                {t("Review {name}", { name: focus.project.name })}
               </Link>
             )}
           </>
@@ -44,7 +45,7 @@ export function OverviewContent({ projects }: { projects: Project[] }) {
           <ProjectsPanel summaries={summaries} />
           <AttentionPanel overview={overview} />
         </div>
-        <aside className="min-w-0 bg-sunken lg:grid lg:grid-cols-2 xl:block" aria-label="Delivery">
+        <aside className="min-w-0 bg-sunken lg:grid lg:grid-cols-2 xl:block" aria-label={t("Delivery")}>
           <AppsPanel apps={apps} />
           <DeadlinesPanel tasks={tasks} />
           <TaskSummaryPanel tasks={tasks} />

@@ -2,6 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef, useState } from "react";
+import { t } from "@/lib/i18n";
 
 type Status = { state: "connecting" } | { state: "connected" } | { state: "closed"; message: string };
 
@@ -45,7 +46,7 @@ export default function TerminalView({ path, label }: { path: string; label: str
       sendSize();
     };
     socket.onmessage = (event) => terminal.write(new Uint8Array(event.data as ArrayBuffer));
-    socket.onclose = (event) => setStatus({ state: "closed", message: event.reason || (opened ? "The connection was lost." : "Could not connect. Check your access and that you have fewer than 5 terminals open.") });
+    socket.onclose = (event) => setStatus({ state: "closed", message: event.reason || (opened ? t("The connection was lost.") : t("Could not connect. Check your access and that you have fewer than 5 terminals open.")) });
     const leave = () => socket.close();
     window.addEventListener("pagehide", leave);
     const observer = new ResizeObserver(() => fit.fit());
@@ -66,11 +67,11 @@ export default function TerminalView({ path, label }: { path: string; label: str
     <div className="grid gap-2">
       <div className="flex min-h-9 flex-wrap items-center justify-between gap-2">
         <p className={`text-meta ${status.state === "closed" ? "text-ember" : "text-ink-soft"}`} role="status">
-          {status.state === "connecting" ? "Connecting…" : status.state === "connected" ? "Connected" : status.message}
+          {status.state === "connecting" ? t("Connecting…") : status.state === "connected" ? t("Connected") : status.message}
         </p>
         {status.state === "closed" && (
           <button className="btn" type="button" onClick={() => setAttempt((value) => value + 1)}>
-            Reconnect
+            {t("Reconnect")}
           </button>
         )}
       </div>

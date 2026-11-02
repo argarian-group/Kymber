@@ -2,6 +2,7 @@ import { Plus } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { FormError } from "@/components/ui/FormError";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 type AddInlineProps = {
   label: string;
@@ -55,10 +56,10 @@ export function AddInline({ label, placeholder, maxLength, onAdd, keepOpen = fal
       <FormError message={error} />
       <div className="flex gap-2">
         <button className="btn btn-primary" type="submit" disabled={pending}>
-          Add
+          {t("Add")}
         </button>
         <button className="btn" type="button" onClick={() => setOpen(false)} disabled={pending}>
-          Cancel
+          {t("Cancel")}
         </button>
       </div>
     </form>

@@ -4,11 +4,12 @@ import { Panel } from "@/components/ui/Panel";
 import { ProjectRow } from "@/features/dashboard/components/ProjectRow";
 import { healthMeta } from "@/features/dashboard/health";
 import { type ProjectSummary } from "@/features/dashboard/overview";
+import { t } from "@/lib/i18n";
 
 const filters = [
-  { id: "all", label: "All", matches: () => true },
-  { id: "attention", label: "Attention", matches: (summary: ProjectSummary) => summary.health !== "on-track" },
-  { id: "on-track", label: "On track", matches: (summary: ProjectSummary) => summary.health === "on-track" },
+  { id: "all", label: t("All"), matches: () => true },
+  { id: "attention", label: t("Attention"), matches: (summary: ProjectSummary) => summary.health !== "on-track" },
+  { id: "on-track", label: t("On track"), matches: (summary: ProjectSummary) => summary.health === "on-track" },
 ];
 
 export function ProjectsPanel({ summaries }: { summaries: ProjectSummary[] }) {
@@ -18,9 +19,9 @@ export function ProjectsPanel({ summaries }: { summaries: ProjectSummary[] }) {
 
   return (
     <Panel
-      title="Projects"
+      title={t("Projects")}
       aside={
-        <div className="flex gap-0.5" role="group" aria-label="Filter projects">
+        <div className="flex gap-0.5" role="group" aria-label={t("Filter projects")}>
           {filters.map(({ id, label, matches }) => (
             <button
               className={`focus-ring min-h-9 cursor-pointer rounded-control px-2 text-xs font-medium tabular-nums transition-colors duration-100 md:min-h-7 ${
@@ -39,11 +40,11 @@ export function ProjectsPanel({ summaries }: { summaries: ProjectSummary[] }) {
     >
       {visible.length === 0 ? (
         <EmptyState
-          title={`No projects match "${filter.label}"`}
-          description="Try another filter to see the rest of your projects."
+          title={t("No projects match \"{filter}\"", { filter: filter.label })}
+          description={t("Try another filter to see the rest of your projects.")}
           action={
             <button className="btn" type="button" onClick={() => setFilterId("all")}>
-              Show all projects
+              {t("Show all projects")}
             </button>
           }
         />
@@ -52,11 +53,11 @@ export function ProjectsPanel({ summaries }: { summaries: ProjectSummary[] }) {
           <table className="w-full border-collapse text-left">
             <thead className="text-xs text-ink-faint">
               <tr>
-                <th className="py-1.5 pr-3 pl-4 font-medium md:pl-6" scope="col">Project</th>
-                <th className="px-3 py-1.5 font-medium" scope="col">Health</th>
-                <th className="px-3 py-1.5 font-medium" scope="col">Done</th>
-                <th className="hidden px-3 py-1.5 text-right font-medium @2xl:table-cell" scope="col">Tasks left</th>
-                <th className="hidden py-1.5 pr-6 pl-3 text-right font-medium @2xl:table-cell" scope="col">Apps running</th>
+                <th className="py-1.5 pr-3 pl-4 font-medium md:pl-6" scope="col">{t("Project")}</th>
+                <th className="px-3 py-1.5 font-medium" scope="col">{t("Health")}</th>
+                <th className="px-3 py-1.5 font-medium" scope="col">{t("Done")}</th>
+                <th className="hidden px-3 py-1.5 text-right font-medium @2xl:table-cell" scope="col">{t("Tasks left")}</th>
+                <th className="hidden py-1.5 pr-6 pl-3 text-right font-medium @2xl:table-cell" scope="col">{t("Apps running")}</th>
               </tr>
             </thead>
             <tbody>

@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { t } from "@/lib/i18n";
 
 export function SectionHeading({ id, title, to }: { id: string; title: string; to?: string }) {
   return (
@@ -8,7 +9,7 @@ export function SectionHeading({ id, title, to }: { id: string; title: string; t
       </h2>
       {to && (
         <Link className="focus-ring rounded-sm text-meta text-ink-soft hover:text-ink" to={to}>
-          View all
+          {t("View all")}
         </Link>
       )}
     </div>

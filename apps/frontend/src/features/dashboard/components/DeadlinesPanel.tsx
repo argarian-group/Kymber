@@ -4,6 +4,7 @@ import { Panel } from "@/components/ui/Panel";
 import { TaskPriority } from "@/features/projects/components/tasks/TaskPriority";
 import { type OverviewTask } from "@/features/dashboard/overview";
 import { dueLabel } from "@/features/projects/tasks";
+import { t } from "@/lib/i18n";
 
 const visibleDeadlines = 6;
 
@@ -14,9 +15,9 @@ export function DeadlinesPanel({ tasks }: { tasks: OverviewTask[] }) {
     .slice(0, visibleDeadlines);
 
   return (
-    <Panel title="Upcoming deadlines">
+    <Panel title={t("Upcoming deadlines")}>
       {upcoming.length === 0 ? (
-        <EmptyState title="No upcoming deadlines" />
+        <EmptyState title={t("No upcoming deadlines")} />
       ) : (
         <ul>
           {upcoming.map(({ task, project, done, late }) => (

@@ -6,6 +6,7 @@ import { PanelDomainForm } from "@/features/settings/components/PanelDomainForm"
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
+import { t } from "@/lib/i18n";
 
 export function SystemSettings() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -30,7 +31,7 @@ export function SystemSettings() {
   if (loadError) {
     return (
       <LoadError
-        title="Could not load system settings"
+        title={t("Could not load system settings")}
         message={loadError}
         onRetry={() => {
           setLoadError(null);
@@ -42,11 +43,11 @@ export function SystemSettings() {
 
   return (
     <>
-      <SettingsSection title="Access">
+      <SettingsSection title={t("Access")}>
         <label className="flex cursor-pointer items-center justify-between gap-6 p-4">
           <span>
-            <span className="block font-medium">Allow new registrations</span>
-            <span className="mt-0.5 block text-meta text-ink-soft">When this is off, new accounts cannot be created. Existing accounts keep working.</span>
+            <span className="block font-medium">{t("Allow new registrations")}</span>
+            <span className="mt-0.5 block text-meta text-ink-soft">{t("When this is off, new accounts cannot be created. Existing accounts keep working.")}</span>
           </span>
           <span className="relative flex-none">
             <input
@@ -69,7 +70,7 @@ export function SystemSettings() {
           </div>
         )}
       </SettingsSection>
-      <SettingsSection title="Panel domain" description="Optional custom hostname for the Kymber dashboard. DNS must point to this server and ports 80 and 443 must be open.">
+      <SettingsSection title={t("Panel domain")} description={t("Optional custom hostname for the Kymber dashboard. DNS must point to this server and ports 80 and 443 must be open.")}>
         <PanelDomainForm />
       </SettingsSection>
     </>

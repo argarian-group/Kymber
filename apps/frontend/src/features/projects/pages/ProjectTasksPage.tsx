@@ -9,13 +9,14 @@ import { TaskFiltersBar } from "@/features/projects/components/tasks/TaskFilters
 import { TaskList } from "@/features/projects/components/tasks/TaskList";
 import { matchesFilters, type Task, type TaskFilters } from "@/features/projects/tasks";
 import { useBoard } from "@/features/projects/useBoard";
+import { t } from "@/lib/i18n";
 
 type TaskView = "board" | "list" | "calendar";
 
 const views: { id: TaskView; label: string; icon: LucideIcon }[] = [
-  { id: "board", label: "Board", icon: Columns3 },
-  { id: "list", label: "List", icon: List },
-  { id: "calendar", label: "Calendar", icon: CalendarDays },
+  { id: "board", label: t("Board"), icon: Columns3 },
+  { id: "list", label: t("List"), icon: List },
+  { id: "calendar", label: t("Calendar"), icon: CalendarDays },
 ];
 
 const TaskDetailDialog = lazy(() => import("@/features/projects/components/tasks/TaskDetailDialog").then(({ TaskDetailDialog: dialog }) => ({ default: dialog })));
@@ -44,7 +45,7 @@ export function ProjectTasksPage() {
   const openTask = (task: Task) => setParam("task", task.id, false);
 
   if (!board) {
-    return error ? <LoadError title="Could not load tasks" message={error} onRetry={reload} /> : <PageSkeleton />;
+    return error ? <LoadError title={t("Could not load tasks")} message={error} onRetry={reload} /> : <PageSkeleton />;
   }
 
   const doneLists = new Set(board.lists.filter(({ is_done }) => is_done).map(({ id }) => id));
@@ -69,7 +70,7 @@ export function ProjectTasksPage() {
             )
           }
         />
-        <div className="flex gap-0.5 rounded-control bg-sunken p-0.5" role="group" aria-label="Task view">
+        <div className="flex gap-0.5 rounded-control bg-sunken p-0.5" role="group" aria-label={t("Task view")}>
           {views.map(({ id, label, icon: Icon }) => (
             <button
               className={`focus-ring flex min-h-9 cursor-pointer items-center gap-1.5 rounded-sm px-2.5 text-meta font-medium transition-colors duration-100 md:min-h-7 ${view === id ? "bg-raised text-ink" : "text-ink-soft hover:text-ink"}`}

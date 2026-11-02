@@ -3,6 +3,7 @@ import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { useProjects } from "@/features/projects/ProjectsContext";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 function slugify(name: string) {
   return name
@@ -26,7 +27,7 @@ export function CreateProjectForm({ onClose }: { onClose: () => void }) {
     event.preventDefault();
     const finalSlug = slug.trim() || suggestedSlug;
     if (!finalSlug) {
-      setError("Enter a slug using lowercase letters, numbers and hyphens.");
+      setError(t("Enter a slug using lowercase letters, numbers and hyphens."));
       return;
     }
     await run(async () => {
@@ -36,17 +37,17 @@ export function CreateProjectForm({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <form className="mx-4 mt-4 grid gap-4 rounded-panel bg-raised p-4 md:mx-6 md:grid-cols-2" onSubmit={submit} aria-label="New project">
-      <Field label="Name" required autoFocus maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
-      <Field label="Slug" maxLength={120} pattern="[a-z0-9\-]+" title="Lowercase letters, numbers and hyphens" placeholder={suggestedSlug} hint="Lowercase letters, numbers and hyphens." value={slug} onChange={(event) => setSlug(event.target.value)} />
+    <form className="mx-4 mt-4 grid gap-4 rounded-panel bg-raised p-4 md:mx-6 md:grid-cols-2" onSubmit={submit} aria-label={t("New project")}>
+      <Field label={t("Name")} required autoFocus maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
+      <Field label={t("Slug")} maxLength={120} pattern="[a-z0-9\-]+" title={t("Lowercase letters, numbers and hyphens")} placeholder={suggestedSlug} hint={t("Lowercase letters, numbers and hyphens.")} value={slug} onChange={(event) => setSlug(event.target.value)} />
       <div className="md:col-span-2">
         <FormError message={error} />
         <div className="mt-2 flex gap-2">
           <button className="btn btn-primary" type="submit" disabled={pending}>
-            {pending ? "Creating…" : "Create project"}
+            {pending ? t("Creating…") : t("Create project")}
           </button>
           <button className="btn" type="button" onClick={onClose} disabled={pending}>
-            Cancel
+            {t("Cancel")}
           </button>
         </div>
       </div>

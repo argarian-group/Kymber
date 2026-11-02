@@ -1,6 +1,7 @@
 import { NavLink } from "react-router";
 import { useCurrentUser } from "@/features/auth/AuthContext";
 import { organizationItems, workspaceItems } from "./navItems";
+import { t } from "@/lib/i18n";
 
 export function MobileTabBar() {
   const user = useCurrentUser();
@@ -9,7 +10,7 @@ export function MobileTabBar() {
   return (
     <nav
       className="fixed inset-x-2 bottom-[calc(8px+env(safe-area-inset-bottom))] z-10 rounded-panel border border-line-strong bg-raised p-1 md:hidden"
-      aria-label="Main"
+      aria-label={t("Main")}
     >
       <ul className={`grid ${user.is_root ? "grid-cols-5" : "grid-cols-4"}`}>
         {navItems.map(({ label, to, icon: Icon }) => (

@@ -1,4 +1,5 @@
 import { EmptyState } from "./EmptyState";
+import { t } from "@/lib/i18n";
 
 export function LoadError({ title, message, onRetry }: { title: string; message: string; onRetry: () => void }) {
   return (
@@ -7,7 +8,7 @@ export function LoadError({ title, message, onRetry }: { title: string; message:
       description={message}
       action={
         <button className="btn" type="button" onClick={onRetry}>
-          Try again
+          {t("Try again")}
         </button>
       }
     />

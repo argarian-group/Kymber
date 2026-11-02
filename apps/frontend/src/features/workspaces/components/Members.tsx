@@ -10,6 +10,7 @@ import { MemberRow } from "@/features/workspaces/components/MemberRow";
 import { type Member } from "@/features/workspaces/types";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
+import { t } from "@/lib/i18n";
 
 type MembersState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; members: Member[] };
 
@@ -48,13 +49,13 @@ export function Members({ workspace }: { workspace: Workspace }) {
   return (
     <>
       <PageHeader
-        title="Team"
-        description={count === null ? workspaceLabel(workspace, workspaces) : `${workspaceLabel(workspace, workspaces)}, ${count} ${count === 1 ? "member" : "members"}`}
+        title={t("Team")}
+        description={count === null ? workspaceLabel(workspace, workspaces) : (count === 1 ? t("{workspace}, 1 member", { workspace: workspaceLabel(workspace, workspaces) }) : t("{workspace}, {count} members", { workspace: workspaceLabel(workspace, workspaces), count }))}
         actions={
           canInvite &&
           !adding && (
             <button className="btn btn-primary" type="button" onClick={() => setAdding(true)}>
-              Invite member
+              {t("Invite member")}
             </button>
           )
         }
@@ -62,11 +63,11 @@ export function Members({ workspace }: { workspace: Workspace }) {
       {adding && <InviteForm workspaceId={workspace.id} canAddDirectly={canManageMembers} onAdded={reload} onClose={() => setAdding(false)} />}
       {state.status === "loading" && <PageSkeleton />}
       {state.status === "error" && (
-        <LoadError title="Could not load members" message={state.message} onRetry={reload} />
+        <LoadError title={t("Could not load members")} message={state.message} onRetry={reload} />
       )}
       {state.status === "ready" &&
         (state.members.length === 0 ? (
-          <EmptyState title="No members yet" description={canInvite ? "Invite someone to this workspace." : "A workspace owner or admin can invite members."} />
+          <EmptyState title={t("No members yet")} description={canInvite ? t("Invite someone to this workspace.") : t("A workspace owner or admin can invite members.")} />
         ) : (
           <ul className="mt-4 border-t border-line">
             {state.members.map((member) => (

@@ -8,6 +8,7 @@ import type { Server } from "@/features/servers/types";
 import { api } from "@/lib/api";
 import { formatDate, formatRelative } from "@/lib/format";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 type Mode = "view" | "rename" | "delete";
 
@@ -45,63 +46,63 @@ export function ServerCard({ server, onChanged }: { server: Server; onChanged: (
         <div className="min-w-0 flex-1 basis-40">
           <h2 className="section-title wrap-break-word">{server.name}</h2>
           <p className="font-mono text-xs text-ink-soft">{server.id}</p>
-          <p className="text-xs text-ink-soft">{server.connection_type === "ssh" ? `${server.ssh_user}@${server.host}:${server.ssh_port}` : server.ssh_configured ? "Local host via SSH" : "Local host · SSH not configured"}</p>
+          <p className="text-xs text-ink-soft">{server.connection_type === "ssh" ? `${server.ssh_user}@${server.host}:${server.ssh_port}` : server.ssh_configured ? t("Local host via SSH") : t("Local host · SSH not configured")}</p>
         </div>
         <ServerStatusBadge status={server.status} />
       </div>
       <dl className="grid grid-cols-3 gap-4 border-t border-line p-4 text-meta">
         <div>
-          <dt className="text-xs text-ink-soft">Apps</dt>
+          <dt className="text-xs text-ink-soft">{t("Apps")}</dt>
           <dd className="font-display text-lg font-semibold tabular-nums">{server.apps}</dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-xs text-ink-soft">{server.ssh_configured ? "Connection" : "Last seen"}</dt>
-          <dd className="mt-1 tabular-nums">{server.ssh_configured ? "SSH" : server.last_seen ? formatRelative(server.last_seen) : "Never"}</dd>
+          <dt className="text-xs text-ink-soft">{server.ssh_configured ? t("Connection") : t("Last seen")}</dt>
+          <dd className="mt-1 tabular-nums">{server.ssh_configured ? "SSH" : server.last_seen ? formatRelative(server.last_seen) : t("Never")}</dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-xs text-ink-soft">Registered</dt>
+          <dt className="text-xs text-ink-soft">{t("Registered")}</dt>
           <dd className="mt-1 tabular-nums">{formatDate(server.created_at)}</dd>
         </div>
       </dl>
       <div className="border-t border-line p-4">
         {mode === "view" && (
           <div className="flex flex-wrap gap-2">
-            {server.connection_type === "local" && !server.ssh_configured && <button className="btn btn-primary" type="button" disabled={pending} onClick={setupSSH}>{pending ? "Configuring…" : "Enable SSH for local host"}</button>}
+            {server.connection_type === "local" && !server.ssh_configured && <button className="btn btn-primary" type="button" disabled={pending} onClick={setupSSH}>{pending ? t("Configuring…") : t("Enable SSH for local host")}</button>}
             {server.ssh_configured && (
               <Link className="btn" to={`/terminal?server=${server.id}`}>
-                Terminal
+                {t("Terminal")}
               </Link>
             )}
             <button className="btn" type="button" onClick={() => setMode("rename")}>
-              Rename
+              {t("Rename")}
             </button>
-            <button className="btn btn-danger" type="button" disabled={server.apps > 0} title={server.apps > 0 ? "Delete this server's apps first" : undefined} onClick={() => setMode("delete")}>
-              Delete server
+            <button className="btn btn-danger" type="button" disabled={server.apps > 0} title={server.apps > 0 ? t("Delete this server's apps first") : undefined} onClick={() => setMode("delete")}>
+              {t("Delete server")}
             </button>
           </div>
         )}
         {mode === "rename" && (
           <form className="grid gap-3" onSubmit={rename}>
-            <Field label="Server name" required autoFocus maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
+            <Field label={t("Server name")} required autoFocus maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
             <div className="flex gap-2">
               <button className="btn btn-primary" type="submit" disabled={pending}>
-                {pending ? "Saving…" : "Save name"}
+                {pending ? t("Saving…") : t("Save name")}
               </button>
               <button className="btn" type="button" disabled={pending} onClick={() => setMode("view")}>
-                Cancel
+                {t("Cancel")}
               </button>
             </div>
           </form>
         )}
         {mode === "delete" && (
           <div className="grid gap-3">
-              <p>{`Delete ${server.name}? You can register a new one afterwards.`}</p>
+              <p>{t("Delete {name}? You can register a new one afterwards.", { name: server.name })}</p>
             <div className="flex flex-wrap gap-2">
               <button className="btn btn-danger" type="button" disabled={pending} onClick={remove}>
-                Confirm delete
+                {t("Confirm delete")}
               </button>
               <button className="btn" type="button" disabled={pending} onClick={() => setMode("view")}>
-                Cancel
+                {t("Cancel")}
               </button>
             </div>
           </div>

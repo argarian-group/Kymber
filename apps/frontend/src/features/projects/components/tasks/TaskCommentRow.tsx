@@ -8,6 +8,7 @@ import { commentLimit, type TaskComment } from "@/features/projects/tasks";
 import { api } from "@/lib/api";
 import { formatRelative } from "@/lib/format";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 export function TaskCommentRow({ comment, path, onChanged }: { comment: TaskComment; path: string; onChanged: () => void }) {
   const user = useCurrentUser();
@@ -16,7 +17,7 @@ export function TaskCommentRow({ comment, path, onChanged }: { comment: TaskComm
   const [body, setBody] = useState(comment.body);
   const { pending, error, run } = useAction();
   const isAuthor = comment.author?.id === user.id;
-  const name = comment.author?.username ?? "Deleted user";
+  const name = comment.author?.username ?? t("Deleted user");
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -35,18 +36,18 @@ export function TaskCommentRow({ comment, path, onChanged }: { comment: TaskComm
       <div className="min-w-0 flex-1">
         <p className="text-meta">
           <span className="font-medium">{name}</span> <span className="text-ink-soft">{formatRelative(comment.created_at)}</span>
-          {comment.updated_at !== comment.created_at && <span className="text-ink-soft"> (edited)</span>}
+          {comment.updated_at !== comment.created_at && <span className="text-ink-soft"> {t("(edited)")}</span>}
         </p>
         {editing ? (
           <form className="mt-1 grid gap-2" onSubmit={save}>
-            <RichTextEditor label="Edit comment" placeholder="Write a comment" initial={comment.body} limit={commentLimit} size="min-h-20" autoFocus value={body} onChange={setBody} />
+            <RichTextEditor label={t("Edit comment")} placeholder={t("Write a comment")} initial={comment.body} limit={commentLimit} size="min-h-20" autoFocus value={body} onChange={setBody} />
             <FormError message={error} />
             <div className="flex gap-2">
               <button className="btn btn-primary" type="submit" disabled={pending || !body || body.length > commentLimit}>
-                Save
+                {t("Save")}
               </button>
               <button className="btn" type="button" onClick={() => setEditing(false)}>
-                Cancel
+                {t("Cancel")}
               </button>
             </div>
           </form>
@@ -59,7 +60,7 @@ export function TaskCommentRow({ comment, path, onChanged }: { comment: TaskComm
             <div className="mt-1 flex gap-3 text-xs">
               {isAuthor && (
                 <button className="text-button" type="button" onClick={() => setEditing(true)}>
-                  Edit
+                  {t("Edit")}
                 </button>
               )}
               {(isAuthor || canWrite) && (
@@ -73,7 +74,7 @@ export function TaskCommentRow({ comment, path, onChanged }: { comment: TaskComm
                     })
                   }
                 >
-                  Delete
+                  {t("Delete")}
                 </button>
               )}
             </div>

@@ -1,9 +1,10 @@
+import { t } from "@/lib/i18n";
 export function ProgressRing({ name, value, tone }: { name: string; value: number; tone: string }) {
   return (
     <span
       className="flex items-center gap-2 text-meta font-medium tabular-nums"
       role="progressbar"
-      aria-label={`${name} progress`}
+      aria-label={t("{name} progress", { name })}
       aria-valuenow={value}
       aria-valuemin={0}
       aria-valuemax={100}

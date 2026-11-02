@@ -4,6 +4,7 @@ import { AddInline } from "@/features/projects/components/tasks/AddInline";
 import { type Checklist, type ChecklistItem } from "@/features/projects/tasks";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 export function TaskChecklistCard({ checklist, path, onChanged }: { checklist: Checklist; path: string; onChanged: () => void }) {
   const { error, run } = useAction();
@@ -21,7 +22,7 @@ export function TaskChecklistCard({ checklist, path, onChanged }: { checklist: C
       <div className="flex items-center gap-2">
         <input
           className="min-w-0 flex-1 rounded-sm bg-transparent font-medium focus-ring"
-          aria-label="Checklist title"
+          aria-label={t("Checklist title")}
           maxLength={120}
           defaultValue={checklist.title}
           onBlur={(event) => {
@@ -30,7 +31,7 @@ export function TaskChecklistCard({ checklist, path, onChanged }: { checklist: C
             else event.target.value = checklist.title;
           }}
         />
-        <button className="btn min-h-7 border-transparent px-1.5" type="button" aria-label={`Delete checklist ${checklist.title}`} onClick={() => change(() => api(`${path}/task-checklists/${checklist.id}`, { method: "DELETE" }))}>
+        <button className="btn min-h-7 border-transparent px-1.5" type="button" aria-label={t("Delete checklist {title}", { title: checklist.title })} onClick={() => change(() => api(`${path}/task-checklists/${checklist.id}`, { method: "DELETE" }))}>
           <Trash2 aria-hidden="true" size={14} />
         </button>
       </div>
@@ -43,10 +44,10 @@ export function TaskChecklistCard({ checklist, path, onChanged }: { checklist: C
       <ul className="mt-2 grid gap-0.5">
         {checklist.items.map((item) => (
           <li className="flex min-h-9 items-center gap-2 rounded-control pl-1 hover:bg-white/5" key={item.id}>
-            <input className="size-4 flex-none cursor-pointer accent-seafoam" type="checkbox" aria-label={`Done: ${item.title}`} checked={item.done} onChange={(event) => update(item, { title: item.title, done: event.target.checked })} />
+            <input className="size-4 flex-none cursor-pointer accent-seafoam" type="checkbox" aria-label={t("Done: {title}", { title: item.title })} checked={item.done} onChange={(event) => update(item, { title: item.title, done: event.target.checked })} />
             <input
               className={`min-w-0 flex-1 rounded-sm bg-transparent py-1 focus-ring ${item.done ? "text-ink-faint line-through" : ""}`}
-              aria-label="Item title"
+              aria-label={t("Item title")}
               maxLength={300}
               defaultValue={item.title}
               onBlur={(event) => {
@@ -55,7 +56,7 @@ export function TaskChecklistCard({ checklist, path, onChanged }: { checklist: C
                 else event.target.value = item.title;
               }}
             />
-            <button className="btn min-h-7 border-transparent px-1.5" type="button" aria-label={`Delete item ${item.title}`} onClick={() => change(() => api(`${path}/task-checklist-items/${item.id}`, { method: "DELETE" }))}>
+            <button className="btn min-h-7 border-transparent px-1.5" type="button" aria-label={t("Delete item {title}", { title: item.title })} onClick={() => change(() => api(`${path}/task-checklist-items/${item.id}`, { method: "DELETE" }))}>
               <Trash2 aria-hidden="true" size={14} />
             </button>
           </li>
@@ -64,8 +65,8 @@ export function TaskChecklistCard({ checklist, path, onChanged }: { checklist: C
       <FormError message={error} />
       <div className="mt-1">
         <AddInline
-          label="Add item"
-          placeholder="Item title"
+          label={t("Add item")}
+          placeholder={t("Item title")}
           maxLength={300}
           keepOpen
           onAdd={async (title) => {

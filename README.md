@@ -171,7 +171,7 @@ Contributions are welcome. For anything larger than a small fix, open an issue f
 5. Write commit messages in the [Conventional Commits](https://www.conventionalcommits.org/) format, for example `feat(services): add port publishing` or `fix(frontend): keep logs scrolled to the bottom`.
 6. Open a pull request against `main` that explains what changed and why. Add screenshots for UI changes.
 
-Write code, comments, documentation and product text in English. Do not commit secrets, `.env` files, or local tool folders such as `.claude/` or `.cursor/`.
+Write code, comments, documentation and product text in English. Wrap every piece of UI text in `t()` from `apps/frontend/src/lib/i18n.ts` and add its Portuguese translation to `apps/frontend/src/locales/pt-BR.ts`; text without a translation falls back to English. Do not commit secrets, `.env` files, or local tool folders such as `.claude/` or `.cursor/`.
 
 By contributing, you agree that your contributions are licensed under the project's [AGPL-3.0 license](LICENSE).
 

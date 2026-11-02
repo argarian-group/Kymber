@@ -8,6 +8,7 @@ import { engineLabel, engines } from "@/features/projects/engines";
 import type { DatabaseTemplate, Service } from "@/features/projects/services";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 export function CreateServiceForm({ template, path }: { template: DatabaseTemplate; path: string }) {
   const navigate = useNavigate();
@@ -29,7 +30,7 @@ export function CreateServiceForm({ template, path }: { template: DatabaseTempla
   }
 
   return (
-    <form className="mx-auto grid w-full max-w-xl gap-5" onSubmit={submit} aria-label={`New ${engineLabel(engine)} app`}>
+    <form className="mx-auto grid w-full max-w-xl gap-5" onSubmit={submit} aria-label={t("New {engine} app", { engine: engineLabel(engine) })}>
       <div className="flex items-center gap-3 rounded-panel bg-raised p-4">
         <EngineMark engine={engine} />
         <span className="min-w-0 flex-1">
@@ -37,25 +38,25 @@ export function CreateServiceForm({ template, path }: { template: DatabaseTempla
           <span className="block truncate text-meta text-ink-soft">{engines[engine]?.description ?? template.image}</span>
         </span>
         <Link className="text-button flex-none text-meta" to="?">
-          Change
+          {t("Change")}
         </Link>
       </div>
-      <Field label="App name" autoFocus maxLength={63} pattern="[a-z][a-z0-9\-]{1,62}" title="Lowercase letters, numbers and hyphens, starting with a letter" hint="Optional. Leave blank to generate one." value={name} onChange={(event) => setName(event.target.value)} />
+      <Field label={t("App name")} autoFocus maxLength={63} pattern="[a-z][a-z0-9\-]{1,62}" title={t("Lowercase letters, numbers and hyphens, starting with a letter")} hint={t("Optional. Leave blank to generate one.")} value={name} onChange={(event) => setName(event.target.value)} />
       <EnvironmentField value={environmentId} onChange={setEnvironmentId} />
       <details className="rounded-panel border border-line-strong">
-        <summary className="focus-ring cursor-pointer rounded-panel p-3 text-meta font-medium">Advanced settings</summary>
+        <summary className="focus-ring cursor-pointer rounded-panel p-3 text-meta font-medium">{t("Advanced settings")}</summary>
         <div className="grid items-start gap-4 border-t border-line p-3 sm:grid-cols-2">
-          <Field label="Image version" maxLength={128} placeholder={template.default_version} value={version} onChange={(event) => setVersion(event.target.value)} />
+          <Field label={t("Image version")} maxLength={128} placeholder={template.default_version} value={version} onChange={(event) => setVersion(event.target.value)} />
           {template.fields.map((field) => (
             <Field
-              label={field.label}
+              label={t(field.label)}
               type={field.type === "password" ? "password" : "text"}
               autoComplete="off"
               minLength={field.min || undefined}
               maxLength={field.max || undefined}
               pattern={field.pattern?.replace(/^\^|\$$/g, "")}
               placeholder={field.default}
-              hint={field.generate ? "Leave blank to generate." : undefined}
+              hint={field.generate ? t("Leave blank to generate.") : undefined}
               value={environment[field.name] ?? ""}
               onChange={(event) => setEnvironment({ ...environment, [field.name]: event.target.value })}
               key={field.name}
@@ -66,10 +67,10 @@ export function CreateServiceForm({ template, path }: { template: DatabaseTempla
       <FormError message={error} />
       <div className="flex flex-wrap justify-end gap-2">
         <Link className="btn" to="../apps">
-          Cancel
+          {t("Cancel")}
         </Link>
         <button className="btn btn-primary" type="submit" disabled={pending}>
-          {pending ? "Creating…" : "Create app"}
+          {pending ? t("Creating…") : t("Create app")}
         </button>
       </div>
     </form>

@@ -10,10 +10,11 @@ import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
+import { t } from "@/lib/i18n";
 
-const kinds: Record<StorageKind, string> = { volume: "Volume", bind: "Directory mount", file: "File mount" };
+const kinds: Record<StorageKind, string> = { volume: t("Volume"), bind: t("Directory mount"), file: t("File mount") };
 const pathPattern = "(/[A-Za-z0-9_.\\-]+)+";
-const pathTitle = "An absolute path using letters, numbers, dots, dashes and underscores";
+const pathTitle = t("An absolute path using letters, numbers, dots, dashes and underscores");
 
 function Row({ kind, title, detail, badge, children }: { kind: string; title: string; detail?: string; badge?: string; children?: ReactNode }) {
   return (
@@ -57,53 +58,53 @@ function StorageRow({ storage, url, locked, canWrite, onChanged }: { storage: Se
     if (removed) onChanged();
   }
 
-  const detail = storage.kind === "volume" ? `Volume ${storage.volume_name}` : storage.kind === "bind" ? `Server path ${storage.source}` : "Content stored encrypted";
+  const detail = storage.kind === "volume" ? t("Volume {name}", { name: storage.volume_name ?? "" }) : storage.kind === "bind" ? t("Server path {path}", { path: storage.source ?? "" }) : t("Content stored encrypted");
 
   return (
-    <Row kind={kinds[storage.kind]} title={storage.mount_path} detail={detail} badge={storage.applied ? undefined : "Pending deploy"}>
+    <Row kind={kinds[storage.kind]} title={storage.mount_path} detail={detail} badge={storage.applied ? undefined : t("Pending deploy")}>
       {canWrite && mode === "view" && (
         <div className="flex flex-wrap gap-2">
           {storage.kind === "file" && (
             <button className="btn" type="button" disabled={locked} onClick={edit}>
-              Edit content
+              {t("Edit content")}
             </button>
           )}
           <button className="btn btn-danger" type="button" disabled={locked} onClick={() => setMode("delete")}>
-            Remove
+            {t("Remove")}
           </button>
         </div>
       )}
       {mode === "edit" && (
         <form className="grid gap-3" onSubmit={save}>
           <label className="grid gap-1 text-meta font-medium">
-            File content
+            {t("File content")}
             <textarea className="field min-h-48 font-mono text-xs" spellCheck={false} disabled={content === null} value={content ?? ""} onChange={(event) => setContent(event.target.value)} />
           </label>
           <div className="flex flex-wrap gap-2">
             <button className="btn btn-primary" type="submit" disabled={pending || content === null}>
-              {pending ? "Saving…" : "Save content"}
+              {pending ? t("Saving…") : t("Save content")}
             </button>
             <button className="btn" type="button" disabled={pending} onClick={() => setMode("view")}>
-              Cancel
+              {t("Cancel")}
             </button>
           </div>
         </form>
       )}
       {mode === "delete" && (
         <div className="grid gap-3">
-          <p>Remove this mount from {storage.mount_path}? It stops being mounted on the next deploy.</p>
+          <p>{t("Remove this mount from {path}? It stops being mounted on the next deploy.", { path: storage.mount_path })}</p>
           {storage.kind === "volume" && (
             <label className="flex cursor-pointer items-center gap-2 text-meta">
               <input className="size-4 cursor-pointer accent-seafoam" type="checkbox" checked={deleteData} onChange={(event) => setDeleteData(event.target.checked)} />
-              Also delete the volume's data. This cannot be undone.
+              {t("Also delete the volume's data. This cannot be undone.")}
             </label>
           )}
           <div className="flex flex-wrap gap-2">
             <button className="btn btn-danger" type="button" disabled={pending} onClick={remove}>
-              {pending ? "Removing…" : "Confirm removal"}
+              {pending ? t("Removing…") : t("Confirm removal")}
             </button>
             <button className="btn" type="button" disabled={pending} onClick={() => setMode("view")}>
-              Cancel
+              {t("Cancel")}
             </button>
           </div>
         </div>
@@ -128,33 +129,33 @@ function AddStorageForm({ url, onAdded, onCancel }: { url: string; onAdded: () =
   }
 
   return (
-    <form className="grid gap-4 border-t border-line p-4" onSubmit={submit} aria-label="Add storage">
+    <form className="grid gap-4 border-t border-line p-4" onSubmit={submit} aria-label={t("Add storage")}>
       <div className="grid items-start gap-4 sm:grid-cols-2">
-        <SelectField label="Type" autoFocus value={kind} onChange={(event) => setKind(event.target.value as StorageKind)}>
+        <SelectField label={t("Type")} autoFocus value={kind} onChange={(event) => setKind(event.target.value as StorageKind)}>
           <option value="volume">{kinds.volume}</option>
           {user.is_root && <option value="bind">{kinds.bind}</option>}
           <option value="file">{kinds.file}</option>
         </SelectField>
-        <Field label={kind === "file" ? "File path in the container" : "Path in the container"} required maxLength={255} pattern={pathPattern} title={pathTitle} placeholder={kind === "file" ? "/etc/app/config.yml" : "/data"} value={mountPath} onChange={(event) => setMountPath(event.target.value)} />
+        <Field label={kind === "file" ? t("File path in the container") : t("Path in the container")} required maxLength={255} pattern={pathPattern} title={pathTitle} placeholder={kind === "file" ? "/etc/app/config.yml" : "/data"} value={mountPath} onChange={(event) => setMountPath(event.target.value)} />
         {kind === "bind" && (
           <div className="sm:col-span-2">
-            <Field label="Path on the server" required maxLength={255} pattern={pathPattern} title={pathTitle} placeholder="/srv/app/data" hint="The container can read and write this directory on the server." value={source} onChange={(event) => setSource(event.target.value)} />
+            <Field label={t("Path on the server")} required maxLength={255} pattern={pathPattern} title={pathTitle} placeholder="/srv/app/data" hint={t("The container can read and write this directory on the server.")} value={source} onChange={(event) => setSource(event.target.value)} />
           </div>
         )}
       </div>
       {kind === "file" && (
         <label className="grid gap-1 text-meta font-medium">
-          File content
+          {t("File content")}
           <textarea className="field min-h-48 font-mono text-xs" spellCheck={false} value={content} onChange={(event) => setContent(event.target.value)} />
         </label>
       )}
       <FormError message={error} />
       <div className="flex flex-wrap gap-2">
         <button className="btn btn-primary" type="submit" disabled={pending}>
-          {pending ? "Adding…" : "Add storage"}
+          {pending ? t("Adding…") : t("Add storage")}
         </button>
         <button className="btn" type="button" disabled={pending} onClick={onCancel}>
-          Cancel
+          {t("Cancel")}
         </button>
       </div>
     </form>
@@ -188,21 +189,21 @@ export function AppStoragePage() {
     reload();
   }
 
-  if (loadError && !storages) return <LoadError title="Could not load storage" message={loadError} onRetry={reload} />;
+  if (loadError && !storages) return <LoadError title={t("Could not load storage")} message={loadError} onRetry={reload} />;
 
   const empty = !service.data_path && storages?.length === 0;
   const pendingDeploy = changed || storages?.some(({ applied }) => !applied);
 
   return (
-    <AppSection title="Storage" description="Keep data across deploys and give the container files and directories. Changes apply on the next deploy.">
+    <AppSection title={t("Storage")} description={t("Keep data across deploys and give the container files and directories. Changes apply on the next deploy.")}>
       {pendingDeploy && (
         <p className="border-b border-line p-4 text-meta text-seafoam" role="status">
-          Deploy the app to apply these changes.
+          {t("Deploy the app to apply these changes.")}
         </p>
       )}
-      {empty && <p className="p-4 text-meta text-ink-soft">No storage yet, so anything this app writes is lost on the next deploy.</p>}
+      {empty && <p className="p-4 text-meta text-ink-soft">{t("No storage yet, so anything this app writes is lost on the next deploy.")}</p>}
       <ul>
-        {service.data_path && <Row kind="Main volume" title={service.data_path} detail={`Volume kymber-service-${service.id}-data`} badge="Deleted with the app" />}
+        {service.data_path && <Row kind={t("Main volume")} title={service.data_path} detail={t("Volume {name}", { name: `kymber-service-${service.id}-data` })} badge={t("Deleted with the app")} />}
         {storages?.map((storage) => (
           <StorageRow storage={storage} url={url} locked={locked} canWrite={canWrite} onChanged={refresh} key={storage.id} />
         ))}
@@ -219,8 +220,8 @@ export function AppStoragePage() {
           />
         ) : (
           <div className="border-t border-line p-4">
-            <button className="btn" type="button" disabled={locked} title={locked ? "Wait for the current action to finish" : undefined} onClick={() => setAdding(true)}>
-              Add storage
+            <button className="btn" type="button" disabled={locked} title={locked ? t("Wait for the current action to finish") : undefined} onClick={() => setAdding(true)}>
+              {t("Add storage")}
             </button>
           </div>
         ))}

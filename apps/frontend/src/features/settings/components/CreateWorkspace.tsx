@@ -4,6 +4,7 @@ import { useProjects } from "@/features/projects/ProjectsContext";
 import { FormFooter } from "@/features/settings/components/FormFooter";
 import { SettingsSection } from "@/features/settings/components/SettingsSection";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 export function CreateWorkspace() {
   const { createWorkspace } = useProjects();
@@ -19,14 +20,14 @@ export function CreateWorkspace() {
   }
 
   return (
-    <SettingsSection title="New workspace" description="You become its owner and switch to it.">
+    <SettingsSection title={t("New workspace")} description={t("You become its owner and switch to it.")}>
       <form onSubmit={submit}>
         <div className="p-4">
-          <Field label="Workspace name" required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
+          <Field label={t("Workspace name")} required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
         </div>
         <FormFooter error={error} saved={null}>
           <button className="btn btn-primary" type="submit" disabled={pending}>
-            {pending ? "Creating…" : "Create workspace"}
+            {pending ? t("Creating…") : t("Create workspace")}
           </button>
         </FormFooter>
       </form>

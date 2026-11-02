@@ -11,6 +11,7 @@ import { servicesPath, type DatabaseTemplate } from "@/features/projects/service
 import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
+import { t } from "@/lib/i18n";
 
 export function ProjectNewAppPage() {
   const { canWrite } = useProjects();
@@ -31,7 +32,7 @@ export function ProjectNewAppPage() {
   );
 
   if (!canWrite) return <Navigate to="../apps" replace />;
-  if (error) return <LoadError title="Could not load templates" message={error} onRetry={() => setAttempt((value) => value + 1)} />;
+  if (error) return <LoadError title={t("Could not load templates")} message={error} onRetry={() => setAttempt((value) => value + 1)} />;
   if (!templates) return <PageSkeleton />;
 
   const template = templates.find(({ engine }) => engine === params.get("template"));
@@ -40,7 +41,7 @@ export function ProjectNewAppPage() {
     <div className="grid min-w-0 gap-5 px-4 py-6 md:px-6">
       <Link className="focus-ring inline-flex w-fit items-center gap-1 rounded-sm text-meta text-ink-soft hover:text-ink" to="../apps">
         <ArrowLeft aria-hidden="true" size={14} />
-        All apps
+        {t("All apps")}
       </Link>
       {template?.custom ? (
         <DockerImageForm path={servicesPath(workspace.id, project.id)} />
@@ -48,7 +49,7 @@ export function ProjectNewAppPage() {
         <CreateServiceForm template={template} path={servicesPath(workspace.id, project.id)} key={template.engine} />
       ) : (
         <>
-          <h2 className="section-title">Choose what to create</h2>
+          <h2 className="section-title">{t("Choose what to create")}</h2>
           <TemplateGallery templates={templates} />
         </>
       )}

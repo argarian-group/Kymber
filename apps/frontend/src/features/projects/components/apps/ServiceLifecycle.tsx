@@ -1,13 +1,14 @@
-const steps = ["Draft", "Queued", "Working", "Running"];
+import { t } from "@/lib/i18n";
+const steps = [t("Draft"), t("Queued"), t("Working"), t("Running")];
 
 const positions: Record<string, number> = { draft: 0, queued: 1, deploying: 2, failed: 2, running: 3, stopped: 3 };
 
 export function ServiceLifecycle({ status }: { status: string }) {
   const current = positions[status] ?? 0;
-  const labels = steps.map((step, index) => (index === 3 && status === "stopped" ? "Stopped" : index === 2 && status === "failed" ? "Failed" : step));
+  const labels = steps.map((step, index) => (index === 3 && status === "stopped" ? t("Stopped") : index === 2 && status === "failed" ? t("Failed") : step));
 
   return (
-    <ol className="grid grid-cols-4 gap-1" aria-label={`Status: ${labels[current]}`}>
+    <ol className="grid grid-cols-4 gap-1" aria-label={t("Status: {status}", { status: labels[current] })}>
       {labels.map((label, index) => {
         const active = index === current;
         const tone = status === "failed" && active ? "bg-ember" : status === "stopped" && active ? "bg-ink-faint" : index <= current ? "bg-seafoam" : "bg-white/12";

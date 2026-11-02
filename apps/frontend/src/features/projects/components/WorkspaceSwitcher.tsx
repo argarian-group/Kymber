@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "react-router";
 import { useProjects, workspaceLabel } from "@/features/projects/ProjectsContext";
+import { t } from "@/lib/i18n";
 
 export function WorkspaceSwitcher() {
   const { workspaces, selectedWorkspaceId, selectWorkspace } = useProjects();
@@ -13,7 +14,7 @@ export function WorkspaceSwitcher() {
 
   return (
     <label className="block min-w-0">
-      <span className="sr-only">Workspace</span>
+      <span className="sr-only">{t("Workspace")}</span>
       <select className="field cursor-pointer truncate font-medium" value={selectedWorkspaceId ?? ""} onChange={(event) => {
           selectWorkspace(event.target.value);
           if (pathname.startsWith("/projects/")) navigate("/projects");

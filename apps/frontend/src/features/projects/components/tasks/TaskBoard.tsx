@@ -3,6 +3,7 @@ import { AddInline } from "@/features/projects/components/tasks/AddInline";
 import { TaskColumn } from "@/features/projects/components/tasks/TaskColumn";
 import { TaskListDialog } from "@/features/projects/components/tasks/TaskListDialog";
 import { positionBefore, tasksInList, type Board, type Task, type TaskListColumn } from "@/features/projects/tasks";
+import { t } from "@/lib/i18n";
 
 type TaskBoardProps = {
   board: Board;
@@ -85,7 +86,7 @@ export function TaskBoard({ board, visible, onOpen, onMoveTask, onReorderLists, 
         />
       ))}
       <div className="w-[85vw] flex-none snap-start rounded-panel bg-sunken/60 p-2 sm:w-72">
-        <AddInline label="Add list" placeholder="List name" maxLength={80} onAdd={onCreateList} />
+        <AddInline label={t("Add list")} placeholder={t("List name")} maxLength={80} onAdd={onCreateList} />
       </div>
       {editing && (
         <TaskListDialog

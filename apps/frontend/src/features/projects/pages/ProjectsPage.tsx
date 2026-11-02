@@ -8,6 +8,7 @@ import { useCurrentUser } from "@/features/auth/AuthContext";
 import { useProjects, workspaceLabel } from "@/features/projects/ProjectsContext";
 import { CreateProjectForm } from "@/features/projects/components/CreateProjectForm";
 import { ProjectRow } from "@/features/projects/components/ProjectRow";
+import { t } from "@/lib/i18n";
 
 export function ProjectsPage() {
   const { state, workspaces, canWrite, retry } = useProjects();
@@ -18,16 +19,16 @@ export function ProjectsPage() {
   if (state.status === "error") {
     return (
       <>
-        <PageHeader title="Projects" />
-        <LoadError title="Could not load projects" message={state.message} onRetry={retry} />
+        <PageHeader title={t("Projects")} />
+        <LoadError title={t("Could not load projects")} message={state.message} onRetry={retry} />
       </>
     );
   }
   if (!state.workspace) {
     return (
       <>
-        <PageHeader title="Projects" />
-        <EmptyState title="No workspace yet" description={user.is_root ? "Create a workspace to start adding projects." : "Ask an administrator to add you to a workspace."} action={user.is_root && <Link className="btn" to="/settings/workspace">Create workspace</Link>} />
+        <PageHeader title={t("Projects")} />
+        <EmptyState title={t("No workspace yet")} description={user.is_root ? t("Create a workspace to start adding projects.") : t("Ask an administrator to add you to a workspace.")} action={user.is_root && <Link className="btn" to="/settings/workspace">{t("Create workspace")}</Link>} />
       </>
     );
   }
@@ -39,13 +40,13 @@ export function ProjectsPage() {
   return (
     <>
       <PageHeader
-        title="Projects"
-        description={`${workspaceLabel(state.workspace, workspaces)}, ${count} ${count === 1 ? "project" : "projects"}`}
+        title={t("Projects")}
+        description={count === 1 ? t("{workspace}, {count} project", { workspace: workspaceLabel(state.workspace, workspaces), count }) : t("{workspace}, {count} projects", { workspace: workspaceLabel(state.workspace, workspaces), count })}
         actions={
           canWrite &&
           !creating && (
             <button className="btn btn-primary" type="button" onClick={startCreating}>
-              New project
+              {t("New project")}
             </button>
           )
         }
@@ -53,12 +54,12 @@ export function ProjectsPage() {
       {creating && <CreateProjectForm onClose={() => setCreatingIn(null)} />}
       {count === 0 && !creating ? (
         <EmptyState
-          title="No projects yet"
-          description={canWrite ? "Create the first project in this workspace." : "A workspace admin can create the first project."}
+          title={t("No projects yet")}
+          description={canWrite ? t("Create the first project in this workspace.") : t("A workspace admin can create the first project.")}
           action={
             canWrite && (
               <button className="btn" type="button" onClick={startCreating}>
-                Create project
+                {t("Create project")}
               </button>
             )
           }

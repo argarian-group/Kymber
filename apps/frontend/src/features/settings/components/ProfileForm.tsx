@@ -5,6 +5,7 @@ import { FormFooter } from "@/features/settings/components/FormFooter";
 import { SettingsSection } from "@/features/settings/components/SettingsSection";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 export function ProfileForm() {
   const user = useCurrentUser();
@@ -30,23 +31,23 @@ export function ProfileForm() {
       setUsername(response.user.username);
       setEmail(response.user.email);
       setCurrentPassword("");
-      setSaved("Profile saved.");
+      setSaved(t("Profile saved."));
     });
   }
 
   return (
-    <SettingsSection title="Profile" description="How you appear in Kymber and the email you log in with.">
+    <SettingsSection title={t("Profile")} description={t("How you appear in Kymber and the email you log in with.")}>
       <form onSubmit={submit}>
         <div className="grid items-start gap-4 p-4 sm:grid-cols-2">
-          <Field label="Username" autoComplete="username" required minLength={3} maxLength={32} hint="3 to 32 letters, numbers, _ or -." value={username} onChange={(event) => setUsername(event.target.value)} />
-          <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
+          <Field label={t("Username")} autoComplete="username" required minLength={3} maxLength={32} hint={t("3 to 32 letters, numbers, _ or -.")} value={username} onChange={(event) => setUsername(event.target.value)} />
+          <Field label={t("Email")} type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
           {changed && (
-            <Field label="Confirm with your password" type="password" autoComplete="current-password" required hint="Needed to save these changes." value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+            <Field label={t("Confirm with your password")} type="password" autoComplete="current-password" required hint={t("Needed to save these changes.")} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
           )}
         </div>
         <FormFooter error={error} saved={saved}>
           <button className="btn btn-primary" type="submit" disabled={pending || !changed}>
-            {pending ? "Saving…" : "Save profile"}
+            {pending ? t("Saving…") : t("Save profile")}
           </button>
         </FormFooter>
       </form>

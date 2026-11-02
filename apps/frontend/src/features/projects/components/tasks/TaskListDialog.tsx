@@ -6,6 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { useProjects } from "@/features/projects/ProjectsContext";
 import { type TaskListColumn } from "@/features/projects/tasks";
 import { useAction } from "@/lib/useAction";
+import { t } from "@/lib/i18n";
 
 type TaskListDialogProps = {
   list: TaskListColumn;
@@ -35,38 +36,38 @@ export function TaskListDialog({ list, index, count, onSave, onDelete, onMove, o
   }
 
   return (
-    <Modal label="Edit list" className="max-w-md" onClose={onClose}>
+    <Modal label={t("Edit list")} className="max-w-md" onClose={onClose}>
       <form className="grid gap-4 p-4" onSubmit={submit}>
-        <h2 className="section-title">Edit list</h2>
-        <Field label="Name" required autoFocus maxLength={80} value={name} onChange={(event) => setName(event.target.value)} />
+        <h2 className="section-title">{t("Edit list")}</h2>
+        <Field label={t("Name")} required autoFocus maxLength={80} value={name} onChange={(event) => setName(event.target.value)} />
         <label className="flex cursor-pointer items-start gap-2">
           <input className="mt-1 accent-seafoam" type="checkbox" checked={isDone} onChange={(event) => setIsDone(event.target.checked)} />
           <span>
-            <span className="block text-meta font-medium">Tasks here are done</span>
-            <span className="block text-xs text-ink-soft">They stop showing as late.</span>
+            <span className="block text-meta font-medium">{t("Tasks here are done")}</span>
+            <span className="block text-xs text-ink-soft">{t("They stop showing as late.")}</span>
           </span>
         </label>
         <div className="flex gap-2">
           <button className="btn" type="button" disabled={index === 0} onClick={() => { onMove(-1); onClose(); }}>
             <ArrowLeft aria-hidden="true" size={14} />
-            Move left
+            {t("Move left")}
           </button>
           <button className="btn" type="button" disabled={index === count - 1} onClick={() => { onMove(1); onClose(); }}>
-            Move right
+            {t("Move right")}
             <ArrowRight aria-hidden="true" size={14} />
           </button>
         </div>
         <FormError message={error} />
         <div className="flex flex-wrap items-center gap-2">
           <button className="btn btn-primary" type="submit" disabled={pending}>
-            Save list
+            {t("Save list")}
           </button>
           <button className="btn" type="button" onClick={onClose} disabled={pending}>
-            Cancel
+            {t("Cancel")}
           </button>
           {canWrite && (
             <button className="btn btn-danger ml-auto" type="button" onClick={confirming ? confirmDelete : () => setConfirming(true)} disabled={pending}>
-              {confirming ? "Confirm delete" : "Delete"}
+              {confirming ? t("Confirm delete") : t("Delete")}
             </button>
           )}
         </div>

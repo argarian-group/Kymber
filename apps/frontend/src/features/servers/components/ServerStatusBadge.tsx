@@ -1,9 +1,10 @@
 import type { ServerStatus } from "@/features/servers/types";
+import { t } from "@/lib/i18n";
 
 const styles: Record<ServerStatus, { label: string; dot: string }> = {
-  online: { label: "Online", dot: "bg-ok" },
-  offline: { label: "Offline", dot: "bg-ember" },
-  pending: { label: "Waiting to connect", dot: "bg-amber motion-safe:animate-pulse" },
+  online: { label: t("Online"), dot: "bg-ok" },
+  offline: { label: t("Offline"), dot: "bg-ember" },
+  pending: { label: t("Waiting to connect"), dot: "bg-amber motion-safe:animate-pulse" },
 };
 
 export function ServerStatusBadge({ status }: { status: ServerStatus }) {

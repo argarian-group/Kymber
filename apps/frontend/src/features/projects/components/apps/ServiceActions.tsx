@@ -7,21 +7,22 @@ import { isServiceBusy, type Service, type ServiceAction } from "@/features/proj
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
+import { t } from "@/lib/i18n";
 
 type DeployTarget = { id: string; name: string };
 
 const available: Record<string, { action: ServiceAction; label: string; primary?: boolean }[]> = {
-  draft: [{ action: "deploy", label: "Deploy", primary: true }],
+  draft: [{ action: "deploy", label: t("Deploy"), primary: true }],
   running: [
-    { action: "deploy", label: "Deploy", primary: true },
-    { action: "restart", label: "Restart" },
-    { action: "stop", label: "Stop" },
+    { action: "deploy", label: t("Deploy"), primary: true },
+    { action: "restart", label: t("Restart") },
+    { action: "stop", label: t("Stop") },
   ],
   stopped: [
-    { action: "start", label: "Start", primary: true },
-    { action: "deploy", label: "Deploy" },
+    { action: "start", label: t("Start"), primary: true },
+    { action: "deploy", label: t("Deploy") },
   ],
-  failed: [{ action: "deploy", label: "Deploy", primary: true }],
+  failed: [{ action: "deploy", label: t("Deploy"), primary: true }],
 };
 
 export function ServiceActions({ service, path, workspaceId, deployOutput, onChanged }: { service: Service; path: string; workspaceId: string; deployOutput: string | null; onChanged: () => void }) {
@@ -55,7 +56,7 @@ export function ServiceActions({ service, path, workspaceId, deployOutput, onCha
       <div className="flex flex-wrap items-center gap-2">
         {choosing && servers.length > 1 && (
           <label className="flex items-center gap-2 text-meta text-ink-soft">
-            Deploy to
+            {t("Deploy to")}
             <select className="field w-auto cursor-pointer" value={target} onChange={(event) => setServerId(event.target.value)}>
               {servers.map(({ id, name }) => (
                 <option value={id} key={id}>
@@ -72,9 +73,9 @@ export function ServiceActions({ service, path, workspaceId, deployOutput, onCha
         ))}
       </div>
       {!showDeployment && <FormError message={error} />}
-      {error === "no online server is available" && user.is_root && (
+      {error === t("no online server is available") && user.is_root && (
         <Link className="text-button text-meta" to="/servers">
-          Set up a server
+          {t("Set up a server")}
         </Link>
       )}
       {showDeployment && <DeploymentDialog service={service} version={service.image_version} pending={pending} error={error} output={deployOutput} onClose={() => setShowDeployment(false)} />}

@@ -2,6 +2,7 @@ import { ChevronsUpDown } from "lucide-react";
 import { useId } from "react";
 import { useCurrentUser } from "@/features/auth/AuthContext";
 import { LogoutButton } from "./LogoutButton";
+import { t } from "@/lib/i18n";
 
 export function SidebarProfile() {
   const user = useCurrentUser();
@@ -32,10 +33,10 @@ export function SidebarProfile() {
         className="pop-in inset-auto bottom-18 left-3 m-0 w-50 rounded-panel border border-line-strong bg-raised p-3 text-ink"
         popover="auto"
         role="dialog"
-        aria-label="Profile"
+        aria-label={t("Profile")}
       >
         <p className="truncate text-meta font-medium">{user.username}</p>
-        <p className="mb-3 truncate text-xs text-ink-soft">{user.is_root ? "Root account" : user.email}</p>
+        <p className="mb-3 truncate text-xs text-ink-soft">{user.is_root ? t("Root account") : user.email}</p>
         <LogoutButton className="w-full justify-center" />
       </div>
     </div>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { RichTextEditor } from "@/components/richtext/RichTextEditor";
 import { RichTextView } from "@/components/richtext/RichTextView";
 import { descriptionLimit } from "@/features/projects/tasks";
+import { t } from "@/lib/i18n";
 
 export function TaskDescription({ value, onSave }: { value: string; onSave: (description: string) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -20,17 +21,17 @@ export function TaskDescription({ value, onSave }: { value: string; onSave: (des
     <section aria-labelledby="task-description">
       <div className="mb-2 flex items-center justify-between">
         <h3 id="task-description" className="font-medium">
-          Description
+          {t("Description")}
         </h3>
         {draft === null && value && (
           <button className="btn" type="button" onClick={() => setDraft(value)}>
-            Edit
+            {t("Edit")}
           </button>
         )}
       </div>
       {draft !== null ? (
         <div className="grid grid-cols-1 gap-2">
-          <RichTextEditor label="Description" placeholder="Add details, steps, links, tables…" initial={value} limit={descriptionLimit} size="min-h-48" autoFocus value={draft} onChange={setDraft} />
+          <RichTextEditor label={t("Description")} placeholder={t("Add details, steps, links, tables…")} initial={value} limit={descriptionLimit} size="min-h-48" autoFocus value={draft} onChange={setDraft} />
           <div className="flex gap-2">
             <button
               className="btn btn-primary"
@@ -41,10 +42,10 @@ export function TaskDescription({ value, onSave }: { value: string; onSave: (des
                 setDraft(null);
               }}
             >
-              Save
+              {t("Save")}
             </button>
             <button className="btn" type="button" onClick={() => setDraft(null)}>
-              Cancel
+              {t("Cancel")}
             </button>
           </div>
         </div>
@@ -52,7 +53,7 @@ export function TaskDescription({ value, onSave }: { value: string; onSave: (des
         <RichTextView html={value} onToggleTask={onSave} />
       ) : (
         <button className="focus-ring min-h-16 w-full cursor-pointer rounded-control bg-sunken px-3 py-2 text-left text-ink-soft hover:text-ink" type="button" onClick={() => setDraft("")}>
-          Add a description
+          {t("Add a description")}
         </button>
       )}
     </section>
