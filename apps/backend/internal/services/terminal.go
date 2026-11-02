@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -74,6 +75,28 @@ func containerShellCleanup(container, sessionID string) string {
 	return containerCommand(container, false, script, sessionID)
 }
 
+// terminalAllowed answers whether a session may stay open. A database error keeps it open, since it says nothing about the user's access.
+func (h *Handler) terminalAllowed(r *http.Request, workspaceID string) bool {
+	user, active, err := auth.ActiveUser(h.db, r)
+	if err != nil {
+		return true
+	}
+	if !active {
+		return false
+	}
+	if user.IsRoot {
+		return true
+	}
+	if workspaceID == "" {
+		return false
+	}
+	var role string
+	if err := h.db.QueryRowContext(r.Context(), "SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?", workspaceID, user.ID).Scan(&role); err != nil {
+		return !errors.Is(err, sql.ErrNoRows)
+	}
+	return role == "owner" || role == "admin"
+}
+
 func (h *Handler) serverTerminal(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	// A server shell reaches the whole machine and every workspace on it.
@@ -85,7 +108,7 @@ func (h *Handler) serverTerminal(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	h.runTerminal(w, r, user, serverID, "", "")
+	h.runTerminal(w, r, user, "", serverID, "", "")
 }
 
 func (h *Handler) serviceTerminal(w http.ResponseWriter, r *http.Request) {
@@ -101,12 +124,12 @@ func (h *Handler) serviceTerminal(w http.ResponseWriter, r *http.Request) {
 	}
 	sessionID := hex.EncodeToString(raw)
 	container := serviceTemplate(service).ContainerName(service.Name, service.ID)
-	h.runTerminal(w, r, user, service.ServerID, containerShellCommand(container, sessionID), containerShellCleanup(container, sessionID))
+	h.runTerminal(w, r, user, service.WorkspaceID, service.ServerID, containerShellCommand(container, sessionID), containerShellCleanup(container, sessionID))
 }
 
 // runTerminal bridges a WebSocket to an SSH PTY: binary frames carry terminal bytes and text frames carry resizes. An empty command opens the login shell.
-// shortcut: access is checked when the session opens, so a removed user keeps it until the idle limit; recheck on each ping if that window matters.
-func (h *Handler) runTerminal(w http.ResponseWriter, r *http.Request, user auth.User, serverID, command, cleanup string) {
+// An empty workspace means a server shell, which only the root account may keep.
+func (h *Handler) runTerminal(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID, serverID, command, cleanup string) {
 	if !openTerminals.acquire(user.ID) {
 		writeError(w, http.StatusTooManyRequests, "too many open terminals; close one and try again")
 		return
@@ -210,6 +233,10 @@ func (h *Handler) runTerminal(w http.ResponseWriter, r *http.Request, user auth.
 				}
 				if time.Since(started) > terminalMaxLifetime {
 					end("closed after reaching the 8 hour limit")
+					return
+				}
+				if !h.terminalAllowed(r, workspaceID) {
+					end("closed because your access changed")
 					return
 				}
 				if send(websocket.PingMessage, nil) != nil {

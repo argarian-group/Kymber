@@ -144,7 +144,11 @@ func (h *Handler) runInContainer(w http.ResponseWriter, r *http.Request, service
 	case 126, 127:
 		writeError(w, http.StatusConflict, "this image has no shell, so its files cannot be browsed")
 	default:
-		writeError(w, http.StatusBadGateway, strings.TrimSpace(string(output)))
+		message := strings.TrimSpace(string(output))
+		if message == "" {
+			message = "the command failed inside the container"
+		}
+		writeError(w, http.StatusBadGateway, message)
 	}
 	return nil, false
 }

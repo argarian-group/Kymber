@@ -23,6 +23,7 @@ END`
 
 func New(db *sql.DB) *Handler { return &Handler{db: db} }
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	go h.resumeDeployWatches()
 	for _, route := range []struct {
 		pattern string
 		handler http.HandlerFunc

@@ -306,6 +306,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusBadGateway, "SSH service deployment failed: "+err.Error())
 				return
 			}
+			go h.watchDeploy(serverID, serviceID, false)
 			w.WriteHeader(http.StatusAccepted)
 			return
 		}
@@ -378,19 +379,13 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 			code = strings.TrimSpace(code)
 			if code == "0" {
 				status = "running"
-				// Only the deploy that just finished applied the storages; later polls must not mark new ones.
-				if result, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'running', last_error = NULL WHERE id = ? AND status = 'deploying'", serviceID); err == nil {
-					if changed, _ := result.RowsAffected(); changed > 0 {
-						_, _ = h.db.ExecContext(r.Context(), "UPDATE service_storages SET applied = TRUE WHERE service_id = ?", serviceID)
-						_, _ = h.db.ExecContext(r.Context(), "UPDATE service_ports SET applied = TRUE WHERE service_id = ?", serviceID)
-					}
-				}
+				h.finishDeploy(r.Context(), serviceID, true, "")
 				if _, container, found := strings.Cut(after, "__KYMBER_CONTAINER__"); found {
 					output = strings.TrimSpace(output) + "\n\n--- Container output ---\n" + strings.TrimSpace(container)
 				}
 			} else {
 				status = "failed"
-				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", strings.TrimSpace(output), serviceID)
+				h.finishDeploy(r.Context(), serviceID, false, strings.TrimSpace(output))
 			}
 		}
 		logs = []byte(strings.TrimSpace(output))

@@ -58,6 +58,7 @@ cp .env.example .env
 | `SERVER_PORT` | API port, `8080` when not set |
 | `SECURE_ONBOARD` | When `true`, the API listens only on localhost until the root account exists |
 | `SERVICE_ENCRYPTION_KEY` | Encrypts app settings. Required to create apps. Generate it with `openssl rand -hex 32` |
+| `KYMBER_TRUST_PROXY` | When `true`, rate limits use the client address sent by the reverse proxy. Set it only when the API is reachable through that proxy alone |
 | `DB_HOST`, `DB_PORT`, `DB_NAME` | MariaDB address and database |
 | `DB_USER`, `DB_PASSWORD` | MariaDB application user |
 | `DB_ROOT_PASSWORD` | MariaDB root password |
