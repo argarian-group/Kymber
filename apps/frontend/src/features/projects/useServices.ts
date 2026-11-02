@@ -4,7 +4,6 @@ import { useLoadEffect } from "@/lib/useLoadEffect";
 import { useProjectOutlet } from "./useProjectOutlet";
 import { isServiceBusy, servicesPath, type Service } from "./services";
 
-// The API allows 120 requests a minute per client, so only poll quickly while something is changing.
 const busyPollMs = 2000;
 const idlePollMs = 15000;
 
