@@ -5,15 +5,15 @@ import { isServiceBusy } from "@/features/projects/services";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
 
 export function AppDangerPage() {
-  const { service, path, appsPath, canWrite, onChanged } = useAppOutlet();
+  const { service, path, appsPath, canWrite } = useAppOutlet();
 
   if (!canWrite) return <Navigate to=".." replace />;
 
-  const blocked = isServiceBusy(service.status) ? "Wait for the current action to finish." : service.status === "running" ? "Stop the app first." : null;
+  const blocked = isServiceBusy(service.status) ? "Wait for the current action to finish." : null;
 
   return (
     <AppSection title="Danger zone">
-      {blocked ? <p className="p-4 text-meta text-ink-soft">{blocked}</p> : <ServiceDanger service={service} path={path} appsPath={appsPath} onChanged={onChanged} />}
+      {blocked ? <p className="p-4 text-meta text-ink-soft">{blocked}</p> : <ServiceDanger service={service} path={path} appsPath={appsPath} />}
     </AppSection>
   );
 }

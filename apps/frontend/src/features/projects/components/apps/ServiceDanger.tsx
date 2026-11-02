@@ -5,22 +5,16 @@ import type { Service } from "@/features/projects/services";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 
-export function ServiceDanger({ service, path, appsPath, onChanged }: { service: Service; path: string; appsPath: string; onChanged: () => void }) {
+export function ServiceDanger({ service, path, appsPath }: { service: Service; path: string; appsPath: string }) {
   const navigate = useNavigate();
-  const [confirming, setConfirming] = useState<"remove" | "delete" | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const { pending, error, run } = useAction();
 
   async function confirm() {
-    const action = confirming;
-    setConfirming(null);
+    setConfirming(false);
     await run(async () => {
-      if (action === "remove") {
-        await api(`${path}/${service.id}/remove_container`, { method: "POST" });
-        onChanged();
-      } else {
-        await api(`${path}/${service.id}`, { method: "DELETE" });
-        navigate(appsPath, { replace: true });
-      }
+      await api(`${path}/${service.id}`, { method: "DELETE" });
+      navigate(appsPath, { replace: true });
     });
   }
 
@@ -28,24 +22,19 @@ export function ServiceDanger({ service, path, appsPath, onChanged }: { service:
     <div className="grid gap-3 p-4">
       {confirming ? (
         <>
-          <p>{confirming === "delete" ? `Delete ${service.name} and all its data? This cannot be undone.` : `Remove the container of ${service.name}? Its data stays, and you can deploy again.`}</p>
+          <p>Delete {service.name}, its container, and all its data? This cannot be undone.</p>
           <div className="flex flex-wrap gap-2">
             <button className="btn btn-danger" type="button" disabled={pending} onClick={confirm}>
-              {confirming === "delete" ? "Confirm delete" : "Confirm remove"}
+              Confirm delete
             </button>
-            <button className="btn" type="button" disabled={pending} onClick={() => setConfirming(null)}>
+            <button className="btn" type="button" disabled={pending} onClick={() => setConfirming(false)}>
               Cancel
             </button>
           </div>
         </>
       ) : (
         <div className="flex flex-wrap gap-2">
-          {service.status === "stopped" && (
-            <button className="btn" type="button" disabled={pending} onClick={() => setConfirming("remove")}>
-              Remove container
-            </button>
-          )}
-          <button className="btn btn-danger" type="button" disabled={pending} onClick={() => setConfirming("delete")}>
+          <button className="btn btn-danger" type="button" disabled={pending} onClick={() => setConfirming(true)}>
             Delete app
           </button>
         </div>

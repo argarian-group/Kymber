@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
 import { useProjectOutlet } from "./useProjectOutlet";
-import { isServiceBusy, servicesPath, type Service } from "./services";
+import { servicesPath, type Service } from "./services";
 
-const pollMs = 3000;
+const pollMs = 1000;
 
 export function useServices() {
   const { project, workspace } = useProjectOutlet();
@@ -12,6 +12,7 @@ export function useServices() {
   const [services, setServices] = useState<Service[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [poll, setPoll] = useState(0);
   const reload = () => setAttempt((value) => value + 1);
 
   useLoadEffect(
@@ -21,15 +22,14 @@ export function useServices() {
       setError(null);
     },
     setError,
-    [path, attempt],
+    [path, attempt, poll],
   );
 
-  const busy = services?.some(({ status }) => isServiceBusy(status)) ?? false;
   useEffect(() => {
-    if (!busy) return;
-    const timer = window.setInterval(reload, pollMs);
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    const timer = window.setInterval(() => setPoll((value) => value + 1), pollMs);
     return () => window.clearInterval(timer);
-  }, [busy]);
+  }, [path]);
 
   return { services, error, reload, path };
 }

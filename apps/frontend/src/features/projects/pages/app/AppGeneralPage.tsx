@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
+import { useEffect } from "react";
 import { Field } from "@/components/ui/Field";
+import { Modal } from "@/components/ui/Modal";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
 import { ProjectDetail } from "@/features/projects/components/overview/ProjectDetail";
 import { isServiceBusy } from "@/features/projects/services";
@@ -13,10 +15,35 @@ export function AppGeneralPage() {
   const [name, setName] = useState(service.name);
   const [version, setVersion] = useState(service.image_version);
   const [saved, setSaved] = useState<string | null>(null);
+  const [showLogs, setShowLogs] = useState(false);
+  const [logs, setLogs] = useState("Starting deployment…");
+  const [deployStatus, setDeployStatus] = useState(service.status);
   const { pending, error, run } = useAction();
   const draft = service.status === "draft";
   const busy = isServiceBusy(service.status);
   const changed = name !== service.name || version !== service.image_version;
+
+  useEffect(() => {
+    if (!showLogs) return;
+    let active = true;
+    const load = async () => {
+      try {
+        const result = await api<{ status: string; logs: string }>(`${path}/${service.id}/logs`);
+        if (active) {
+          setLogs(result.logs || "Waiting for container output…");
+          setDeployStatus(result.status);
+        }
+      } catch (cause) {
+        if (active) setLogs(cause instanceof Error ? cause.message : "Could not load deployment logs");
+      }
+    };
+    void load();
+    const timer = window.setInterval(load, 2000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [path, service.id, showLogs]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -26,6 +53,9 @@ export function AppGeneralPage() {
         await api(`${path}/${service.id}`, { method: "PUT", body: { name, image_version: version } });
         setSaved("Saved.");
       } else {
+        setLogs("Starting deployment…");
+        setDeployStatus("deploying");
+        setShowLogs(true);
         await api(`${path}/${service.id}/deploy`, { method: "POST", body: { image_version: version } });
         setSaved(`Deploying ${version}.`);
       }
@@ -61,6 +91,17 @@ export function AppGeneralPage() {
           <ProjectDetail label="App ID">{service.id}</ProjectDetail>
         </dl>
       </AppSection>
+      {showLogs && (
+        <Modal label="Deployment logs" className="max-w-3xl" onClose={() => setShowLogs(false)} onCancel={() => setShowLogs(false)}>
+          <div className="grid gap-4 p-5">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="font-display text-lg font-semibold">{deployStatus === "running" ? "Deployment complete" : deployStatus === "failed" ? "Deployment failed" : "Deployment logs"}</h2>
+              <button className="btn" type="button" onClick={() => setShowLogs(false)}>Close</button>
+            </div>
+            <pre className="max-h-[60vh] min-h-48 overflow-auto rounded-control bg-canvas p-4 font-mono text-xs whitespace-pre-wrap text-ink-soft" aria-live="polite">{logs}</pre>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
