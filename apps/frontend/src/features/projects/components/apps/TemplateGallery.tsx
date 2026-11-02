@@ -1,15 +1,16 @@
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { EngineMark } from "@/features/projects/components/apps/EngineMark";
 import { appCategories, engineLabel, engines } from "@/features/projects/engines";
 import type { DatabaseTemplate } from "@/features/projects/services";
 import { t } from "@/lib/i18n";
 
-function GalleryCard({ engine, to, title, description }: { engine: string; to: string; title: string; description: string }) {
+function GalleryCard({ engine, image, to, title, description }: { engine: string; image?: string; to: string; title: string; description: string }) {
   return (
     <li className="min-w-0">
       <Link className="row-link flex h-full items-center gap-3 rounded-panel bg-raised p-4" to={to}>
-        <EngineMark engine={engine} />
+        <EngineMark engine={engine} image={image} />
         <span className="min-w-0 flex-1">
           <span className="block font-display text-base font-semibold">{title}</span>
           <span className="block truncate text-meta text-ink-soft">{description}</span>
@@ -23,20 +24,35 @@ function GalleryCard({ engine, to, title, description }: { engine: string; to: s
 export function TemplateGallery({ templates }: { templates: DatabaseTemplate[] }) {
   const custom = templates.find((template) => template.custom);
   const [params] = useSearchParams();
+  const [query, setQuery] = useState("");
   const environment = params.get("environment");
   const suffix = environment ? `&environment=${environment}` : "";
+  const filtered = templates.filter((template) => !template.custom && `${engineLabel(template.engine)} ${engines[template.engine]?.description ?? template.image}`.toLowerCase().includes(query.trim().toLowerCase()));
   return (
     <div className="grid gap-6">
-      {appCategories.map(({ id, label, item }) => (
+      <label className="relative block">
+        <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" aria-hidden="true" size={16} />
+        <input className="field pl-9" type="search" placeholder={t("Search apps")} value={query} onChange={(event) => setQuery(event.target.value)} />
+      </label>
+      {custom && (
+        <Link className="row-link flex items-center gap-3 rounded-panel bg-raised p-4" to={`?template=${custom.engine}${suffix}`}>
+          <EngineMark engine={custom.engine} />
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-base font-semibold">{t("Search Docker Hub")}</span>
+            <span className="block truncate text-meta text-ink-soft">{t("Any public image from Docker Hub")}</span>
+          </span>
+          <ChevronRight className="flex-none text-ink-faint" aria-hidden="true" size={16} />
+        </Link>
+      )}
+      {appCategories.filter(({ id }) => filtered.some((template) => template.category === id)).map(({ id, label }) => (
         <section className="grid gap-3" aria-label={label} key={id}>
           <h3 className="text-meta font-medium text-ink-soft">{label}</h3>
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {templates
+            {filtered
               .filter((template) => template.category === id)
               .map(({ engine, image }) => (
-                <GalleryCard engine={engine} to={`?template=${engine}${suffix}`} title={engineLabel(engine)} description={engines[engine]?.description ?? image} key={engine} />
+                <GalleryCard engine={engine} image={image} to={`?template=${engine}${suffix}`} title={engineLabel(engine)} description={engines[engine]?.description ?? image} key={engine} />
               ))}
-            {custom && <GalleryCard engine={custom.engine} to={`?template=${custom.engine}&category=${id}${suffix}`} title={engineLabel(custom.engine)} description={t("Any {item} from Docker Hub", { item })} />}
           </ul>
         </section>
       ))}
