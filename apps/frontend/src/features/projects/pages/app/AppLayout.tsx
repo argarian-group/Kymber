@@ -1,4 +1,4 @@
-import { ArrowLeft, HardDrive, KeyRound, Plug, Settings2, TriangleAlert } from "lucide-react";
+import { ArrowLeft, HardDrive, KeyRound, Plug, ScrollText, Settings2, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, Outlet, useParams } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -67,6 +67,7 @@ export function AppLayout() {
   };
   const sections = [
     { label: "General", to: "", end: true, icon: Settings2 },
+    { label: "Logs", to: "logs", end: false, icon: ScrollText },
     ...(canWrite
       ? [
           { label: "Environment", to: "environment", end: false, icon: KeyRound },

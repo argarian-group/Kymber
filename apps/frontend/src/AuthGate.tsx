@@ -12,6 +12,7 @@ import { AppDangerPage } from "@/features/projects/pages/app/AppDangerPage";
 import { AppEnvironmentPage } from "@/features/projects/pages/app/AppEnvironmentPage";
 import { AppGeneralPage } from "@/features/projects/pages/app/AppGeneralPage";
 import { AppLayout } from "@/features/projects/pages/app/AppLayout";
+import { AppLogsPage } from "@/features/projects/pages/app/AppLogsPage";
 import { AppStoragePage } from "@/features/projects/pages/app/AppStoragePage";
 import { ProjectNewAppPage } from "@/features/projects/pages/ProjectNewAppPage";
 import { ProjectAppsPage } from "@/features/projects/pages/ProjectAppsPage";
@@ -63,6 +64,7 @@ export function AuthGate() {
                       <Route index element={<AppGeneralPage />} />
                       <Route path="environment" element={<AppEnvironmentPage />} />
                       <Route path="connection" element={<AppConnectionPage />} />
+                      <Route path="logs" element={<AppLogsPage />} />
                       <Route path="storage" element={<AppStoragePage />} />
                       <Route path="danger" element={<AppDangerPage />} />
                     </Route>
