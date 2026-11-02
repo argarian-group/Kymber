@@ -10,7 +10,7 @@ import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 
 export function AppGeneralPage() {
-  const { service, path, canWrite, onChanged } = useAppOutlet();
+  const { service, path, canWrite, onChanged, deployOutput } = useAppOutlet();
   const [name, setName] = useState(service.name);
   const [version, setVersion] = useState(service.image_version);
   const [saved, setSaved] = useState<string | null>(null);
@@ -64,7 +64,7 @@ export function AppGeneralPage() {
           <ProjectDetail label="App ID">{service.id}</ProjectDetail>
         </dl>
       </AppSection>
-      {deploying && <DeploymentDialog service={service} version={deploying} pending={pending} error={error} onClose={() => setDeploying(null)} />}
+      {deploying && <DeploymentDialog service={service} version={deploying} pending={pending} error={error} output={deployOutput} onClose={() => setDeploying(null)} />}
     </div>
   );
 }

@@ -24,7 +24,7 @@ const available: Record<string, { action: ServiceAction; label: string; primary?
   failed: [{ action: "deploy", label: "Deploy", primary: true }],
 };
 
-export function ServiceActions({ service, path, workspaceId, onChanged }: { service: Service; path: string; workspaceId: string; onChanged: () => void }) {
+export function ServiceActions({ service, path, workspaceId, deployOutput, onChanged }: { service: Service; path: string; workspaceId: string; deployOutput: string | null; onChanged: () => void }) {
   const user = useCurrentUser();
   const { pending, error, run } = useAction();
   const busy = isServiceBusy(service.status);
@@ -77,7 +77,7 @@ export function ServiceActions({ service, path, workspaceId, onChanged }: { serv
           Set up a server
         </Link>
       )}
-      {showDeployment && <DeploymentDialog service={service} version={service.image_version} pending={pending} error={error} onClose={() => setShowDeployment(false)} />}
+      {showDeployment && <DeploymentDialog service={service} version={service.image_version} pending={pending} error={error} output={deployOutput} onClose={() => setShowDeployment(false)} />}
     </div>
   );
 }

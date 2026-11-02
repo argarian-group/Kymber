@@ -29,6 +29,10 @@ export type Service = {
   environment?: Record<string, string>;
 };
 
+export type StorageKind = "volume" | "bind" | "file";
+
+export type ServiceStorage = { id: string; kind: StorageKind; source?: string; mount_path: string; volume_name?: string; applied: boolean };
+
 export type ProjectEnvironment = { id: string; name: string };
 
 export type ServiceAction = "deploy" | "start" | "stop" | "restart" | "remove_container" | "remove_container_image";

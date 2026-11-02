@@ -36,6 +36,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}", h.updateService},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/{action}", h.serviceAction},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/logs", h.serviceLogs},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/storages", h.listStorages},
+		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/storages", h.createStorage},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/storages/{storageID}", h.getStorageContent},
+		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/storages/{storageID}", h.updateStorageContent},
+		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/storages/{storageID}", h.deleteStorage},
 		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}", h.deleteService},
 	} {
 		mux.Handle(route.pattern, auth.Authenticate(h.db, route.handler))

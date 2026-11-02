@@ -12,6 +12,7 @@ import { useProjects } from "@/features/projects/ProjectsContext";
 import type { DatabaseTemplate, Service } from "@/features/projects/services";
 import type { AppOutlet } from "@/features/projects/useAppOutlet";
 import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
+import { useDeploymentOutput } from "@/features/projects/useDeploymentOutput";
 import { useServices } from "@/features/projects/useServices";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
@@ -31,6 +32,7 @@ export function AppLayout() {
   const [templates, setTemplates] = useState<DatabaseTemplate[]>([]);
   const [revision, setRevision] = useState(0);
   const service = services?.find(({ id }) => id === appId);
+  const deployOutput = useDeploymentOutput(path, service?.id, service?.status);
 
   useLoadEffect(
     () => (canWrite && appId ? api<Service>(`${path}/${appId}`) : Promise.resolve(null)),
@@ -85,6 +87,7 @@ export function AppLayout() {
     canWrite,
     appsPath: `/projects/${project.id}/apps`,
     onChanged,
+    deployOutput,
   };
 
   return (
@@ -106,7 +109,7 @@ export function AppLayout() {
               <ServiceStatus status={service.status} />
             </div>
           </div>
-          {canWrite && <ServiceActions service={service} path={path} workspaceId={workspace.id} onChanged={onChanged} />}
+          {canWrite && <ServiceActions service={service} path={path} workspaceId={workspace.id} deployOutput={deployOutput} onChanged={onChanged} />}
         </div>
         <ServiceLifecycle status={service.status} />
       </section>

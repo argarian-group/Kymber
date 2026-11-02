@@ -53,7 +53,7 @@ export function AppLogsPage() {
     inFlight.current = true;
     setLoading(true);
     try {
-      const result = await api<{ logs: string }>(`${path}/${service.id}/logs`);
+      const result = await api<{ logs: string }>(`${path}/${service.id}/logs?source=runtime`);
       setLogs(result.logs);
       setUpdatedAt(new Date());
       setError(null);
@@ -135,7 +135,7 @@ export function AppLogsPage() {
   const placeholder = logs === null ? (error ? "Logs could not be loaded." : "Loading logs…") : limited.length === 0 ? "No output yet." : "No lines match this search.";
 
   return (
-    <AppSection title="Runtime logs" description="Output from the app's container. Refreshing pauses while this tab is in the background.">
+    <AppSection title="Runtime logs" description="Output from the running container. Refreshing pauses while this tab is in the background.">
       <div className={`grid gap-3 bg-raised p-4 ${fullscreen ? "h-screen grid-rows-[auto_auto_auto_minmax(0,1fr)]" : ""}`} ref={panel}>
         <div className="flex flex-wrap items-center gap-2">
           <label className="relative min-w-40 flex-1">

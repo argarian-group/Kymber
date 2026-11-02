@@ -3,14 +3,14 @@ import { Modal } from "@/components/ui/Modal";
 import { ProjectDetail } from "@/features/projects/components/overview/ProjectDetail";
 import { isServiceBusy, type Service } from "@/features/projects/services";
 
-// shortcut: shows progress only because the API discards deploy output, upgrade when it stores deployment logs.
-export function DeploymentDialog({ service, version, pending, error, onClose }: { service: Service; version: string; pending: boolean; error: string | null; onClose: () => void }) {
-  const failure = pending ? null : error ?? (service.status === "failed" ? service.last_error ?? "The deployment failed." : null);
-  const working = !failure && (pending || isServiceBusy(service.status));
-  const title = failure ? "Deployment failed" : working ? "Deploying…" : "Deployment complete";
+export function DeploymentDialog({ service, version, pending, error, output, onClose }: { service: Service; version: string; pending: boolean; error: string | null; output: string | null; onClose: () => void }) {
+  const failed = !pending && (Boolean(error) || service.status === "failed");
+  const working = !failed && (pending || isServiceBusy(service.status));
+  const title = failed ? "Deployment failed" : working ? "Deploying…" : "Deployment complete";
+  const text = pending ? "Starting deployment…" : (error ?? output ?? service.last_error ?? "Waiting for deployment output…");
 
   return (
-    <Modal label="Deployment" className="max-w-xl" onClose={onClose} onCancel={onClose}>
+    <Modal label="Deployment" className="max-w-3xl" onClose={onClose} onCancel={onClose}>
       <div className="grid gap-4 p-5">
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-display text-lg font-semibold" aria-live="polite">{title}</h2>
@@ -22,8 +22,8 @@ export function DeploymentDialog({ service, version, pending, error, onClose }: 
           </ProjectDetail>
           <ProjectDetail label="Server">{service.server_name ?? "Assigning…"}</ProjectDetail>
         </dl>
-        {failure && <pre className="max-h-[50vh] overflow-auto rounded-control bg-canvas p-4 font-mono text-xs whitespace-pre-wrap text-ember">{failure}</pre>}
-        {!working && !failure && (
+        <pre className={`max-h-[50vh] min-h-32 overflow-auto rounded-control bg-canvas p-4 font-mono text-xs whitespace-pre-wrap ${failed ? "text-ember" : "text-ink-soft"}`} tabIndex={0} aria-label="Deployment output">{text}</pre>
+        {!working && !failed && (
           <Link className="text-button w-fit text-meta" to="logs" onClick={onClose}>
             View runtime logs
           </Link>
