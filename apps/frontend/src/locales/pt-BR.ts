@@ -1,4 +1,3 @@
-// Keys are the English text passed to t(); a missing key falls back to English.
 export const ptBR = {
   "(edited)": "(editado)",
   ", which rewrites this file on every deploy.": ", que reescreve este arquivo a cada deploy.",
