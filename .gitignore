@@ -15,3 +15,10 @@ graphify-out/
 .codex/
 .cursor/
 .continue/
+
+# Tests stay local
+*_test.go
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
