@@ -79,26 +79,7 @@ func run() error {
 			time.Sleep(5 * time.Second)
 			continue
 		}
-		var current task
-		err := request(ctx, client, baseURL, token, "/api/agent/tasks/claim", nil, &current)
-		if err != nil {
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		if current.ID == "" {
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		outcome := fitResult(execute(current))
-		body, _ := json.Marshal(outcome)
-		for {
-			err := request(ctx, client, baseURL, agentToken(fixedToken, tokenFile), fmt.Sprintf("/api/agent/tasks/%s/result", current.ID), body, nil)
-			if err == nil {
-				break
-			}
-			fmt.Fprintf(os.Stderr, "could not report task %s result: %v\n", current.ID, err)
-			time.Sleep(5 * time.Second)
-		}
+		time.Sleep(15 * time.Second)
 	}
 }
 
