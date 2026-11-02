@@ -1,9 +1,11 @@
 services:
   secrets-init:
     image: busybox:1.37.0
-    command: ["sh", "-c", "if [ ! -s /run/kymber-secrets/service-encryption-key ]; then head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \\n' > /tmp/service-encryption-key; chown 65532:65532 /tmp/service-encryption-key; chmod 0400 /tmp/service-encryption-key; mv /tmp/service-encryption-key /run/kymber-secrets/service-encryption-key; fi; chown 65532:65532 /run/kymber-secrets; chmod 0700 /run/kymber-secrets"]
+    command: ["sh", "-c", "if [ ! -s /run/kymber-secrets/service-encryption-key ]; then head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \\n' > /tmp/service-encryption-key; chown 65532:65532 /tmp/service-encryption-key; chmod 0400 /tmp/service-encryption-key; mv /tmp/service-encryption-key /run/kymber-secrets/service-encryption-key; fi; cp /host-secrets/local-ssh-key /run/kymber-secrets/local-ssh-key; cp /host-secrets/local-ssh-hostkey.pub /run/kymber-secrets/local-ssh-hostkey.pub; chown 65532:65532 /run/kymber-secrets/local-ssh-key /run/kymber-secrets/local-ssh-hostkey.pub /run/kymber-secrets; chmod 0400 /run/kymber-secrets/local-ssh-key; chmod 0444 /run/kymber-secrets/local-ssh-hostkey.pub; chmod 0700 /run/kymber-secrets"]
     volumes:
       - kymber_secrets:/run/kymber-secrets
+      - ${KYMBER_LOCAL_SSH_PRIVATE_KEY_FILE:-./.local/kymber-local-ssh}:/host-secrets/local-ssh-key:ro
+      - ${KYMBER_LOCAL_SSH_HOST_KEY_FILE:-/etc/ssh/ssh_host_ed25519_key.pub}:/host-secrets/local-ssh-hostkey.pub:ro
 
   traefik:
     image: traefik:v3.7.15
@@ -50,6 +52,9 @@ services:
       SERVER_PORT: "8080"
       SECURE_ONBOARD: ${SECURE_ONBOARD:-false}
       SERVICE_ENCRYPTION_KEY_FILE: /run/kymber-secrets/service-encryption-key
+      KYMBER_LOCAL_SSH_HOST: host.docker.internal
+      KYMBER_LOCAL_SSH_PRIVATE_KEY_FILE: /run/kymber-secrets/local-ssh-key
+      KYMBER_LOCAL_SSH_HOST_KEY_FILE: /run/kymber-secrets/local-ssh-hostkey.pub
       KYMBER_SERVER_TOKEN_FILE: /run/kymber-secrets/server-token
       DB_HOST: mariadb
       DB_PORT: "3306"
@@ -59,6 +64,8 @@ services:
     networks:
       - data
       - proxy
+    extra_hosts:
+      - host.docker.internal:host-gateway
     labels:
       - traefik.enable=true
       - traefik.http.routers.kymber-api.rule=Path(`/api`) || PathPrefix(`/api/`) || Path(`/health`)
@@ -98,6 +105,7 @@ services:
       - proxy
 
   server:
+    profiles: [monitoring]
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
@@ -107,7 +115,6 @@ services:
       KYMBER_API_URL: http://backend:8080
       KYMBER_SERVER_TOKEN_FILE: /run/kymber-secrets/server-token
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
       - kymber_secrets:/run/kymber-secrets:ro
     networks:
       - proxy

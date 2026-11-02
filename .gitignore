@@ -1,5 +1,6 @@
 # Global
 .env
+/.local/
 
 # Build Files
 apps/backend/build/

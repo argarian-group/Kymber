@@ -18,10 +18,8 @@ EXPOSE 8080
 
 ENTRYPOINT ["/api"]
 
-FROM docker:29-cli AS server
+FROM gcr.io/distroless/static-debian12:nonroot AS server
 
-COPY --from=build /out/server /server
-
-USER root
+COPY --from=build --chown=nonroot:nonroot /out/server /server
 
 ENTRYPOINT ["/server"]

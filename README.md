@@ -58,8 +58,6 @@ cp .env.example .env
 | `SERVER_PORT` | API port, `8080` when not set |
 | `SECURE_ONBOARD` | When `true`, the API listens only on localhost until the root account exists |
 | `SERVICE_ENCRYPTION_KEY` | Encrypts app settings. Required to create apps. Generate it with `openssl rand -hex 32` |
-| `KYMBER_API_URL` | API address used by a server, `http://127.0.0.1:8080` when not set |
-| `KYMBER_SERVER_TOKEN` | Token shown when you register a server |
 | `DB_HOST`, `DB_PORT`, `DB_NAME` | MariaDB address and database |
 | `DB_USER`, `DB_PASSWORD` | MariaDB application user |
 | `DB_ROOT_PASSWORD` | MariaDB root password |
@@ -102,21 +100,11 @@ curl http://localhost:8080/health
 
 ### Run apps
 
-Root registers servers under **Servers**, which shows the token once. An app stays on the server chosen at its first deploy.
+Root registers servers under **Servers**. Local setup follows Coolify's host-install approach: run `make up` as your normal user; `scripts/setup-local-ssh.sh` creates a persistent Ed25519 key and uses `sudo` to add its public key to root's `authorized_keys` on first setup only. Do not run `sudo make up`, since the frontend tools should run as your user. For a direct Docker Compose install, run the setup script before `docker compose up --build -d`. The host needs `sshd`, Docker, and its Ed25519 host public key at `/etc/ssh/ssh_host_ed25519_key.pub`. The backend stores the private key encrypted and executes Docker actions over SSH.
 
-To run a server on this machine:
+For a remote server, provide its SSH host key during registration and install the displayed public key in the remote user's `~/.ssh/authorized_keys`. Deployments and service actions then run directly over SSH; the agent is not used for deployments.
 
-```bash
-KYMBER_SERVER_TOKEN=<token> make server
-```
-
-To run a server on another machine with Docker, compile it with `make build-server`, copy `apps/backend/build/kymber-server` there, then run:
-
-```bash
-KYMBER_API_URL=https://<kymber-address> KYMBER_SERVER_TOKEN=<token> ./kymber-server
-```
-
-The API must be reachable from that machine. Addresses other than this machine require HTTPS.
+An app remains assigned to the server selected at its first deploy. The old heartbeat agent is optional and only reports presence; it has no task-claim or Docker-socket access.
 
 To delete all local data, stop the app and run `docker compose down -v`.
 
