@@ -153,3 +153,7 @@ assets/                  # Logo, banner and background
 - [ ] Application apps and deploy history
 - [x] Tasks in the API
 - [ ] Collaboration and progress tracking
+
+## License
+
+Kymber is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only). If you modify Kymber and offer it to users over a network, you must make your modified source code available to them.
