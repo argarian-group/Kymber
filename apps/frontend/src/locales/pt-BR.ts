@@ -895,6 +895,7 @@ export const ptBR = {
   "The invitation must have been created for {email}.": "O convite precisa ter sido criado para {email}.",
   "the lists changed, reload and try again": "as listas mudaram; recarregue e tente novamente",
   "The logo must be 5 MB or smaller.": "O logo deve ter no máximo 5 MB.",
+  "the metrics token is not configured; set KYMBER_METRICS_TOKEN": "o token de métricas não está configurado; defina KYMBER_METRICS_TOKEN",
   "The name can only change before the first deploy. Changing the version deploys it again and keeps the data.": "O nome só pode mudar antes do primeiro deploy. Mudar a versão faz um novo deploy e mantém os dados.",
   "The new passwords do not match.": "As novas senhas não coincidem.",
   "The passwords do not match.": "As senhas não coincidem.",

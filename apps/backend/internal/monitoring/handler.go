@@ -68,6 +68,7 @@ func Remove(ctx context.Context, db *sql.DB, serverID string) {
 		return
 	}
 	_, _ = sshclient.Run(ctx, db, serverID, removeCommand)
+	connections.forget(serverID, nil)
 }
 
 func (h *Handler) rootServer(w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -103,6 +104,11 @@ func (h *Handler) install(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if h.token == "" {
+		writeError(w, http.StatusServiceUnavailable, "the metrics token is not configured; set KYMBER_METRICS_TOKEN")
+		return
+	}
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(6 * time.Minute))
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
 	if output, err := sshclient.Run(ctx, h.db, id, installCommand); err != nil {
@@ -125,6 +131,7 @@ func (h *Handler) uninstall(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, strings.TrimSpace("could not stop monitoring on the server: "+string(output)))
 		return
 	}
+	connections.forget(id, nil)
 	if _, err := h.db.ExecContext(r.Context(), "UPDATE servers SET monitoring_installed_at = NULL WHERE id = ?", id); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save monitoring status")
 		return
@@ -243,14 +250,8 @@ func (h *Handler) scrape(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
-	connection, err := sshclient.Connect(ctx, h.db, id)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "could not reach the server")
-		return
-	}
-	defer connection.Close()
-	transport := &http.Transport{DisableKeepAlives: true, DialContext: func(context.Context, string, string) (net.Conn, error) {
-		return connection.Dial("tcp", "127.0.0.1:"+port)
+	transport := &http.Transport{DisableKeepAlives: true, DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return connections.dial(ctx, h.db, id, "127.0.0.1:"+port)
 	}}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:"+port+"/metrics", nil)
 	if err != nil {

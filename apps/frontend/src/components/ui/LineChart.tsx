@@ -41,7 +41,7 @@ export function LineChart({ title, points, format, max, height = 96 }: { title: 
         </p>
       ) : (
         <svg
-          className="block w-full touch-none overflow-visible text-seafoam"
+          className="block w-full touch-pan-y overflow-visible text-seafoam"
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="none"
           style={{ height }}

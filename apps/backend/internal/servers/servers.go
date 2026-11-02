@@ -418,14 +418,8 @@ func (h *Handler) deleteServer(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	tx, err := h.db.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "could not delete server")
-		return
-	}
-	defer tx.Rollback()
 	var apps int
-	if err := tx.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM database_services WHERE server_id = ? AND status <> 'deleted' FOR UPDATE", id).Scan(&apps); err != nil {
+	if err := h.db.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM database_services WHERE server_id = ? AND status <> 'deleted'", id).Scan(&apps); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not check server apps")
 		return
 	}
@@ -434,6 +428,20 @@ func (h *Handler) deleteServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	monitoring.Remove(r.Context(), h.db, id)
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not delete server")
+		return
+	}
+	defer tx.Rollback()
+	if err := tx.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM database_services WHERE server_id = ? AND status <> 'deleted' FOR UPDATE", id).Scan(&apps); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not check server apps")
+		return
+	}
+	if apps > 0 {
+		writeError(w, http.StatusConflict, "delete this server's apps first")
+		return
+	}
 	for _, query := range []string{"DELETE FROM server_tasks WHERE server_id = ?", "DELETE FROM database_services WHERE server_id = ? AND status = 'deleted'"} {
 		if _, err := tx.ExecContext(r.Context(), query, id); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not delete server")
