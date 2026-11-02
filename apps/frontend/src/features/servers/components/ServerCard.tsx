@@ -1,5 +1,6 @@
 import { Server as ServerIcon } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { ServerStatusBadge } from "@/features/servers/components/ServerStatusBadge";
@@ -66,6 +67,11 @@ export function ServerCard({ server, onChanged }: { server: Server; onChanged: (
         {mode === "view" && (
           <div className="flex flex-wrap gap-2">
             {server.connection_type === "local" && !server.ssh_configured && <button className="btn btn-primary" type="button" disabled={pending} onClick={setupSSH}>{pending ? "Configuring…" : "Enable SSH for local host"}</button>}
+            {server.ssh_configured && (
+              <Link className="btn" to={`/terminal?server=${server.id}`}>
+                Terminal
+              </Link>
+            )}
             <button className="btn" type="button" onClick={() => setMode("rename")}>
               Rename
             </button>

@@ -13,6 +13,7 @@ import { AppEnvironmentPage } from "@/features/projects/pages/app/AppEnvironment
 import { AppFilesPage } from "@/features/projects/pages/app/AppFilesPage";
 import { AppGeneralPage } from "@/features/projects/pages/app/AppGeneralPage";
 import { AppLayout } from "@/features/projects/pages/app/AppLayout";
+import { AppTerminalPage } from "@/features/projects/pages/app/AppTerminalPage";
 import { AppLogsPage } from "@/features/projects/pages/app/AppLogsPage";
 import { AppStoragePage } from "@/features/projects/pages/app/AppStoragePage";
 import { ProjectNewAppPage } from "@/features/projects/pages/ProjectNewAppPage";
@@ -28,6 +29,7 @@ import { InviteAcceptPage } from "@/features/workspaces/pages/InviteAcceptPage";
 import { InviteSignupPage } from "@/features/workspaces/pages/InviteSignupPage";
 import { TeamPage } from "@/features/workspaces/pages/TeamPage";
 
+const TerminalPage = lazy(() => import("@/features/terminal/TerminalPage").then((module) => ({ default: module.TerminalPage })));
 const DashboardPage = lazy(() => import("@/features/dashboard/DashboardPage").then((module) => ({ default: module.DashboardPage })));
 
 export function AuthGate() {
@@ -66,6 +68,7 @@ export function AuthGate() {
                       <Route path="environment" element={<AppEnvironmentPage />} />
                       <Route path="connection" element={<AppConnectionPage />} />
                       <Route path="files" element={<AppFilesPage />} />
+                      <Route path="terminal" element={<AppTerminalPage />} />
                       <Route path="logs" element={<AppLogsPage />} />
                       <Route path="storage" element={<AppStoragePage />} />
                       <Route path="danger" element={<AppDangerPage />} />
@@ -78,6 +81,7 @@ export function AuthGate() {
                   <Route path="deploys" element={<Navigate to="/projects" replace />} />
                   <Route path="team" element={<TeamPage />} />
                   <Route path="servers" element={<ServersPage />} />
+                  <Route path="terminal" element={<TerminalPage />} />
                   <Route path="invite" element={<InviteAcceptPage />} />
                   <Route path="settings" element={<SettingsPage section="account" />} />
                   <Route path="settings/appearance" element={<SettingsPage section="appearance" />} />

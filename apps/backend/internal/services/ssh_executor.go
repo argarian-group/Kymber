@@ -16,7 +16,7 @@ func (h *Handler) executeSSH(ctx context.Context, serverID string, command strin
 	return h.executeSSHInput(ctx, serverID, command, nil)
 }
 
-func (h *Handler) executeSSHInput(ctx context.Context, serverID string, command string, stdin []byte) ([]byte, error) {
+func (h *Handler) connectSSH(ctx context.Context, serverID string) (*ssh.Client, error) {
 	var host, username string
 	var port int
 	var encryptedKey, encodedHostKey []byte
@@ -36,7 +36,11 @@ func (h *Handler) executeSSHInput(ctx context.Context, serverID string, command 
 	if err != nil {
 		return nil, err
 	}
-	connection, err := ssh.Dial("tcp", net.JoinHostPort(host, strconv.Itoa(port)), &ssh.ClientConfig{User: username, Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)}, HostKeyCallback: ssh.FixedHostKey(hostKey), HostKeyAlgorithms: []string{hostKey.Type()}, Timeout: 15 * time.Second})
+	return ssh.Dial("tcp", net.JoinHostPort(host, strconv.Itoa(port)), &ssh.ClientConfig{User: username, Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)}, HostKeyCallback: ssh.FixedHostKey(hostKey), HostKeyAlgorithms: []string{hostKey.Type()}, Timeout: 15 * time.Second})
+}
+
+func (h *Handler) executeSSHInput(ctx context.Context, serverID string, command string, stdin []byte) ([]byte, error) {
+	connection, err := h.connectSSH(ctx, serverID)
 	if err != nil {
 		return nil, err
 	}

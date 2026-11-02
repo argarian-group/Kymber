@@ -1,4 +1,4 @@
-import { ArrowLeft, FolderOpen, HardDrive, KeyRound, Plug, ScrollText, Settings2, TriangleAlert } from "lucide-react";
+import { ArrowLeft, FolderOpen, HardDrive, KeyRound, Plug, ScrollText, Settings2, SquareTerminal, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, Outlet, useParams } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -74,6 +74,7 @@ export function AppLayout() {
           { label: "Environment", to: "environment", end: false, icon: KeyRound },
           { label: "Connection", to: "connection", end: false, icon: Plug },
           { label: "Files", to: "files", end: false, icon: FolderOpen },
+          { label: "Terminal", to: "terminal", end: false, icon: SquareTerminal },
         ]
       : []),
     { label: "Storage", to: "storage", end: false, icon: HardDrive },
