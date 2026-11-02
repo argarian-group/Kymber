@@ -19,29 +19,42 @@ import (
 )
 
 type databaseService struct {
-	ID              string           `json:"id"`
-	WorkspaceID     string           `json:"workspace_id"`
-	ProjectID       string           `json:"project_id"`
-	Engine          string           `json:"engine"`
-	Image           string           `json:"image"`
-	ImageVersion    string           `json:"image_version"`
-	ServerID        string           `json:"server_id,omitempty"`
-	ServerName      string           `json:"server_name,omitempty"`
-	Name            string           `json:"name"`
-	DatabaseName    string           `json:"database_name"`
-	DatabaseUser    string           `json:"database_user"`
-	Status          string           `json:"status"`
-	LastError       string           `json:"last_error,omitempty"`
-	InternalHost    string           `json:"internal_host,omitempty"`
-	Port            int              `json:"port,omitempty"`
-	Domain          string           `json:"domain,omitempty"`
-	DataPath        string           `json:"data_path,omitempty"`
-	LogoURL         string           `json:"logo_url,omitempty"`
-	Category        string           `json:"category"`
-	EnvironmentID   string           `json:"environment_id,omitempty"`
-	EnvironmentName string           `json:"environment_name,omitempty"`
-	ConnectionURL   string           `json:"connection_url,omitempty"`
-	Environment     templates.Config `json:"environment,omitempty"`
+	ID              string             `json:"id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	ProjectID       string             `json:"project_id"`
+	Engine          string             `json:"engine"`
+	Image           string             `json:"image"`
+	ImageVersion    string             `json:"image_version"`
+	ServerID        string             `json:"server_id,omitempty"`
+	ServerName      string             `json:"server_name,omitempty"`
+	Name            string             `json:"name"`
+	DatabaseName    string             `json:"database_name"`
+	DatabaseUser    string             `json:"database_user"`
+	Status          string             `json:"status"`
+	LastError       string             `json:"last_error,omitempty"`
+	InternalHost    string             `json:"internal_host,omitempty"`
+	Port            int                `json:"port,omitempty"`
+	Domain          string             `json:"domain,omitempty"`
+	DataPath        string             `json:"data_path,omitempty"`
+	LogoURL         string             `json:"logo_url,omitempty"`
+	Category        string             `json:"category"`
+	EnvironmentID   string             `json:"environment_id,omitempty"`
+	EnvironmentName string             `json:"environment_name,omitempty"`
+	ConnectionURL   string             `json:"connection_url,omitempty"`
+	Environment     templates.Config   `json:"environment,omitempty"`
+	Compose         bool               `json:"compose,omitempty"`
+	ComposeFile     string             `json:"compose_file,omitempty"`
+	Containers      []composeContainer `json:"containers,omitempty"`
+	ContainersError string             `json:"containers_error,omitempty"`
+}
+
+type composeContainer struct {
+	Name          string   `json:"name"`
+	ContainerName string   `json:"container_name"`
+	Image         string   `json:"image"`
+	State         string   `json:"state"`
+	Status        string   `json:"status"`
+	Ports         []string `json:"ports"`
 }
 
 var serviceNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,62}$`)
@@ -57,7 +70,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, '') FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.workspace_id = ? AND d.project_id = ? ORDER BY d.created_at`, workspaceID, projectID)
+	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.compose_file IS NOT NULL, COALESCE(CAST(d.compose_file AS CHAR), '') FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.workspace_id = ? AND d.project_id = ? AND (d.status <> 'deleted' OR d.compose_file IS NULL) ORDER BY d.created_at`, workspaceID, projectID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list services")
 		return
@@ -66,11 +79,19 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	services := make([]databaseService, 0)
 	for rows.Next() {
 		var service databaseService
-		if err := rows.Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError); err != nil {
+		if err := rows.Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &service.Compose, &service.ComposeFile); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read services")
 			return
 		}
-		if template, ok := templates.Get(service.Engine); ok {
+		if service.Compose {
+			service.Image = "Docker Compose stack"
+			if service.Status != "draft" && service.Status != "queued" && service.Status != "deploying" {
+				service.Containers, err = h.readComposeContainers(r, service)
+				if err != nil {
+					service.ContainersError = err.Error()
+				}
+			}
+		} else if template, ok := templates.Get(service.Engine); ok {
 			template = template.ForService(service.Image, service.Port, service.DataPath)
 			service.Image, service.Port, service.DataPath = template.Image, 0, template.DataPath
 		}
@@ -109,8 +130,13 @@ func (h *Handler) createService(w http.ResponseWriter, r *http.Request) {
 		LogoURL       string           `json:"logo_url"`
 		Category      string           `json:"category"`
 		EnvironmentID string           `json:"environment_id"`
+		ComposeFile   string           `json:"compose_file"`
 	}
 	if !decodeJSON(w, r, &input) {
+		return
+	}
+	if input.ComposeFile != "" {
+		h.createComposeService(w, r, user, workspaceID, projectID, input.Name, input.EnvironmentID, input.ComposeFile)
 		return
 	}
 	input.Engine = strings.ToLower(strings.TrimSpace(input.Engine))
@@ -246,6 +272,7 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 		Name         string           `json:"name"`
 		ImageVersion string           `json:"image_version"`
 		Environment  templates.Config `json:"environment"`
+		ComposeFile  string           `json:"compose_file"`
 	}
 	if !decodeJSON(w, r, &input) {
 		return
@@ -257,6 +284,49 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read service")
+		return
+	}
+	if service.Compose {
+		if input.ComposeFile == "" || validateComposeFile(input.ComposeFile) != nil {
+			writeError(w, http.StatusBadRequest, "invalid Compose file")
+			return
+		}
+		if !strings.Contains(input.ComposeFile, "image:") {
+			writeError(w, http.StatusBadRequest, "every Compose service must use an existing image")
+			return
+		}
+		var stackNameCount int
+		if err := h.db.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM database_services WHERE project_id = ? AND environment_id = ? AND name = ? AND id <> ? AND compose_file IS NOT NULL", projectID, service.EnvironmentID, service.Name, serviceID).Scan(&stackNameCount); err != nil || stackNameCount > 0 {
+			writeError(w, http.StatusConflict, "stack name is already in use")
+			return
+		}
+		serverID := service.ServerID
+		if serverID == "" {
+			if err := h.db.QueryRowContext(r.Context(), "SELECT s.id FROM servers s WHERE s.connection_type = 'local' AND "+serverStatusSQL+" = 'online' ORDER BY s.created_at LIMIT 1").Scan(&serverID); err != nil {
+				writeError(w, http.StatusConflict, "Compose stacks require an online local server")
+				return
+			}
+		}
+		if service.Status != "deploying" && service.Status != "queued" {
+			if err := h.validateComposeOnServer(r, serverID, service, input.ComposeFile); err != nil {
+				writeError(w, http.StatusBadRequest, "invalid Compose file")
+				return
+			}
+		}
+		result, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET compose_file = ? WHERE id = ?", input.ComposeFile, serviceID)
+		if err != nil {
+			writeError(w, http.StatusConflict, "could not update Compose file")
+			return
+		}
+		if updated, _ := result.RowsAffected(); updated == 0 {
+			var exists bool
+			if err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM database_services WHERE id = ? AND workspace_id = ? AND project_id = ?)", serviceID, workspaceID, projectID).Scan(&exists); err != nil || !exists {
+				writeError(w, http.StatusNotFound, "service not found")
+				return
+			}
+		}
+		service.ComposeFile = input.ComposeFile
+		writeJSON(w, http.StatusOK, service)
 		return
 	}
 	if service.Status != "draft" {
@@ -368,11 +438,21 @@ func (h *Handler) updateServiceDomain(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) readService(r *http.Request, workspaceID, projectID string, serviceID string, includeSecret bool) (databaseService, error) {
 	var service databaseService
 	var encrypted []byte
-	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.encrypted_config FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.id = ? AND d.workspace_id = ? AND d.project_id = ?`, serviceID, workspaceID, projectID).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &encrypted)
+	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.encrypted_config, d.compose_file IS NOT NULL, COALESCE(CAST(d.compose_file AS CHAR), '') FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.id = ? AND d.workspace_id = ? AND d.project_id = ?`, serviceID, workspaceID, projectID).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &encrypted, &service.Compose, &service.ComposeFile)
 	if err != nil {
 		return service, err
 	}
 	service.Category = serviceCategory(service.Category)
+	if service.Compose {
+		service.Image = "Docker Compose stack"
+		if service.Status != "draft" && service.Status != "queued" && service.Status != "deploying" {
+			service.Containers, err = h.readComposeContainers(r, service)
+			if err != nil {
+				service.ContainersError = err.Error()
+			}
+		}
+		return service, nil
+	}
 	template := serviceTemplate(service)
 	service.Image, service.DataPath = template.Image, template.DataPath
 	service.InternalHost, service.Port = template.InternalHost(serviceID), template.Port
@@ -411,7 +491,8 @@ func (h *Handler) deleteService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var serverID sql.NullString
-	if err := h.db.QueryRowContext(r.Context(), "SELECT server_id FROM database_services WHERE id = ? AND workspace_id = ? AND project_id = ?", serviceID, workspaceID, projectID).Scan(&serverID); err != nil {
+	var compose bool
+	if err := h.db.QueryRowContext(r.Context(), "SELECT server_id, compose_file IS NOT NULL FROM database_services WHERE id = ? AND workspace_id = ? AND project_id = ?", serviceID, workspaceID, projectID).Scan(&serverID, &compose); err != nil {
 		writeError(w, http.StatusNotFound, "service not found")
 		return
 	}
@@ -423,6 +504,12 @@ func (h *Handler) deleteService(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+	if compose {
+		if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'deleted', last_error = NULL WHERE id = ?", serviceID); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not mark stack deleted")
+			return
+		}
+	}
 	if !h.requireServerOnline(w, r, serverID.String) {
 		return
 	}
@@ -433,6 +520,24 @@ func (h *Handler) deleteService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if connectionType == "ssh" || sshConfigured {
+		if compose {
+			service, err := h.readService(r, workspaceID, projectID, serviceID, false)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "could not read stack")
+				return
+			}
+			if err := h.executeComposeSSH(r, serverID.String, service, "delete"); err != nil {
+				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ?", err.Error(), serviceID)
+				writeError(w, http.StatusBadGateway, "Compose stack deletion failed: "+err.Error())
+				return
+			}
+			if _, err := h.db.ExecContext(r.Context(), "DELETE FROM database_services WHERE id = ?", serviceID); err != nil {
+				writeError(w, http.StatusInternalServerError, "stack removed but could not delete its record")
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		if err := h.executeServiceSSH(r, serverID.String, serviceID, "delete", ""); err != nil {
 			writeError(w, http.StatusBadGateway, "SSH app deletion failed: "+err.Error())
 			return
