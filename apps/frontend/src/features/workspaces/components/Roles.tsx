@@ -38,20 +38,20 @@ function memberCount(count: number) {
 export function RoleList({ roles, members, canEdit, onEdit }: { roles: Role[]; members: Member[]; canEdit: (role: Role) => boolean; onEdit: (role: Role) => void }) {
   return (
     <>
-      <p className="px-4 pt-4 text-meta text-ink-soft md:px-6">{t("Every member can view the workspace. A role decides what they can change. Built-in roles are fixed; create a role to choose exact permissions.")}</p>
+      <p className="px-4 pt-4 text-meta text-ink-soft md:px-6">{t("Every member can view the workspace. A role decides what they can change. The owner role always has full access.")}</p>
       <ul className="mt-4 border-t border-line">
         {roles.map((role) => (
           <li className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-4 py-3 md:px-6" key={role.name}>
             <div className="min-w-0 flex-1 basis-60">
               <p className="font-medium wrap-break-word">
                 {translate(role.name)}
-                {role.builtin && <span className="ml-2 text-xs font-normal text-ink-soft">{t("Built-in")}</span>}
+                {role.builtin && <span className="ml-2 text-xs font-normal text-ink-soft">{role.modified ? t("Built-in, changed") : t("Built-in")}</span>}
               </p>
               <p className="text-meta wrap-break-word text-ink-soft">{summary(role)}</p>
             </div>
             <span className="text-meta text-ink-soft tabular-nums">{memberCount(members.filter((member) => member.role === role.name).length)}</span>
             {canEdit(role) && (
-              <button className="btn" type="button" onClick={() => onEdit(role)} aria-label={t("Edit {name}", { name: role.name })}>
+              <button className="btn" type="button" onClick={() => onEdit(role)} aria-label={t("Edit {name}", { name: translate(role.name) })}>
                 {t("Edit")}
               </button>
             )}
@@ -68,7 +68,7 @@ export function RoleDialog({ role, workspaceId, inUse, grantable, onSaved, onClo
   const [confirming, setConfirming] = useState(false);
   const { pending, error, run } = useAction();
   const url = role ? `/workspaces/${workspaceId}/roles/${encodeURIComponent(role.name)}` : `/workspaces/${workspaceId}/roles`;
-  const title = role ? t("Edit role {name}", { name: role.name }) : t("New role");
+  const title = role ? t("Edit role {name}", { name: translate(role.name) }) : t("New role");
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -119,13 +119,18 @@ export function RoleDialog({ role, workspaceId, inUse, grantable, onSaved, onClo
           <button className="btn" type="button" onClick={onClose} disabled={pending}>
             {t("Cancel")}
           </button>
-          {role && !inUse && (
+          {role?.builtin && role.modified && (
+            <button className="btn ml-auto" type="button" disabled={pending} onClick={remove}>
+              {t("Restore defaults")}
+            </button>
+          )}
+          {role && !role.builtin && !inUse && (
             <button className="btn btn-danger ml-auto" type="button" disabled={pending} onClick={confirming ? remove : () => setConfirming(true)}>
               {confirming ? t("Confirm delete") : t("Delete role")}
             </button>
           )}
         </div>
-        {role && inUse && <p className="text-xs text-ink-soft">{t("Move its members to another role before deleting it.")}</p>}
+        {role && !role.builtin && inUse && <p className="text-xs text-ink-soft">{t("Move its members to another role before deleting it.")}</p>}
       </form>
     </Modal>
   );

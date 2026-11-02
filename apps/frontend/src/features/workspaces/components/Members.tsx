@@ -109,7 +109,7 @@ export function Members({ workspace, section }: { workspace: Workspace; section:
         </>
       )}
       {state.status === "ready" && section === "roles" && (
-        <RoleList roles={state.roles} members={state.members} canEdit={(role) => canManageMembers && !role.builtin && covered(role.name)} onEdit={setEditingRole} />
+        <RoleList roles={state.roles} members={state.members} canEdit={(role) => canManageMembers && role.name !== "owner" && covered(role.name)} onEdit={setEditingRole} />
       )}
       {editingRole && (
         <RoleDialog

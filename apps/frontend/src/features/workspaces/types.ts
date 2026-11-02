@@ -4,4 +4,4 @@ export type Member = { user_id: string; username: string; email: string; role: s
 
 export type Acceptance = { user: User; workspace_id: string; role: string };
 
-export type Role = { name: string; permissions: string[]; builtin: boolean };
+export type Role = { name: string; permissions: string[]; builtin: boolean; modified: boolean };

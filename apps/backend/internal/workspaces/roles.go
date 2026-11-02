@@ -18,6 +18,7 @@ type WorkspaceRole struct {
 	Name        string   `json:"name"`
 	Permissions []string `json:"permissions"`
 	Builtin     bool     `json:"builtin"`
+	Modified    bool     `json:"modified"`
 }
 
 type rolePayload struct {
@@ -31,16 +32,14 @@ func (h *Handler) listRoles(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.authorize(w, r, user, workspaceID, "") {
 		return
 	}
-	roles := make([]WorkspaceRole, 0, len(permissions.BuiltinOrder))
-	for _, name := range permissions.BuiltinOrder {
-		roles = append(roles, WorkspaceRole{Name: name, Permissions: permissions.Of(permissions.Builtin[name]).List(), Builtin: true})
-	}
 	rows, err := h.db.QueryContext(r.Context(), "SELECT name, permissions FROM workspace_roles WHERE workspace_id = ? ORDER BY created_at, name", workspaceID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list roles")
 		return
 	}
 	defer rows.Close()
+	overrides := map[string]string{}
+	custom := make([]WorkspaceRole, 0)
 	for rows.Next() {
 		var role WorkspaceRole
 		var stored string
@@ -48,13 +47,23 @@ func (h *Handler) listRoles(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "could not read roles")
 			return
 		}
+		if _, builtin := permissions.Builtin[role.Name]; builtin {
+			overrides[role.Name] = stored
+			continue
+		}
 		role.Permissions = permissions.ForRole(role.Name, sql.NullString{String: stored, Valid: true}).List()
-		roles = append(roles, role)
+		custom = append(custom, role)
 	}
 	if err := rows.Err(); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read roles")
 		return
 	}
+	roles := make([]WorkspaceRole, 0, len(permissions.BuiltinOrder)+len(custom))
+	for _, name := range permissions.BuiltinOrder {
+		stored, modified := overrides[name]
+		roles = append(roles, WorkspaceRole{Name: name, Permissions: permissions.ForRole(name, sql.NullString{String: stored, Valid: modified}).List(), Builtin: true, Modified: modified})
+	}
+	roles = append(roles, custom...)
 	writeJSON(w, http.StatusOK, map[string][]WorkspaceRole{"roles": roles})
 }
 
@@ -112,17 +121,26 @@ func (h *Handler) updateRole(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, err := h.db.ExecContext(r.Context(), "UPDATE workspace_roles SET permissions = ? WHERE workspace_id = ? AND name = ?", permissions.Encode(granted), workspaceID, name); err != nil {
+	if _, err := h.db.ExecContext(r.Context(), "INSERT INTO workspace_roles (workspace_id, name, permissions) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE permissions = VALUES(permissions)", workspaceID, name, permissions.Encode(granted)); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update role")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]WorkspaceRole{"role": {Name: name, Permissions: granted.List()}})
+	_, builtin := permissions.Builtin[name]
+	writeJSON(w, http.StatusOK, map[string]WorkspaceRole{"role": {Name: name, Permissions: granted.List(), Builtin: builtin, Modified: builtin}})
 }
 
 func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, name, _, ok := h.customRoleRequest(w, r, user)
 	if !ok {
+		return
+	}
+	if _, builtin := permissions.Builtin[name]; builtin {
+		if _, err := h.db.ExecContext(r.Context(), "DELETE FROM workspace_roles WHERE workspace_id = ? AND name = ?", workspaceID, name); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not restore role")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	var inUse bool
@@ -151,8 +169,8 @@ func (h *Handler) customRoleRequest(w http.ResponseWriter, r *http.Request, user
 		return "", "", nil, false
 	}
 	name := r.PathValue("roleName")
-	if _, builtin := permissions.Builtin[name]; builtin {
-		writeError(w, http.StatusBadRequest, "built-in roles cannot be changed")
+	if !permissions.Editable(name) {
+		writeError(w, http.StatusBadRequest, "the owner role always has full access")
 		return "", "", nil, false
 	}
 	current, exists, err := permissions.RolePermissions(r.Context(), h.db, workspaceID, name)

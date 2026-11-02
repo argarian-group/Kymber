@@ -69,18 +69,20 @@ func Valid(list []string) bool {
 
 func Encode(set Set) string { return strings.Join(set.List(), ",") }
 
-func ForRole(role string, custom sql.NullString) Set {
-	if role == "root" {
+func ForRole(role string, stored sql.NullString) Set {
+	if role == "root" || role == "owner" {
 		return Of(All)
 	}
-	if list, ok := Builtin[role]; ok {
-		return Of(list)
+	if stored.Valid {
+		if stored.String == "" {
+			return Set{}
+		}
+		return Of(strings.Split(stored.String, ","))
 	}
-	if !custom.Valid || custom.String == "" {
-		return Set{}
-	}
-	return Of(strings.Split(custom.String, ","))
+	return Of(Builtin[role])
 }
+
+func Editable(role string) bool { return role != "owner" }
 
 type querier interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
@@ -97,12 +99,16 @@ func Lookup(ctx context.Context, db querier, workspaceID string, userID uint64) 
 }
 
 func RolePermissions(ctx context.Context, db querier, workspaceID, role string) (Set, bool, error) {
-	if list, ok := Builtin[role]; ok {
-		return Of(list), true, nil
+	_, builtin := Builtin[role]
+	if !builtin && Builtin[strings.ToLower(role)] != nil {
+		return nil, false, nil
 	}
 	var stored string
 	err := db.QueryRowContext(ctx, "SELECT permissions FROM workspace_roles WHERE workspace_id = ? AND name = ?", workspaceID, role).Scan(&stored)
 	if err == sql.ErrNoRows {
+		if builtin {
+			return ForRole(role, sql.NullString{}), true, nil
+		}
 		return nil, false, nil
 	}
 	if err != nil {
