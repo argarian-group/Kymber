@@ -52,17 +52,22 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "service not found")
 			return
 		}
-		template := serviceTemplate(service)
-		if imageVersion == "" {
+		if service.Compose {
 			imageVersion = service.ImageVersion
-		}
-		if _, err := template.ImageRef(imageVersion); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid image version")
-			return
+		} else {
+			template := serviceTemplate(service)
+			if imageVersion == "" {
+				imageVersion = service.ImageVersion
+			}
+			if _, err := template.ImageRef(imageVersion); err != nil {
+				writeError(w, http.StatusBadRequest, "invalid image version")
+				return
+			}
 		}
 	}
 	var nullableServerID sql.NullString
-	if err := h.db.QueryRowContext(r.Context(), "SELECT server_id FROM database_services WHERE id = ? AND workspace_id = ? AND project_id = ?", serviceID, workspaceID, projectID).Scan(&nullableServerID); err != nil {
+	var isCompose bool
+	if err := h.db.QueryRowContext(r.Context(), "SELECT server_id, compose_file IS NOT NULL FROM database_services WHERE id = ? AND workspace_id = ? AND project_id = ?", serviceID, workspaceID, projectID).Scan(&nullableServerID, &isCompose); err != nil {
 		writeError(w, http.StatusNotFound, "service not found")
 		return
 	}
@@ -71,17 +76,29 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if action == "deploy" && !nullableServerID.Valid {
-		if requestedServer != "" {
+		if isCompose {
+			var localServer sql.NullString
+			if err := h.db.QueryRowContext(r.Context(), "SELECT s.id FROM servers s WHERE s.connection_type = 'local' AND "+serverStatusSQL+" = 'online' ORDER BY s.created_at LIMIT 1").Scan(&localServer); err != nil || !localServer.Valid {
+				writeError(w, http.StatusConflict, "Compose stacks require an online local server")
+				return
+			}
+			nullableServerID = localServer
+		}
+		if requestedServer != "" && !isCompose {
 			if !h.requireServerOnline(w, r, requestedServer) {
 				return
 			}
 			nullableServerID = sql.NullString{String: requestedServer, Valid: true}
-		} else if err := h.db.QueryRowContext(r.Context(), "SELECT s.id FROM servers s WHERE s.connection_type = 'local' AND "+serverStatusSQL+" = 'online' ORDER BY s.created_at LIMIT 1").Scan(&nullableServerID); errors.Is(err, sql.ErrNoRows) {
-			writeError(w, http.StatusConflict, "no online server is available")
-			return
-		} else if err != nil {
-			writeError(w, http.StatusInternalServerError, "could not find an online server")
-			return
+		} else if !nullableServerID.Valid {
+			err := h.db.QueryRowContext(r.Context(), "SELECT s.id FROM servers s WHERE s.connection_type = 'local' AND "+serverStatusSQL+" = 'online' ORDER BY s.created_at LIMIT 1").Scan(&nullableServerID)
+			if errors.Is(err, sql.ErrNoRows) {
+				writeError(w, http.StatusConflict, "no online server is available")
+				return
+			}
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "could not find an online server")
+				return
+			}
 		}
 		var domain string
 		if err := h.db.QueryRowContext(r.Context(), "SELECT COALESCE(domain, '') FROM database_services WHERE id = ?", serviceID).Scan(&domain); err != nil {
@@ -115,6 +132,21 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "could not read service domain")
 			return
 		}
+		if isCompose {
+			if err := h.db.QueryRowContext(r.Context(), "SELECT connection_type FROM servers WHERE id = ?", nullableServerID.String).Scan(&connectionType); err != nil || connectionType != "local" {
+				writeError(w, http.StatusConflict, "Compose stacks require the local server")
+				return
+			}
+			service, err := h.readServiceByID(r, serviceID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "could not read stack")
+				return
+			}
+			if err := h.validateComposeOnServer(r, nullableServerID.String, service, service.ComposeFile); err != nil {
+				writeError(w, http.StatusBadRequest, "invalid Compose file: "+err.Error())
+				return
+			}
+		}
 		if domain != "" && connectionType != "local" {
 			writeError(w, http.StatusConflict, "public domains currently require the local server with Traefik")
 			return
@@ -123,14 +155,18 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 	if connectionType == "local" && !h.requireServerOnline(w, r, nullableServerID.String) {
 		return
 	}
+	serverID := nullableServerID.String
 	if action == "remove_container" || action == "remove_container_image" {
 		var status string
 		if err := h.db.QueryRowContext(r.Context(), "SELECT status FROM database_services WHERE id = ?", serviceID).Scan(&status); err != nil || status != "stopped" {
 			writeError(w, http.StatusConflict, "stop the application before removing its container")
 			return
 		}
+		if isCompose {
+			writeError(w, http.StatusBadRequest, "container removal is not available for stacks")
+			return
+		}
 	}
-	serverID := nullableServerID.String
 	var sshConfigured bool
 	if err := h.db.QueryRowContext(r.Context(), "SELECT encrypted_ssh_key IS NOT NULL FROM servers WHERE id = ?", serverID).Scan(&sshConfigured); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read server credentials")
@@ -138,7 +174,9 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 	}
 	if action == "deploy" {
 		ports, err := h.readPorts(r.Context(), serviceID)
-		if err == nil {
+		if isCompose {
+			err = nil
+		} else if err == nil {
 			err = h.checkPortConflicts(r.Context(), serverID, serviceID, ports)
 		}
 		if err != nil {
@@ -163,12 +201,54 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if action == "deploy" {
+			service, err := h.readServiceByID(r, serviceID)
+			if err == nil && service.Compose {
+				if err := h.startComposeDeploySSH(r, serverID, serviceID, action); err != nil {
+					_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ?", err.Error(), serviceID)
+					writeError(w, http.StatusBadGateway, "Compose deployment failed: "+err.Error())
+					return
+				}
+				go h.watchDeploy(serverID, serviceID, false)
+				w.WriteHeader(http.StatusAccepted)
+				return
+			}
 			if err := h.startServiceDeploySSH(r, serverID, serviceID, imageVersion); err != nil {
 				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ?", err.Error(), serviceID)
 				writeError(w, http.StatusBadGateway, "SSH service deployment failed: "+err.Error())
 				return
 			}
 			go h.watchDeploy(serverID, serviceID, false)
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		service, err := h.readServiceByID(r, serviceID)
+		if err == nil && service.Compose {
+			if action == "remove_container" || action == "remove_container_image" {
+				writeError(w, http.StatusBadRequest, "container removal is not available for stacks")
+				return
+			}
+			if action == "start" || action == "restart" {
+				if err := h.startComposeDeploySSH(r, serverID, serviceID, action); err != nil {
+					_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ?", err.Error(), serviceID)
+					writeError(w, http.StatusBadGateway, "Compose action failed: "+err.Error())
+					return
+				}
+				go h.watchDeploy(serverID, serviceID, false)
+				w.WriteHeader(http.StatusAccepted)
+				return
+			}
+			if err := h.executeComposeSSH(r, serverID, service, action); err != nil {
+				writeError(w, http.StatusBadGateway, "Compose action failed: "+err.Error())
+				return
+			}
+			status := "running"
+			if action == "stop" {
+				status = "stopped"
+			}
+			if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = ? WHERE id = ?", status, serviceID); err != nil {
+				writeError(w, http.StatusInternalServerError, "could not update stack status")
+				return
+			}
 			w.WriteHeader(http.StatusAccepted)
 			return
 		}
@@ -215,14 +295,25 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "server does not support SSH logs")
 		return
 	}
-	name := service.Name + "-service-" + service.ID
 	if r.URL.Query().Get("source") == "runtime" {
 		tail, ok := parseLogTail(r.URL.Query().Get("tail"))
 		if !ok {
 			writeError(w, http.StatusBadRequest, fmt.Sprintf("tail must be between 1 and %d", maxLogTail))
 			return
 		}
-		logs, err := h.executeSSH(r.Context(), service.ServerID, runtimeLogsCommand(name, tail))
+		command := runtimeLogsCommand(service.Name+"-service-"+service.ID, tail)
+		if service.Compose {
+			composeLogs := "docker compose -p " + shellQuote(service.Name) + " -f " + shellQuote("/tmp/kymber-compose-"+service.ID+".yaml") + " logs --tail " + strconv.Itoa(tail)
+			if container := r.URL.Query().Get("container"); container != "" {
+				if !composeContainerExists(service.ComposeFile, container) {
+					writeError(w, http.StatusBadRequest, "unknown Compose service")
+					return
+				}
+				composeLogs += " " + shellQuote(container)
+			}
+			command = composeLogs + " 2>&1 | tail -c " + strconv.Itoa(maxLogBytes)
+		}
+		logs, err := h.executeSSH(r.Context(), service.ServerID, command)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "could not read container logs: "+err.Error())
 			return
@@ -231,7 +322,11 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logFile, statusFile := deploymentLogFiles(service.ID)
+	name := service.Name + "-service-" + service.ID
 	command := "if test -f " + shellQuote(logFile) + "; then printf '__KYMBER_LOG__'; tail -c 65536 " + shellQuote(logFile) + "; else printf '__KYMBER_NO_LOG__'; fi; if test -f " + shellQuote(statusFile) + "; then code=$(cat " + shellQuote(statusFile) + "); printf '\\n__KYMBER_EXIT__%s' \"$code\"; if test \"$code\" = 0; then printf '\\n__KYMBER_CONTAINER__'; if docker inspect " + shellQuote(name) + " >/dev/null 2>&1; then docker logs --tail 300 " + shellQuote(name) + " 2>&1; else printf 'Container output is not available yet.'; fi; fi; fi"
+	if service.Compose {
+		command = "if test -f " + shellQuote(logFile) + "; then printf '__KYMBER_LOG__'; tail -c 65536 " + shellQuote(logFile) + "; else printf '__KYMBER_NO_LOG__'; fi; if test -f " + shellQuote(statusFile) + "; then printf '\\n__KYMBER_EXIT__'; cat " + shellQuote(statusFile) + "; fi"
+	}
 	logs, err := h.executeSSH(r.Context(), service.ServerID, command)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "could not read deployment logs: "+err.Error())
@@ -247,8 +342,10 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 			if code == "0" {
 				status = "running"
 				h.finishDeploy(r.Context(), serviceID, true, "")
-				if _, container, found := strings.Cut(after, "__KYMBER_CONTAINER__"); found {
-					output = strings.TrimSpace(output) + "\n\n--- Container output ---\n" + strings.TrimSpace(container)
+				if !service.Compose {
+					if _, container, found := strings.Cut(after, "__KYMBER_CONTAINER__"); found {
+						output = strings.TrimSpace(output) + "\n\n--- Container output ---\n" + strings.TrimSpace(container)
+					}
 				}
 			} else {
 				status = "failed"
@@ -259,7 +356,19 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 	} else if service.Status == "deploying" || service.Status == "draft" || service.Status == "queued" {
 		logs = []byte("Preparing Docker deployment…")
 	} else {
-		logs, err = h.executeSSH(r.Context(), service.ServerID, "if docker inspect "+shellQuote(name)+" >/dev/null 2>&1; then docker logs --tail 300 "+shellQuote(name)+" 2>&1; else printf 'Container is not running.'; fi")
+		command := "if docker inspect " + shellQuote(name) + " >/dev/null 2>&1; then docker logs --tail 300 " + shellQuote(name) + " 2>&1; else printf 'Container is not running.'; fi"
+		if service.Compose {
+			composeLogs := "docker compose -p " + shellQuote(service.Name) + " -f " + shellQuote("/tmp/kymber-compose-"+service.ID+".yaml") + " logs --tail 300"
+			if container := r.URL.Query().Get("container"); container != "" {
+				if !composeContainerExists(service.ComposeFile, container) {
+					writeError(w, http.StatusBadRequest, "unknown Compose service")
+					return
+				}
+				composeLogs += " " + shellQuote(container)
+			}
+			command = composeLogs + " 2>&1 | tail -c " + strconv.Itoa(maxLogBytes)
+		}
+		logs, err = h.executeSSH(r.Context(), service.ServerID, command)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "could not read container logs: "+err.Error())
 			return
@@ -381,9 +490,12 @@ func shellQuote(value string) string {
 func (h *Handler) readServiceByID(r *http.Request, id string) (databaseService, error) {
 	var service databaseService
 	var encrypted []byte
-	err := h.db.QueryRowContext(r.Context(), "SELECT id, workspace_id, project_id, engine, name, image_version, image, port, COALESCE(domain, ''), data_path, COALESCE(server_id, ''), database_name, database_user, encrypted_config FROM database_services WHERE id = ?", id).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.ServerID, &service.DatabaseName, &service.DatabaseUser, &encrypted)
+	err := h.db.QueryRowContext(r.Context(), "SELECT id, workspace_id, project_id, engine, name, image_version, image, port, COALESCE(domain, ''), data_path, COALESCE(server_id, ''), database_name, database_user, encrypted_config, compose_file IS NOT NULL, COALESCE(CAST(compose_file AS CHAR), '') FROM database_services WHERE id = ?", id).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.ServerID, &service.DatabaseName, &service.DatabaseUser, &encrypted, &service.Compose, &service.ComposeFile)
 	if err != nil {
 		return service, err
+	}
+	if service.Compose {
+		return service, nil
 	}
 	plain, err := secrets.Decrypt(encrypted)
 	if err != nil {

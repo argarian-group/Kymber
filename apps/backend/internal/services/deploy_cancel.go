@@ -38,6 +38,10 @@ func (h *Handler) cancelServiceDeploy(w http.ResponseWriter, r *http.Request) {
 	logFile, statusFile := deploymentLogFiles(serviceID)
 	pidFile := deploymentProcessFile(serviceID)
 	command := "pid=; if test -s " + shellQuote(pidFile) + "; then pid=$(cat " + shellQuote(pidFile) + "); else self_group=$(ps -o pgid= -p $$ | tr -d ' '); for file in /proc/[0-9]*/cmdline; do cmd=$(tr '\\000' ' ' < \"$file\" 2>/dev/null) || continue; case \"$cmd\" in *" + logFile + "*) candidate=${file#/proc/}; candidate=${candidate%/cmdline}; group=$(ps -o pgid= -p \"$candidate\" 2>/dev/null | tr -d ' '); if test \"$group\" -gt 1 2>/dev/null && test \"$group\" != \"$self_group\"; then pid=$group; break; fi;; esac; done; fi; case \"$pid\" in ''|*[!0-9]*) exit 1;; esac; test \"$pid\" -gt 1; kill -KILL \"-$pid\" 2>/dev/null || true; rm -f " + shellQuote(pidFile) + "; printf '\\nDeployment force-stopped by user.\\n' >> " + shellQuote(logFile) + "; printf '130' > " + shellQuote(statusFile+".tmp") + "; mv " + shellQuote(statusFile+".tmp") + " " + shellQuote(statusFile)
+	if service.Compose {
+		composeFile := "/tmp/kymber-compose-" + service.ID + ".yaml"
+		command += "; docker compose -p " + shellQuote(service.Name) + " -f " + shellQuote(composeFile) + " down --remove-orphans >/dev/null 2>&1 || true; rm -f " + shellQuote(composeFile)
+	}
 	if _, err := h.executeSSH(r.Context(), service.ServerID, command); err != nil {
 		writeError(w, http.StatusBadGateway, "could not force-stop deployment: "+err.Error())
 		return
