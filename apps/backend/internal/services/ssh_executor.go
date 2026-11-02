@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -12,6 +13,10 @@ import (
 )
 
 func (h *Handler) executeSSH(ctx context.Context, serverID string, command string) ([]byte, error) {
+	return h.executeSSHInput(ctx, serverID, command, nil)
+}
+
+func (h *Handler) executeSSHInput(ctx context.Context, serverID string, command string, stdin []byte) ([]byte, error) {
 	var host, username string
 	var port int
 	var encryptedKey, encodedHostKey []byte
@@ -41,6 +46,9 @@ func (h *Handler) executeSSH(ctx context.Context, serverID string, command strin
 		return nil, err
 	}
 	defer session.Close()
+	if stdin != nil {
+		session.Stdin = bytes.NewReader(stdin)
+	}
 	output, err := session.CombinedOutput(command)
 	if err != nil {
 		return output, fmt.Errorf("remote docker command failed: %w: %s", err, output)
