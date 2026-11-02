@@ -57,7 +57,7 @@ export function ServersPage() {
           )
         }
       />
-      <div className="grid max-w-4xl gap-4 px-4 py-6 md:px-6">
+      <div className="grid gap-4 px-4 py-6 md:px-6">
         {connecting && connectingServer && <ServerConnectSteps server={connectingServer} token={connecting.token} onDone={() => setConnecting(null)} />}
         {(servers.length === 0 || adding) && (
           <RegisterServerForm

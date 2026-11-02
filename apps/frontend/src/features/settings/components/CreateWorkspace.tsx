@@ -21,7 +21,7 @@ export function CreateWorkspace() {
   return (
     <SettingsSection title="New workspace" description="You become its owner and switch to it.">
       <form onSubmit={submit}>
-        <div className="p-4 sm:max-w-sm">
+        <div className="p-4">
           <Field label="Workspace name" required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
         </div>
         <FormFooter error={error} saved={null}>

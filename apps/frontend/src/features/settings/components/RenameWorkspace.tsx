@@ -25,7 +25,7 @@ export function RenameWorkspace({ workspace }: { workspace: Workspace }) {
   return (
     <SettingsSection title="General" description={[!canWrite && "Only admins and owners can rename this workspace.", workspace.created_by && `Created by ${workspace.created_by.username}.`].filter(Boolean).join(" ")}>
       <form onSubmit={submit}>
-        <div className="p-4 sm:max-w-sm">
+        <div className="p-4">
           <Field label="Workspace name" required maxLength={120} disabled={!canWrite} value={name} onChange={(event) => setName(event.target.value)} />
         </div>
         {canWrite && (

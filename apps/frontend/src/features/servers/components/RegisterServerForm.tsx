@@ -24,7 +24,7 @@ export function RegisterServerForm({ onRegistered, onCancel }: { onRegistered: (
   }
 
   return (
-    <form className="grid max-w-xl gap-4 rounded-panel bg-raised p-5" onSubmit={submit} aria-label="Register server">
+    <form className="grid gap-4 rounded-panel bg-raised p-5" onSubmit={submit} aria-label="Register server">
       <span className="flex size-10 items-center justify-center rounded-panel bg-seafoam/15 text-seafoam" aria-hidden="true">
         <ServerIcon size={20} />
       </span>

@@ -75,7 +75,7 @@ export function ServerCard({ server, onChanged }: { server: Server; onChanged: (
           </div>
         )}
         {mode === "rename" && (
-          <form className="grid max-w-md gap-3" onSubmit={rename}>
+          <form className="grid gap-3" onSubmit={rename}>
             <Field label="Server name" required autoFocus maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
             <div className="flex gap-2">
               <button className="btn btn-primary" type="submit" disabled={pending}>
