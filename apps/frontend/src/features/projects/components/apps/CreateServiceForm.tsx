@@ -8,7 +8,7 @@ import { engineLabel, engines } from "@/features/projects/engines";
 import type { DatabaseTemplate, Service } from "@/features/projects/services";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
-import { t } from "@/lib/i18n";
+import { t, translate } from "@/lib/i18n";
 
 export function CreateServiceForm({ template, path }: { template: DatabaseTemplate; path: string }) {
   const navigate = useNavigate();
@@ -49,7 +49,7 @@ export function CreateServiceForm({ template, path }: { template: DatabaseTempla
           <Field label={t("Image version")} maxLength={128} placeholder={template.default_version} value={version} onChange={(event) => setVersion(event.target.value)} />
           {template.fields.map((field) => (
             <Field
-              label={t(field.label)}
+              label={translate(field.label)}
               type={field.type === "password" ? "password" : "text"}
               autoComplete="off"
               minLength={field.min || undefined}

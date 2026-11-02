@@ -9,7 +9,7 @@ import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { FormFooter } from "@/features/settings/components/FormFooter";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
-import { t } from "@/lib/i18n";
+import { t, translate } from "@/lib/i18n";
 
 export function AppEnvironmentPage() {
   const { service, detail, template, path, canWrite, onChanged } = useAppOutlet();
@@ -44,7 +44,7 @@ export function AppEnvironmentPage() {
           <div className="grid items-start gap-4 p-4 sm:grid-cols-2">
             {template.fields.map((field) => (
               <Field
-                label={t(field.label)}
+                label={translate(field.label)}
                 type={field.secret ? "password" : "text"}
                 autoComplete="off"
                 required={field.required}

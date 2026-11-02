@@ -6,7 +6,7 @@ import { type Member } from "@/features/workspaces/types";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { useAction } from "@/lib/useAction";
-import { t } from "@/lib/i18n";
+import { t, translate } from "@/lib/i18n";
 
 export function MemberRow({ member, workspaceId, isCreator, canManage, onChanged }: { member: Member; workspaceId: string; isCreator: boolean; canManage: boolean; onChanged: (member: Member, removed: boolean) => void }) {
   const user = useCurrentUser();
@@ -62,7 +62,7 @@ export function MemberRow({ member, workspaceId, isCreator, canManage, onChanged
           )}
         </>
       ) : (
-        <span className="text-meta font-medium">{t(member.role)}</span>
+        <span className="text-meta font-medium">{translate(member.role)}</span>
       )}
     </li>
   );

@@ -1,4 +1,4 @@
-import { t } from "@/lib/i18n";
+import { t, translate } from "@/lib/i18n";
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -26,7 +26,7 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 401) window.dispatchEvent(new Event(unauthorizedEvent));
-    throw new ApiError(response.status, typeof data?.error === "string" ? t(data.error) : t("The server could not complete this request. Try again."));
+    throw new ApiError(response.status, typeof data?.error === "string" ? translate(data.error) : t("The server could not complete this request. Try again."));
   }
   return data as T;
 }

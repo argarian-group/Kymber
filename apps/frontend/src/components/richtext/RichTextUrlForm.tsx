@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { t } from "@/lib/i18n";
+import { language, t } from "@/lib/i18n";
 
 function hasProtocol(url: string, protocols: string[]) {
   try {
@@ -69,7 +69,7 @@ export function RichTextUrlForm({ label, initial, protocols, onSubmit, onRemove,
       </button>
       {invalid && (
         <p className="w-full text-xs text-ember" role="alert">
-          {t("Enter a full URL using {protocols}", { protocols: protocols.join(t(" or ")) })}
+          {t("Enter a full URL using {protocols}", { protocols: new Intl.ListFormat(language, { type: "disjunction" }).format(protocols) })}
         </p>
       )}
     </div>

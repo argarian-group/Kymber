@@ -6,7 +6,7 @@ import { useServices } from "@/features/projects/useServices";
 import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
 import { useBoard } from "@/features/projects/useBoard";
 import { formatDate } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { t, translate } from "@/lib/i18n";
 
 export function ProjectOverviewPage() {
   const { project, workspace } = useProjectOutlet();
@@ -70,7 +70,7 @@ export function ProjectOverviewPage() {
         <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
           <ProjectDetail label={t("Slug")}>{project.slug}</ProjectDetail>
           <ProjectDetail label={t("Workspace")}>{workspace.name}</ProjectDetail>
-          <ProjectDetail label={t("Your role")}>{t(workspace.role)}</ProjectDetail>
+          <ProjectDetail label={t("Your role")}>{translate(workspace.role)}</ProjectDetail>
           <ProjectDetail label={t("Created")}>{formatDate(project.created_at)}</ProjectDetail>
         </dl>
       </aside>
