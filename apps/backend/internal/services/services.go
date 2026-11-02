@@ -274,6 +274,16 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not read server credentials")
 		return
 	}
+	if action == "deploy" {
+		ports, err := h.readPorts(r.Context(), serviceID)
+		if err == nil {
+			err = h.checkPortConflicts(r.Context(), serverID, serviceID, ports)
+		}
+		if err != nil {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
+	}
 	if connectionType == "ssh" || sshConfigured {
 		if action != "deploy" {
 			logFile, statusFile := deploymentLogFiles(serviceID)
@@ -372,6 +382,7 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 				if result, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'running', last_error = NULL WHERE id = ? AND status = 'deploying'", serviceID); err == nil {
 					if changed, _ := result.RowsAffected(); changed > 0 {
 						_, _ = h.db.ExecContext(r.Context(), "UPDATE service_storages SET applied = TRUE WHERE service_id = ?", serviceID)
+						_, _ = h.db.ExecContext(r.Context(), "UPDATE service_ports SET applied = TRUE WHERE service_id = ?", serviceID)
 					}
 				}
 				if _, container, found := strings.Cut(after, "__KYMBER_CONTAINER__"); found {
@@ -419,7 +430,11 @@ func (h *Handler) executeServiceSSH(r *http.Request, serverID, serviceID, action
 	if err != nil {
 		return err
 	}
-	command, err := h.sshDockerCommand(service, template, imageRef, action, storages)
+	ports, err := h.readPorts(r.Context(), serviceID)
+	if err != nil {
+		return err
+	}
+	command, err := h.sshDockerCommand(service, template, imageRef, action, storages, ports)
 	if err == nil {
 		_, err = h.executeSSH(r.Context(), serverID, command)
 	}
@@ -454,7 +469,11 @@ func (h *Handler) startServiceDeploySSH(r *http.Request, serverID, serviceID, im
 	if err != nil {
 		return err
 	}
-	command, err := h.sshDockerCommand(service, template, image, "deploy", storages)
+	ports, err := h.readPorts(r.Context(), serviceID)
+	if err != nil {
+		return err
+	}
+	command, err := h.sshDockerCommand(service, template, image, "deploy", storages, ports)
 	if err != nil {
 		return err
 	}
@@ -491,7 +510,7 @@ func (h *Handler) readServiceByID(r *http.Request, id string) (databaseService, 
 	return service, nil
 }
 
-func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, image, action string, storages []serviceStorage) (string, error) {
+func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, image, action string, storages []serviceStorage, ports []servicePort) (string, error) {
 	name := t.ContainerName(s.Name, s.ID)
 	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'" }
 	if action == "stop" {
@@ -533,14 +552,15 @@ func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, imag
 		env.WriteString(" >> \"$f\"; ")
 	}
 	prepare, storageArgs := storageDeployCommand(s.ID, storages)
-	command := "set -eu; n=" + quote(name) + "; f=$(mktemp); trap 'rm -f \"$f\"' EXIT; " + env.String() + prepare + "docker network inspect " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null 2>&1 || docker network create --label kymber.managed=true " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null; docker rm -f \"$n\" >/dev/null 2>&1 || true; docker run --pull=missing -d --name \"$n\" --restart unless-stopped --network " + quote("kymber-workspace-"+s.WorkspaceID) + " --network-alias " + quote(t.InternalHost(s.ID)) + " --label kymber.managed=true --label " + quote("kymber.service="+s.ID)
+	portCheck, portArgs := portDeployCommand(ports)
+	command := "set -eu; n=" + quote(name) + "; f=$(mktemp); trap 'rm -f \"$f\"' EXIT; " + portCheck + env.String() + prepare + "docker network inspect " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null 2>&1 || docker network create --label kymber.managed=true " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null; docker rm -f \"$n\" >/dev/null 2>&1 || true; docker run --pull=missing -d --name \"$n\" --restart unless-stopped --network " + quote("kymber-workspace-"+s.WorkspaceID) + " --network-alias " + quote(t.InternalHost(s.ID)) + " --label kymber.managed=true --label " + quote("kymber.service="+s.ID)
 	if t.DataPath != "" {
 		command += " --volume " + quote(t.VolumeName(s.ID)+":"+t.DataPath)
 	}
 	if t.HealthCmd != "" {
 		command += " --health-cmd " + quote(t.HealthCmd) + " --health-interval 10s --health-timeout 5s --health-retries 10 --health-start-period 30s"
 	}
-	command += storageArgs + " --env-file \"$f\" " + quote(image)
+	command += storageArgs + portArgs + " --env-file \"$f\" " + quote(image)
 	for _, arg := range config {
 		command += " " + quote(arg)
 	}

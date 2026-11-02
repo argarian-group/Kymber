@@ -1,4 +1,4 @@
-import { ArrowLeft, FolderOpen, HardDrive, KeyRound, Plug, ScrollText, Settings2, SquareTerminal, TriangleAlert } from "lucide-react";
+import { ArrowLeft, EthernetPort, FolderOpen, HardDrive, KeyRound, Plug, ScrollText, Settings2, SquareTerminal, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, Outlet, useParams } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -78,6 +78,7 @@ export function AppLayout() {
         ]
       : []),
     { label: "Storage", to: "storage", end: false, icon: HardDrive },
+    { label: "Ports", to: "ports", end: false, icon: EthernetPort },
     ...(canWrite ? [{ label: "Danger zone", to: "danger", end: false, icon: TriangleAlert }] : []),
   ];
   const context: AppOutlet = {
