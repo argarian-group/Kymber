@@ -2,6 +2,7 @@ import logo from "@assets/logo.svg";
 import { Link, NavLink } from "react-router";
 import { NavGroup, rowClass } from "@/components/layout/NavGroup";
 import { SidebarProfile } from "@/components/layout/SidebarProfile";
+import { SidebarResizer } from "@/components/layout/SidebarResizer";
 import { organizationItems, workspaceItems } from "@/components/layout/navItems";
 import { useCurrentUser } from "@/features/auth/AuthContext";
 import { useProjects } from "@/features/projects/ProjectsContext";
@@ -9,13 +10,14 @@ import { ProjectMark } from "@/features/projects/components/ProjectMark";
 import { WorkspaceSwitcher } from "@/features/projects/components/WorkspaceSwitcher";
 import { t } from "@/lib/i18n";
 
-export function Sidebar() {
+export function Sidebar({ width, onResize }: { width: number; onResize: (width: number) => void }) {
   const user = useCurrentUser();
   const { state } = useProjects();
   const projects = state.status === "ready" ? state.projects : [];
 
   return (
     <aside className="sticky top-0 hidden h-dvh flex-col self-start bg-sunken md:flex">
+      <SidebarResizer width={width} onChange={onResize} />
       <div className="flex h-14 flex-none items-center justify-center">
         <Link className="focus-ring flex items-center gap-2 rounded-sm font-display text-base font-semibold tracking-[-0.01em]" to="/" aria-label={t("Kymber overview")}>
           <img className="-mx-2 -my-2 size-10 -translate-y-px" src={logo} alt="" width="40" height="40" />
