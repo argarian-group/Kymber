@@ -15,7 +15,6 @@ import (
 	"kymber/backend/internal/database"
 	"kymber/backend/internal/secrets"
 	"kymber/backend/internal/templates"
-	"kymber/backend/internal/templates/catalog"
 )
 
 type databaseService struct {
@@ -70,7 +69,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "could not read services")
 			return
 		}
-		if template, ok := catalog.Get(service.Engine); ok {
+		if template, ok := templates.Get(service.Engine); ok {
 			template = template.ForService(service.Image, service.Port, service.DataPath)
 			service.Image, service.Port, service.DataPath = template.Image, 0, template.DataPath
 		}
@@ -85,7 +84,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listDatabaseTemplates(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string][]templates.Template{"templates": catalog.All()})
+	writeJSON(w, http.StatusOK, map[string][]templates.Template{"templates": templates.All()})
 }
 
 func (h *Handler) createService(w http.ResponseWriter, r *http.Request) {
@@ -115,7 +114,7 @@ func (h *Handler) createService(w http.ResponseWriter, r *http.Request) {
 	}
 	input.Engine = strings.ToLower(strings.TrimSpace(input.Engine))
 	input.Name = strings.ToLower(strings.TrimSpace(input.Name))
-	template, supported := catalog.Get(input.Engine)
+	template, supported := templates.Get(input.Engine)
 	var err error
 	if input.Name == "" && supported {
 		suffix, err := randomNameSuffix()
@@ -372,7 +371,7 @@ func (h *Handler) readService(r *http.Request, workspaceID, projectID string, se
 }
 
 func serviceTemplate(service databaseService) templates.Template {
-	template, _ := catalog.Get(service.Engine)
+	template, _ := templates.Get(service.Engine)
 	return template.ForService(service.Image, service.Port, service.DataPath)
 }
 

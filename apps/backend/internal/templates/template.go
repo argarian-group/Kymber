@@ -42,8 +42,8 @@ type Template struct {
 	HealthCmd      string     `json:"-"`
 	Fields         []Field    `json:"fields"`
 	Connection     Connection `json:"connection"`
-	Custom bool `json:"custom,omitempty"`
-	Category string `json:"category,omitempty"`
+	Custom         bool       `json:"custom,omitempty"`
+	Category       string     `json:"category,omitempty"`
 }
 
 var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)

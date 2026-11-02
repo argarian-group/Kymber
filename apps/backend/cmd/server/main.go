@@ -19,7 +19,6 @@ import (
 
 	"github.com/joho/godotenv"
 	"kymber/backend/internal/templates"
-	"kymber/backend/internal/templates/catalog"
 )
 
 type task struct {
@@ -236,7 +235,7 @@ func execute(t task) result {
 	}
 	defer os.Remove(envFile)
 	args := runArgs(t, template, network, envFile)
-	engineArgs, ok := catalog.DockerArgs(t.Engine, t.Config)
+	engineArgs, ok := templates.DockerArgs(t.Engine, t.Config)
 	if !ok {
 		return result{Message: "unsupported engine"}
 	}
@@ -265,7 +264,7 @@ func networkName(t task) string {
 }
 
 func serviceTemplate(t task) (templates.Template, bool) {
-	template, ok := catalog.Get(t.Engine)
+	template, ok := templates.Get(t.Engine)
 	return template.ForService(t.Image, t.Port, t.DataPath), ok
 }
 

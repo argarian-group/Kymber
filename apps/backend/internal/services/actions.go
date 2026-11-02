@@ -13,7 +13,6 @@ import (
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/secrets"
 	"kymber/backend/internal/templates"
-	"kymber/backend/internal/templates/catalog"
 )
 
 func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
@@ -421,7 +420,7 @@ func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, imag
 	if !templates.ValidDataPath(t.DataPath) {
 		return "", fmt.Errorf("invalid data path")
 	}
-	config, ok := catalog.DockerArgs(s.Engine, s.Environment)
+	config, ok := templates.DockerArgs(s.Engine, s.Environment)
 	if !ok {
 		return "", fmt.Errorf("unsupported engine")
 	}

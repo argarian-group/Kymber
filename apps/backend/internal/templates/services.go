@@ -1,0 +1,46 @@
+package templates
+
+func servicePresets() []Template {
+	return []Template{
+		{
+			Engine: "rabbitmq", Category: "service", Image: "docker.io/library/rabbitmq", DefaultVersion: "management", Port: 5672, DataPath: "/var/lib/rabbitmq",
+			HealthCmd: "rabbitmq-diagnostics -q ping",
+			Fields:    []Field{textField("RABBITMQ_DEFAULT_USER", "Username", "kymber"), passwordField("RABBITMQ_DEFAULT_PASS", "Password")},
+		},
+		{Engine: "nats", Category: "service", Image: "docker.io/library/nats", DefaultVersion: "latest", Port: 4222, Fields: []Field{passwordField("NATS_AUTH_TOKEN", "Authentication token")}},
+		{Engine: "meilisearch", Category: "service", Image: "docker.io/getmeili/meilisearch", DefaultVersion: "latest", Port: 7700, DataPath: "/meili_data", Fields: []Field{passwordField("MEILI_MASTER_KEY", "Master key")}},
+		{Engine: "typesense", Category: "service", Image: "docker.io/typesense/typesense", DefaultVersion: "latest", Port: 8108, DataPath: "/data", Fields: []Field{passwordField("TYPESENSE_API_KEY", "API key")}},
+		{Engine: "prometheus", Category: "service", Image: "docker.io/prom/prometheus", DefaultVersion: "latest", Port: 9090, DataPath: "/prometheus"},
+		{
+			Engine: "grafana", Category: "service", Image: "docker.io/grafana/grafana", DefaultVersion: "latest", Port: 3000, DataPath: "/var/lib/grafana",
+			HealthCmd: "wget -q -O /dev/null http://127.0.0.1:3000/api/health",
+			Fields:    []Field{textField("GF_SECURITY_ADMIN_USER", "Admin username", "kymber"), passwordField("GF_SECURITY_ADMIN_PASSWORD", "Admin password")},
+		},
+		{Engine: "loki", Category: "service", Image: "docker.io/grafana/loki", DefaultVersion: "latest", Port: 3100, DataPath: "/loki"},
+		{Engine: "victoriametrics", Category: "service", Image: "docker.io/victoriametrics/victoria-metrics", DefaultVersion: "latest", Port: 8428, DataPath: "/victoria-metrics-data"},
+		{Engine: "uptime-kuma", Category: "service", Image: "docker.io/louislam/uptime-kuma", DefaultVersion: "1", Port: 3001, DataPath: "/app/data"},
+		{Engine: "minio", Category: "service", Image: "docker.io/minio/minio", DefaultVersion: "latest", Port: 9000, DataPath: "/data", Fields: []Field{textField("MINIO_ROOT_USER", "Root username", "kymber"), passwordField("MINIO_ROOT_PASSWORD", "Root password")}},
+		{Engine: "sftpgo", Category: "service", Image: "docker.io/drakkan/sftpgo", DefaultVersion: "latest", Port: 8080, DataPath: "/var/lib/sftpgo", Fields: []Field{textField("SFTPGO_DEFAULT_ADMIN_USERNAME", "Admin username", "kymber"), passwordField("SFTPGO_DEFAULT_ADMIN_PASSWORD", "Admin password")}},
+		{Engine: "pulsar", Category: "service", Image: "docker.io/apachepulsar/pulsar", DefaultVersion: "latest", Port: 6650, DataPath: "/pulsar/data"},
+		{Engine: "jaeger", Category: "service", Image: "docker.io/jaegertracing/all-in-one", DefaultVersion: "latest", Port: 16686},
+		{Engine: "caddy", Category: "service", Image: "docker.io/library/caddy", DefaultVersion: "latest", Port: 80, DataPath: "/data"},
+		{Engine: "nginx", Category: "service", Image: "docker.io/library/nginx", DefaultVersion: "latest", Port: 80},
+		{Engine: "stalwart", Category: "service", Image: "docker.io/stalwartlabs/stalwart", DefaultVersion: "latest", Port: 8080, DataPath: "/opt/stalwart"},
+		{Engine: "tailscale", Category: "service", Image: "docker.io/tailscale/tailscale", DefaultVersion: "stable", DataPath: "/var/lib/tailscale", Fields: []Field{passwordField("TS_AUTHKEY", "Tailscale auth key"), textField("TS_STATE_DIR", "State directory", "/var/lib/tailscale")}},
+		{Engine: "ntfy", Category: "service", Image: "docker.io/binwiederhier/ntfy", DefaultVersion: "latest", Port: 80, DataPath: "/var/cache/ntfy"},
+		{Engine: "mosquitto", Category: "service", Image: "docker.io/library/eclipse-mosquitto", DefaultVersion: "latest", Port: 1883, DataPath: "/mosquitto/data"},
+		{Engine: "influxdb", Category: "service", Image: "docker.io/library/influxdb", DefaultVersion: "2", Port: 8086, DataPath: "/var/lib/influxdb2"},
+		{Engine: "clickhouse", Category: "service", Image: "docker.io/clickhouse/clickhouse-server", DefaultVersion: "latest", Port: 8123, DataPath: "/var/lib/clickhouse"},
+		{Engine: "opensearch", Category: "service", Image: "docker.io/opensearchproject/opensearch", DefaultVersion: "latest", Port: 9200, DataPath: "/usr/share/opensearch/data"},
+		{Engine: "registry", Category: "service", Image: "docker.io/library/registry", DefaultVersion: "2", Port: 5000, DataPath: "/var/lib/registry"},
+		{Engine: "cloudflared", Category: "service", Image: "docker.io/cloudflare/cloudflared", DefaultVersion: "latest", Fields: []Field{{Name: "TUNNEL_TOKEN", Label: "Cloudflare Tunnel token", Type: "password", Required: true, Secret: true}}},
+		{Engine: "headscale", Category: "service", Image: "docker.io/headscale/headscale", DefaultVersion: "latest", Port: 8080, DataPath: "/var/lib/headscale"},
+		{Engine: "adguardhome", Category: "service", Image: "docker.io/adguard/adguardhome", DefaultVersion: "latest", Port: 3000, DataPath: "/opt/adguardhome/work"},
+		{Engine: "traefik", Category: "service", Image: "docker.io/library/traefik", DefaultVersion: "latest", Port: 80, DataPath: "/etc/traefik"},
+		{Engine: "httpbin", Category: "service", Image: "docker.io/kennethreitz/httpbin", DefaultVersion: "latest", Port: 80},
+		{Engine: "memcached-exporter", Category: "service", Image: "docker.io/prom/memcached-exporter", DefaultVersion: "latest", Port: 9150},
+		{Engine: "node-exporter", Category: "service", Image: "docker.io/prom/node-exporter", DefaultVersion: "latest", Port: 9100},
+		{Engine: "blackbox-exporter", Category: "service", Image: "docker.io/prom/blackbox-exporter", DefaultVersion: "latest", Port: 9115},
+		{Engine: "vector", Category: "service", Image: "docker.io/timberio/vector", DefaultVersion: "latest", Port: 8686, DataPath: "/var/lib/vector"},
+	}
+}

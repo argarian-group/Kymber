@@ -1,4 +1,4 @@
-.PHONY: build build-server run backend dev dev-run server server-run frontend db init check-user up template-registry local-secrets docker-build docker-up docker-agent docker-down
+.PHONY: build build-server run backend dev dev-run server server-run frontend db init check-user up local-secrets docker-build docker-up docker-agent docker-down
 
 PNPM ?= $(shell command -v pnpm 2>/dev/null || { test -x "$$HOME/.bun/bin/pnpm" && printf '%s/.bun/bin/pnpm' "$$HOME"; })
 
@@ -11,10 +11,10 @@ DEV_ENV = SERVICE_ENCRYPTION_KEY_FILE=$(CURDIR)/.local/service-encryption-key \
 	KYMBER_METRICS_TOKEN_FILE=$(CURDIR)/.local/metrics-token \
 	KYMBER_PROMETHEUS_URL=http://127.0.0.1:9090
 
-build: template-registry
+build:
 	cd apps/backend && go build -o build/api ./cmd/api
 
-build-server: template-registry
+build-server:
 	cd apps/backend && go build -o build/kymber-server ./cmd/server
 
 run: backend
@@ -41,14 +41,11 @@ frontend:
 db:
 	docker compose up -d --wait mariadb
 
-init: check-user local-secrets db template-registry
+init: check-user local-secrets db
 	./scripts/setup-local-ssh.sh
 
 check-user:
 	@test "$$(id -u)" -ne 0 || { echo "Run make without sudo" >&2; exit 1; }
-
-template-registry:
-	cd apps/backend && go run ./cmd/template-registry
 
 local-secrets:
 	@test "$$(id -u)" -ne 0 || { echo "Run make without sudo" >&2; exit 1; }
