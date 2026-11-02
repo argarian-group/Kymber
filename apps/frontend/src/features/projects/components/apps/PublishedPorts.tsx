@@ -101,7 +101,7 @@ function PortRow({ port, address, url, locked, canWrite, onChanged }: { port: Se
   );
 }
 
-export function AppPortsPage() {
+export function PublishedPorts() {
   const { service, path, canWrite } = useAppOutlet();
   const [ports, setPorts] = useState<ServicePort[] | null>(null);
   const [host, setHost] = useState("");
@@ -133,7 +133,7 @@ export function AppPortsPage() {
   const pendingDeploy = changed || ports?.some(({ applied }) => !applied);
 
   return (
-    <AppSection title="Ports" description={`Other apps in this environment reach this one internally${service.internal_host ? ` at ${service.internal_host}${service.port ? `:${service.port}` : ""}` : ""}. Publish a port to reach it from outside. Changes apply on the next deploy.`}>
+    <AppSection title="Published ports" description="Reach this app from outside the server's internal network. Changes apply on the next deploy.">
       {pendingDeploy && (
         <p className="border-b border-line p-4 text-meta text-seafoam" role="status">
           Deploy the app to apply these changes.
