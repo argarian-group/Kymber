@@ -13,6 +13,7 @@ import (
 
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/permissions"
 )
 
 func (h *Handler) readComposeContainers(r *http.Request, service databaseService) ([]composeContainer, error) {
@@ -96,7 +97,7 @@ func composeContainerExists(file, name string) bool {
 func (h *Handler) composeContainerAction(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.AppsManage) {
 		return
 	}
 	projectID, ok := pathID(w, r, "projectID")
