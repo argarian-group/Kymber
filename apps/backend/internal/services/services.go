@@ -275,12 +275,28 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if connectionType == "ssh" || sshConfigured {
+		if action != "deploy" {
+			logFile, statusFile := deploymentLogFiles(serviceID)
+			if _, err := h.executeSSH(r.Context(), serverID, "rm -f "+shellQuote(logFile)+" "+shellQuote(statusFile)+" "+shellQuote(statusFile+".tmp")); err != nil {
+				writeError(w, http.StatusBadGateway, "could not clear previous deployment logs")
+				return
+			}
+		}
 		status := "deploying"
 		if action == "stop" {
 			status = "stopped"
 		}
 		if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = ?, last_error = NULL WHERE id = ?", status, serviceID); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not update service status")
+			return
+		}
+		if action == "deploy" {
+			if err := h.startServiceDeploySSH(r, serverID, serviceID, imageVersion); err != nil {
+				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ?", err.Error(), serviceID)
+				writeError(w, http.StatusBadGateway, "SSH service deployment failed: "+err.Error())
+				return
+			}
+			w.WriteHeader(http.StatusAccepted)
 			return
 		}
 		if err := h.executeServiceSSH(r, serverID, serviceID, action, imageVersion); err != nil {
@@ -327,15 +343,42 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := service.Name + "-service-" + service.ID
-	logs, err := h.executeSSH(r.Context(), service.ServerID, "docker logs --tail 300 "+name+" 2>&1")
+	logFile, statusFile := deploymentLogFiles(service.ID)
+	command := "if test -f " + shellQuote(logFile) + "; then printf '__KYMBER_LOG__'; tail -c 65536 " + shellQuote(logFile) + "; else printf '__KYMBER_NO_LOG__'; fi; if test -f " + shellQuote(statusFile) + "; then code=$(cat " + shellQuote(statusFile) + "); printf '\\n__KYMBER_EXIT__%s' \"$code\"; if test \"$code\" = 0; then printf '\\n__KYMBER_CONTAINER__'; if docker inspect " + shellQuote(name) + " >/dev/null 2>&1; then docker logs --tail 300 " + shellQuote(name) + " 2>&1; else printf 'Container output is not available yet.'; fi; fi; fi"
+	logs, err := h.executeSSH(r.Context(), service.ServerID, command)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "could not read container logs: "+err.Error())
+		writeError(w, http.StatusBadGateway, "could not read deployment logs: "+err.Error())
 		return
 	}
-	if len(logs) > 64<<10 {
-		logs = logs[len(logs)-(64<<10):]
+	status := service.Status
+	if (service.Status == "deploying" || service.Status == "running") && strings.Contains(string(logs), "__KYMBER_LOG__") {
+		_, output, _ := strings.Cut(string(logs), "__KYMBER_LOG__")
+		if before, after, found := strings.Cut(output, "__KYMBER_EXIT__"); found {
+			output = before
+			code, after, _ := strings.Cut(after, "\n")
+			code = strings.TrimSpace(code)
+			if code == "0" {
+				status = "running"
+				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'running', last_error = NULL WHERE id = ? AND status = 'deploying'", serviceID)
+				if _, container, found := strings.Cut(after, "__KYMBER_CONTAINER__"); found {
+					output = strings.TrimSpace(output) + "\n\n--- Container output ---\n" + strings.TrimSpace(container)
+				}
+			} else {
+				status = "failed"
+				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", strings.TrimSpace(output), serviceID)
+			}
+		}
+		logs = []byte(strings.TrimSpace(output))
+	} else if service.Status == "deploying" || service.Status == "draft" || service.Status == "queued" {
+		logs = []byte("Preparing Docker deployment…")
+	} else {
+		logs, err = h.executeSSH(r.Context(), service.ServerID, "if docker inspect "+shellQuote(name)+" >/dev/null 2>&1; then docker logs --tail 300 "+shellQuote(name)+" 2>&1; else printf 'Container is not running.'; fi")
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "could not read container logs: "+err.Error())
+			return
+		}
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": service.Status, "logs": string(logs)})
+	writeJSON(w, http.StatusOK, map[string]string{"status": status, "logs": string(logs)})
 }
 
 func (h *Handler) executeServiceSSH(r *http.Request, serverID, serviceID, action, imageVersion string) error {
@@ -377,6 +420,36 @@ func (h *Handler) executeServiceSSH(r *http.Request, serverID, serviceID, action
 	}
 	_, err = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = ?, last_error = NULL WHERE id = ?", status, serviceID)
 	return err
+}
+
+func (h *Handler) startServiceDeploySSH(r *http.Request, serverID, serviceID, imageVersion string) error {
+	service, err := h.readServiceByID(r, serviceID)
+	if err != nil {
+		return err
+	}
+	template := serviceTemplate(service)
+	image, err := template.ImageRef(imageVersion)
+	if err != nil {
+		return err
+	}
+	command, err := h.sshDockerCommand(service, template, image, "deploy")
+	if err != nil {
+		return err
+	}
+	logFile, statusFile := deploymentLogFiles(serviceID)
+	script := "(" + command + ") > " + shellQuote(logFile) + " 2>&1; code=$?; printf '%s' \"$code\" > " + shellQuote(statusFile+".tmp") + "; mv " + shellQuote(statusFile+".tmp") + " " + shellQuote(statusFile)
+	launch := ": > " + shellQuote(logFile) + "; rm -f " + shellQuote(statusFile) + "; nohup sh -c " + shellQuote(script) + " </dev/null >/dev/null 2>&1 &"
+	_, err = h.executeSSH(r.Context(), serverID, launch)
+	return err
+}
+
+func deploymentLogFiles(serviceID string) (string, string) {
+	base := "/tmp/kymber-service-" + serviceID
+	return base + ".log", base + ".exit"
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func (h *Handler) readServiceByID(r *http.Request, id string) (databaseService, error) {
