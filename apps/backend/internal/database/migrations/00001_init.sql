@@ -96,6 +96,7 @@ CREATE TABLE servers (
     token_hash BINARY(32) NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'pending',
     last_seen DATETIME(6) NULL,
+    monitoring_installed_at DATETIME(6) NULL DEFAULT NULL,
     created_by BIGINT UNSIGNED NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
