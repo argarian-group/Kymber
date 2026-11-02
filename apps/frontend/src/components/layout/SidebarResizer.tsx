@@ -1,10 +1,10 @@
 import { t } from "@/lib/i18n";
 
-export const sidebarWidth = { min: 200, max: 400, initial: 224 };
+export const sidebarWidth = { compact: 56, min: 168, max: 400, initial: 224 };
 
 const storageKey = "kymber.sidebar-width";
 
-const clamp = (value: number) => Math.round(Math.min(sidebarWidth.max, Math.max(sidebarWidth.min, value)));
+const clamp = (value: number) => (value < sidebarWidth.min ? sidebarWidth.compact : Math.round(Math.min(sidebarWidth.max, value)));
 
 export function readSidebarWidth() {
   try {
@@ -36,7 +36,7 @@ export function SidebarResizer({ width, onChange }: { width: number; onChange: (
       role="separator"
       aria-orientation="vertical"
       aria-label={t("Resize sidebar")}
-      aria-valuemin={sidebarWidth.min}
+      aria-valuemin={sidebarWidth.compact}
       aria-valuemax={sidebarWidth.max}
       aria-valuenow={width}
       tabIndex={0}
@@ -54,7 +54,7 @@ export function SidebarResizer({ width, onChange }: { width: number; onChange: (
       }}
       onDoubleClick={() => set(sidebarWidth.initial)}
       onKeyDown={(event) => {
-        const steps: Record<string, number> = { ArrowLeft: width - 16, ArrowRight: width + 16, Home: sidebarWidth.min, End: sidebarWidth.max };
+        const steps: Record<string, number> = { ArrowLeft: width - 16, ArrowRight: width === sidebarWidth.compact ? sidebarWidth.min : width + 16, Home: sidebarWidth.compact, End: sidebarWidth.max };
         if (event.key in steps) {
           event.preventDefault();
           set(steps[event.key]);

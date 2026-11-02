@@ -4,15 +4,16 @@ import { useCurrentUser } from "@/features/auth/AuthContext";
 import { LogoutButton } from "./LogoutButton";
 import { t } from "@/lib/i18n";
 
-export function SidebarProfile() {
+export function SidebarProfile({ compact = false }: { compact?: boolean }) {
   const user = useCurrentUser();
   const menuId = useId();
 
   return (
-    <div className="flex-none p-3">
+    <div className={`flex-none ${compact ? "p-2" : "p-3"}`}>
       <button
-        className="flex w-full cursor-pointer items-center gap-3 rounded-control p-2 text-left transition-colors duration-150 hover:bg-white/5 focus-ring"
+        className={`flex w-full cursor-pointer items-center gap-3 rounded-control ${compact ? "justify-center p-1" : "p-2"} text-left transition-colors duration-150 hover:bg-white/5 focus-ring`}
         type="button"
+        title={compact ? user.username : undefined}
         popoverTarget={menuId}
         aria-haspopup="dialog"
       >
@@ -22,11 +23,11 @@ export function SidebarProfile() {
         >
           {user.username[0].toUpperCase()}
         </span>
-        <span className="min-w-0 flex-1">
+        <span className={compact ? "sr-only" : "min-w-0 flex-1"}>
           <strong className="block truncate text-meta font-medium">{user.username}</strong>
           <span className="block truncate text-xs text-ink-soft">{user.email}</span>
         </span>
-        <ChevronsUpDown className="flex-none text-ink-faint" aria-hidden="true" size={16} />
+        {!compact && <ChevronsUpDown className="flex-none text-ink-faint" aria-hidden="true" size={16} />}
       </button>
       <div
         id={menuId}
