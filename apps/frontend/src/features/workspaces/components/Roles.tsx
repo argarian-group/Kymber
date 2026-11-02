@@ -37,9 +37,7 @@ function memberCount(count: number) {
 
 export function RoleList({ roles, members, canEdit, onEdit }: { roles: Role[]; members: Member[]; canEdit: (role: Role) => boolean; onEdit: (role: Role) => void }) {
   return (
-    <>
-      <p className="px-4 pt-4 text-meta text-ink-soft md:px-6">{t("Every member can view the workspace. A role decides what they can change. The owner role always has full access.")}</p>
-      <ul className="mt-4 border-t border-line">
+    <ul>
         {roles.map((role) => (
           <li className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-4 py-3 md:px-6" key={role.name}>
             <div className="min-w-0 flex-1 basis-60">
@@ -57,8 +55,7 @@ export function RoleList({ roles, members, canEdit, onEdit }: { roles: Role[]; m
             )}
           </li>
         ))}
-      </ul>
-    </>
+    </ul>
   );
 }
 

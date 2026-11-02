@@ -1058,7 +1058,6 @@ export const ptBR = {
   "You do not have this permission, so you cannot grant it.": "Você não tem esta permissão, então não pode concedê-la.",
   "Move its members to another role before deleting it.": "Mova os membros para outra função antes de excluí-la.",
   "Delete role": "Excluir função",
-  "Every member can view the workspace. A role decides what they can change. The owner role always has full access.": "Todo membro pode ver o workspace. A função define o que cada um pode alterar. A função de proprietário sempre tem acesso total.",
   "Built-in, changed": "Padrão, alterada",
   "Restore defaults": "Restaurar padrão",
   "the owner role always has full access": "a função de proprietário sempre tem acesso total",
