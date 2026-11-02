@@ -1,5 +1,6 @@
 import { Check, Copy, Download, Maximize2, Minimize2, RefreshCw, Search } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FormError } from "@/components/ui/FormError";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
@@ -35,6 +36,8 @@ function loadPreferences() {
 
 export function AppLogsPage() {
   const { service, path } = useAppOutlet();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const container = searchParams.get("container") ?? "";
   const [preferences, setPreferences] = useState(loadPreferences);
   const [logs, setLogs] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,29 +50,32 @@ export function AppLogsPage() {
   const [customLimit, setCustomLimit] = useState<string | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const output = useRef<HTMLPreElement>(null);
-  const inFlight = useRef<number | null>(null);
+  const inFlight = useRef<string | null>(null);
   const deployed = Boolean(service.server_id);
   const { limit, seconds, wrap } = preferences;
 
   const load = useCallback(async () => {
-    if (inFlight.current === limit) return;
-    inFlight.current = limit;
+    const requestKey = `${limit}:${container}`;
+    if (inFlight.current === requestKey) return;
+    inFlight.current = requestKey;
     setLoading(true);
     try {
-      const result = await api<{ logs: string }>(`${path}/${service.id}/logs?source=runtime&tail=${limit}`);
-      if (inFlight.current !== limit) return;
+      const query = new URLSearchParams({ source: "runtime", tail: String(limit) });
+      if (container) query.set("container", container);
+      const result = await api<{ logs: string }>(`${path}/${service.id}/logs?${query}`);
+      if (inFlight.current !== requestKey) return;
       setLogs(result.logs);
       setUpdatedAt(new Date());
       setError(null);
     } catch (cause) {
-      if (inFlight.current === limit) setError(errorMessage(cause));
+      if (inFlight.current === requestKey) setError(errorMessage(cause));
     } finally {
-      if (inFlight.current === limit) {
+      if (inFlight.current === requestKey) {
         inFlight.current = null;
         setLoading(false);
       }
     }
-  }, [path, service.id, limit]);
+  }, [path, service.id, limit, container]);
 
   useEffect(() => {
     if (deployed) void load();
@@ -130,9 +136,15 @@ export function AppLogsPage() {
   const placeholder = logs === null ? (error ? t("Logs could not be loaded.") : t("Loading logs…")) : limited.length === 0 ? t("No output yet.") : t("No lines match this search.");
 
   return (
-    <AppSection title={t("Runtime logs")} description={t("Output from the running container. Refreshing pauses while this tab is in the background.")}>
+      <AppSection title={container ? t("Logs: {container}", { container }) : t("Runtime logs")} description={t("Output from the running container. Refreshing pauses while this tab is in the background.")}>
       <div className={`grid gap-3 bg-raised p-4 ${fullscreen ? "h-screen grid-rows-[auto_auto_auto_minmax(0,1fr)]" : ""}`} ref={panel}>
         <div className="flex flex-wrap items-center gap-2">
+          {service.compose && <label className="flex items-center gap-2 text-meta text-ink-soft">{t("Container")}<select className="field w-auto cursor-pointer" value={container} onChange={(event) => {
+            const next = new URLSearchParams(searchParams);
+            if (event.target.value) next.set("container", event.target.value);
+            else next.delete("container");
+            setSearchParams(next);
+          }}><option value="">{t("All containers")}</option>{service.containers?.map(({ name }) => <option key={name} value={name}>{name}</option>)}</select></label>}
           <label className="relative min-w-40 flex-1">
             <span className="sr-only">{t("Search logs")}</span>
             <Search className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-ink-faint" aria-hidden="true" size={15} />
