@@ -183,7 +183,6 @@ func execute(t task) result {
 			}
 		}
 		if t.Action == "delete" {
-			// Apps deployed without a data path never created a volume.
 			if template, ok := serviceTemplate(t); !ok || template.DataPath != "" {
 				if _, err := docker("volume", "rm", volumeName(t)); err != nil {
 					return result{Message: err.Error()}
@@ -191,7 +190,6 @@ func execute(t task) result {
 			}
 		}
 		if t.Action == "delete" && t.Environment != "" {
-			// Best effort: Docker refuses while other apps of the environment still use the network.
 			_, _ = docker("network", "rm", networkName(t))
 		}
 		if t.Action == "stop" || t.Action == "delete" || t.Action == "remove_container" || t.Action == "remove_container_image" {
@@ -259,7 +257,6 @@ func execute(t task) result {
 	return result{Success: true, ContainerID: id}
 }
 
-// Each environment gets its own network, so its apps cannot reach other environments or apps outside one.
 func networkName(t task) string {
 	if t.Environment != "" {
 		return fmt.Sprintf("kymber-workspace-%s-env-%s", t.WorkspaceID, t.Environment)
@@ -300,7 +297,6 @@ func waitHealthy(name string, timeout time.Duration) error {
 	for time.Now().Before(deadline) {
 		state, err := docker("inspect", "-f", "{{.State.Status}} {{.RestartCount}} {{if .State.Health}}{{.State.Health.Status}}{{end}}", name)
 		if err == nil {
-			// Any status or restart-count change restarts the stability window, so crash loops never pass.
 			if state != last {
 				last, since = state, time.Now()
 			}
@@ -319,7 +315,6 @@ func waitHealthy(name string, timeout time.Duration) error {
 
 const containerStableAfter = 10 * time.Second
 
-// Images without a healthcheck count as ready once they have stayed running for containerStableAfter.
 func checkContainer(state string, stableFor time.Duration) (bool, error) {
 	fields := strings.Fields(state)
 	if len(fields) >= 3 {

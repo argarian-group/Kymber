@@ -15,7 +15,6 @@ import (
 	"kymber/backend/internal/templates"
 )
 
-// Variables so tests can point them at a local server.
 var (
 	dockerHubBaseURL = "https://hub.docker.com"
 	registryAuthURL  = "https://auth.docker.io/token"
@@ -39,7 +38,6 @@ const (
 	categoryService     = "service"
 )
 
-// Docker Hub categories that run as infrastructure for other apps; everything else is an application.
 var dockerServiceCategories = map[string]bool{
 	"api-management":               true,
 	"integration-and-delivery":     true,
@@ -64,7 +62,6 @@ func dockerImageCategory(slugs []string) string {
 	return category
 }
 
-// serviceCategory also covers apps stored before categories existed.
 func serviceCategory(stored string) string {
 	if stored == categoryDatabase || stored == categoryService {
 		return stored
@@ -72,7 +69,6 @@ func serviceCategory(stored string) string {
 	return categoryApplication
 }
 
-// dockerLogoURL keeps only Docker Hub's logo hosts, because browsers of every workspace member load this URL.
 func dockerLogoURL(raw string) string {
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.Scheme != "https" {
@@ -82,7 +78,6 @@ func dockerLogoURL(raw string) string {
 	case "djeqr6to3dedg.cloudfront.net":
 		return raw
 	case "www.gravatar.com":
-		// Without this, accounts with no avatar return a grey silhouette instead of failing over to our icon.
 		query := parsed.Query()
 		query.Set("d", "404")
 		parsed.RawQuery = query.Encode()
@@ -119,7 +114,6 @@ func (h *Handler) searchDockerHub(w http.ResponseWriter, r *http.Request) {
 	}
 	images := make([]dockerHubImage, 0, len(response.Results))
 	for _, result := range response.Results {
-		// Other types, such as hardened images, ignore the type filter and cannot be pulled from docker.io.
 		if result.Type != "image" {
 			continue
 		}
@@ -160,7 +154,6 @@ func (h *Handler) dockerImageDetails(w http.ResponseWriter, r *http.Request) {
 			version = "latest"
 		}
 	}
-	// Busy repositories push latest out of the most recent tags.
 	if version != "latest" {
 		var latest struct{}
 		if err := fetchJSON(r.Context(), fmt.Sprintf("%s/v2/repositories/%s/tags/latest", dockerHubBaseURL, repository), "", &latest); err == nil {
@@ -168,13 +161,10 @@ func (h *Handler) dockerImageDetails(w http.ResponseWriter, r *http.Request) {
 			tags = append([]string{"latest"}, tags...)
 		}
 	}
-	// The user can fill port and data path by hand, so a registry failure must not block them.
 	port, dataPath, _ := inspectImage(r.Context(), repository, version)
 	writeJSON(w, http.StatusOK, map[string]any{"tags": tags, "default_version": version, "port": port, "data_path": dataPath})
 }
 
-// inspectImage reads what the image declares about itself.
-// shortcut: reads only the lowest TCP port and the first volume, store a list if multi-volume images become common.
 func inspectImage(ctx context.Context, repository, tag string) (int, string, error) {
 	var auth struct {
 		Token string `json:"token"`
