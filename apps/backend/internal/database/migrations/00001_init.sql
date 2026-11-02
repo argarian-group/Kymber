@@ -60,6 +60,7 @@ CREATE TABLE user_sessions (
 CREATE TABLE platform_settings (
     id TINYINT UNSIGNED NOT NULL,
     registration_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    panel_domain VARCHAR(253) NULL DEFAULT NULL,
     PRIMARY KEY (id),
     CONSTRAINT chk_platform_settings_singleton CHECK (id = 1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -113,6 +114,7 @@ CREATE TABLE database_services (
     image_version VARCHAR(128) NOT NULL DEFAULT 'latest',
     image VARCHAR(300) NOT NULL DEFAULT '',
     port INT NOT NULL DEFAULT 0,
+    domain VARCHAR(253) NULL DEFAULT NULL,
     data_path VARCHAR(255) NOT NULL DEFAULT '',
     logo_url VARCHAR(512) NOT NULL DEFAULT '',
     category VARCHAR(16) NOT NULL DEFAULT 'application',
@@ -128,6 +130,7 @@ CREATE TABLE database_services (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_database_services_environment_name (project_id, environment_id, name),
+    UNIQUE KEY uq_database_services_domain (domain),
     KEY idx_database_services_workspace (workspace_id),
     CONSTRAINT fk_database_services_workspace FOREIGN KEY (workspace_id)
         REFERENCES workspaces (id) ON DELETE RESTRICT,
@@ -137,6 +140,37 @@ CREATE TABLE database_services (
         REFERENCES servers (id) ON DELETE RESTRICT,
     CONSTRAINT fk_database_services_creator FOREIGN KEY (created_by)
         REFERENCES users (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE service_storages (
+    id CHAR(6) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    service_id CHAR(6) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    kind VARCHAR(8) NOT NULL,
+    source VARCHAR(255) NULL,
+    mount_path VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+    encrypted_content MEDIUMBLOB NULL,
+    applied BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_service_storages_mount (service_id, mount_path),
+    CONSTRAINT fk_service_storages_service FOREIGN KEY (service_id)
+        REFERENCES database_services (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE service_ports (
+    id CHAR(6) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    service_id CHAR(6) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    host_port SMALLINT UNSIGNED NOT NULL,
+    container_port SMALLINT UNSIGNED NOT NULL,
+    protocol VARCHAR(3) NOT NULL,
+    bind_address VARCHAR(9) NOT NULL,
+    applied BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_service_ports_host (service_id, host_port, protocol),
+    KEY idx_service_ports_host (host_port, protocol),
+    CONSTRAINT fk_service_ports_service FOREIGN KEY (service_id)
+        REFERENCES database_services (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE server_tasks (
@@ -293,6 +327,8 @@ DROP TABLE project_tasks;
 DROP TABLE task_lists;
 DROP TABLE project_logos;
 DROP TABLE server_tasks;
+DROP TABLE service_ports;
+DROP TABLE service_storages;
 DROP TABLE database_services;
 DROP TABLE project_environments;
 DROP TABLE servers;

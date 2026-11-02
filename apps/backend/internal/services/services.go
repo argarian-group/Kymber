@@ -249,7 +249,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var domain string
-		if err := h.db.QueryRowContext(r.Context(), "SELECT domain FROM database_services WHERE id = ?", serviceID).Scan(&domain); err != nil {
+		if err := h.db.QueryRowContext(r.Context(), "SELECT COALESCE(domain, '') FROM database_services WHERE id = ?", serviceID).Scan(&domain); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read service domain")
 			return
 		}
@@ -276,7 +276,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 	}
 	if action == "deploy" {
 		var domain string
-		if err := h.db.QueryRowContext(r.Context(), "SELECT domain FROM database_services WHERE id = ?", serviceID).Scan(&domain); err != nil {
+		if err := h.db.QueryRowContext(r.Context(), "SELECT COALESCE(domain, '') FROM database_services WHERE id = ?", serviceID).Scan(&domain); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read service domain")
 			return
 		}
