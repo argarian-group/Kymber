@@ -36,12 +36,15 @@ func validatePort(hostPort, containerPort int, protocol, bind string) error {
 
 // A deploy removes the old container before starting the new one, so a taken port must stop it first or the app goes down. Ports the app itself holds do not count.
 func portDeployCommand(ports []servicePort) (check, args string) {
+	if len(ports) > 0 {
+		check = "command -v ss >/dev/null 2>&1 || { echo 'Publishing ports needs the ss command on the server. Install iproute2. The running app was not changed.'; exit 1; }; "
+	}
 	for _, p := range ports {
 		flag := "-Hltn"
 		if p.Protocol == "udp" {
 			flag = "-Hlun"
 		}
-		check += fmt.Sprintf("if command -v ss >/dev/null 2>&1 && [ -n \"$(ss %s 'sport = :%d')\" ] && ! docker port \"$n\" 2>/dev/null | grep -q ':%d$'; then echo 'Port %d/%s is already in use on the server. The running app was not changed.'; exit 1; fi; ", flag, p.HostPort, p.HostPort, p.HostPort, p.Protocol)
+		check += fmt.Sprintf("if [ -n \"$(ss %s 'sport = :%d')\" ] && ! docker port \"$n\" 2>/dev/null | grep -q '/%s -> .*:%d$'; then echo 'Port %d/%s is already in use on the server. The running app was not changed.'; exit 1; fi; ", flag, p.HostPort, p.Protocol, p.HostPort, p.HostPort, p.Protocol)
 		args += fmt.Sprintf(" --publish %s:%d:%d/%s", p.Bind, p.HostPort, p.ContainerPort, p.Protocol)
 	}
 	return check, args
