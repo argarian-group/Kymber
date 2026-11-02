@@ -1,4 +1,4 @@
-import { ChevronRight, Download, File, Folder, FolderPlus, HardDrive, FilePlus, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronRight, Download, File, FilePlus, Folder, FolderPlus, HardDrive, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { lazy, Suspense, useState, type FormEvent } from "react";
 import { Link, Navigate, useSearchParams } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -6,6 +6,7 @@ import { FormError } from "@/components/ui/FormError";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { api } from "@/lib/api";
+import { downloadText } from "@/lib/downloadText";
 import { formatRelative } from "@/lib/format";
 import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
@@ -73,6 +74,8 @@ export function AppFilesPage() {
   if (!running) return <EmptyState title="The app is not running" description="Start or deploy the app to browse and edit its files." />;
 
   const mounts = listing?.mounts ?? [];
+  const persistentMounts = mounts.filter(({ kind }) => kind !== "file");
+  const fileName = open?.path.split("/").pop() ?? "";
   const crumbs = directory.split("/").filter(Boolean);
   const reload = () => setAttempt((value) => value + 1);
   const canLeave = () => !dirty || window.confirm("Discard your unsaved changes?");
@@ -108,15 +111,6 @@ export function AppFilesPage() {
     });
   }
 
-  function download() {
-    if (!open) return;
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([draft], { type: "text/plain" }));
-    link.download = open.path.split("/").pop() ?? "file";
-    link.click();
-    URL.revokeObjectURL(link.href);
-  }
-
   function ask(next: Prompt) {
     setPrompt(next);
     setName(next.kind === "rename" ? next.entry.name : "");
@@ -130,12 +124,12 @@ export function AppFilesPage() {
       action.setError("Enter a name without slashes.");
       return;
     }
-    const entryPath = "entry" in prompt ? join(directory, prompt.entry.name) : null;
+    const entryPath = "entry" in prompt ? join(directory, prompt.entry.name) : "";
     const affectsOpen = Boolean(open && entryPath && (open.path === entryPath || open.path.startsWith(`${entryPath}/`)));
     if (affectsOpen && !canLeave()) return;
     const done = await action.run(async () => {
-      if (prompt.kind === "delete") await api(`${url}?path=${encodeURIComponent(join(directory, prompt.entry.name))}`, { method: "DELETE" });
-      else if (prompt.kind === "rename") await api(`${url}/move`, { method: "POST", body: { from: join(directory, prompt.entry.name), to: join(directory, name) } });
+      if (prompt.kind === "delete") await api(`${url}?path=${encodeURIComponent(entryPath)}`, { method: "DELETE" });
+      else if (prompt.kind === "rename") await api(`${url}/move`, { method: "POST", body: { from: entryPath, to: join(directory, name) } });
       else await api(url, { method: "POST", body: { path: join(directory, name), kind: prompt.kind } });
     });
     if (!done) return;
@@ -152,12 +146,12 @@ export function AppFilesPage() {
             <HardDrive aria-hidden="true" size={13} />
             Persistent
           </span>
-          {mounts.filter(({ kind }) => kind !== "file").map((mount) => (
+          {persistentMounts.map((mount) => (
             <button className="btn min-h-7 px-2 font-mono text-xs" type="button" onClick={() => go(mount.path)} key={mount.path}>
               {mount.path}
             </button>
           ))}
-          {mounts.filter(({ kind }) => kind !== "file").length === 0 && <span className="text-xs text-ink-faint">No volumes yet. Add them in Storage.</span>}
+          {persistentMounts.length === 0 && <span className="text-xs text-ink-faint">No volumes yet. Add them in Storage.</span>}
         </div>
         <nav className="flex flex-wrap items-center gap-0.5 font-mono text-meta" aria-label="Current folder">
           <button className="text-button px-1" type="button" onClick={() => go("/")}>/</button>
@@ -258,7 +252,7 @@ export function AppFilesPage() {
                 </div>
                 {!open.binary && (
                   <div className="flex gap-2">
-                    <button className="btn size-9 justify-center px-0" type="button" aria-label="Download file" title="Download" onClick={download}>
+                    <button className="btn size-9 justify-center px-0" type="button" aria-label="Download file" title="Download" onClick={() => downloadText(fileName, draft)}>
                       <Download aria-hidden="true" size={15} />
                     </button>
                     {!managedFile && (
@@ -280,7 +274,7 @@ export function AppFilesPage() {
               ) : (
                 <div className="h-[32rem] min-h-0">
                   <Suspense fallback={<p className="p-4 text-meta text-ink-soft">Loading editor…</p>}>
-                    <CodeEditor filename={open.path.split("/").pop() ?? ""} value={open.content ?? ""} readOnly={managedFile} label={`Contents of ${open.path}`} onChange={setDraft} onSave={save} key={revision} />
+                    <CodeEditor filename={fileName} value={open.content ?? ""} readOnly={managedFile} label={`Contents of ${open.path}`} onChange={setDraft} onSave={save} key={revision} />
                   </Suspense>
                 </div>
               )}

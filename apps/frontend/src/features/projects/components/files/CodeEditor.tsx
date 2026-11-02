@@ -1,7 +1,7 @@
-import { oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
-import { syntaxHighlighting, LanguageDescription } from "@codemirror/language";
+import { LanguageDescription, syntaxHighlighting } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { Compartment, EditorState } from "@codemirror/state";
+import { oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
 import { EditorView, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useEffect, useRef } from "react";
@@ -34,7 +34,16 @@ export default function CodeEditor({ filename, value, readOnly, label, onChange,
       state: EditorState.create({
         doc: value,
         extensions: [
-          keymap.of([{ key: "Mod-s", preventDefault: true, run: () => (callbacks.current.onSave(), true) }]),
+          keymap.of([
+            {
+              key: "Mod-s",
+              preventDefault: true,
+              run: () => {
+                callbacks.current.onSave();
+                return true;
+              },
+            },
+          ]),
           basicSetup,
           language.of([]),
           syntaxHighlighting(oneDarkHighlightStyle),
@@ -53,7 +62,6 @@ export default function CodeEditor({ filename, value, readOnly, label, onChange,
         view.dispatch({ effects: language.reconfigure(support) });
       });
     return () => view.destroy();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <div className="h-full min-h-0" ref={host} />;

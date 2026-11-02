@@ -11,8 +11,8 @@ import { ServiceStatus } from "@/features/projects/components/apps/ServiceStatus
 import { useProjects } from "@/features/projects/ProjectsContext";
 import type { DatabaseTemplate, Service } from "@/features/projects/services";
 import type { AppOutlet } from "@/features/projects/useAppOutlet";
-import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
 import { useDeploymentOutput } from "@/features/projects/useDeploymentOutput";
+import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
 import { useServices } from "@/features/projects/useServices";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";

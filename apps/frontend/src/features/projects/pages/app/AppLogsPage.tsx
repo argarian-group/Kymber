@@ -4,7 +4,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FormError } from "@/components/ui/FormError";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
-import { api } from "@/lib/api";
+import { api, errorMessage } from "@/lib/api";
+import { downloadText } from "@/lib/downloadText";
 
 // shortcut: the API always returns the last 300 lines without timestamps, upgrade the options when it accepts tail and timestamps.
 const lineLimits = [50, 100, 200, 300];
@@ -58,7 +59,7 @@ export function AppLogsPage() {
       setUpdatedAt(new Date());
       setError(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load logs");
+      setError(errorMessage(cause));
     } finally {
       inFlight.current = false;
       setLoading(false);
@@ -121,15 +122,6 @@ export function AppLogsPage() {
     window.setTimeout(() => setCopied(null), 1500);
   }
 
-  function download() {
-    const url = URL.createObjectURL(new Blob([`${text}\n`], { type: "text/plain" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${service.name}-logs.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
   if (!deployed) return <EmptyState title="No runtime logs yet" description="Logs appear here after the first deploy." />;
 
   const placeholder = logs === null ? (error ? "Logs could not be loaded." : "Loading logs…") : limited.length === 0 ? "No output yet." : "No lines match this search.";
@@ -181,7 +173,7 @@ export function AppLogsPage() {
             <button className="btn size-9 justify-center px-0" type="button" disabled={!text} aria-label={copied === false ? "Could not copy logs" : copied ? "Logs copied" : "Copy logs"} title={copied === false ? "Could not copy" : copied ? "Copied" : "Copy"} onClick={copy}>
               {copied ? <Check className="text-ok" aria-hidden="true" size={15} /> : <Copy aria-hidden="true" size={15} />}
             </button>
-            <button className="btn size-9 justify-center px-0" type="button" disabled={!text} aria-label="Download logs" title="Download" onClick={download}>
+            <button className="btn size-9 justify-center px-0" type="button" disabled={!text} aria-label="Download logs" title="Download" onClick={() => downloadText(`${service.name}-logs.txt`, `${text}\n`)}>
               <Download aria-hidden="true" size={15} />
             </button>
             <button className="btn size-9 justify-center px-0" type="button" aria-label={fullscreen ? "Exit full screen" : "Full screen"} title={fullscreen ? "Exit full screen" : "Full screen"} onClick={() => (fullscreen ? document.exitFullscreen() : panel.current?.requestFullscreen())}>

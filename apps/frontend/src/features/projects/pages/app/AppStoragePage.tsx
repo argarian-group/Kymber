@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { LoadError } from "@/components/ui/LoadError";
@@ -15,18 +15,16 @@ const kinds: Record<StorageKind, string> = { volume: "Volume", bind: "Directory 
 const pathPattern = "(/[A-Za-z0-9_.\\-]+)+";
 const pathTitle = "An absolute path using letters, numbers, dots, dashes and underscores";
 
-function Row({ kind, title, detail, badge, children }: { kind: string; title: string; detail?: string; badge?: string; children?: React.ReactNode }) {
+function Row({ kind, title, detail, badge, children }: { kind: string; title: string; detail?: string; badge?: string; children?: ReactNode }) {
   return (
     <li className="grid gap-3 border-t border-line p-4 first:border-t-0">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="min-w-0 flex-1 basis-56">
-          <p className="flex flex-wrap items-center gap-2 text-xs text-ink-soft">
-            {kind}
-            {badge && <span className="rounded-sm bg-seafoam/15 px-1.5 text-seafoam">{badge}</span>}
-          </p>
-          <code className="mt-1 block font-mono text-meta wrap-break-word">{title}</code>
-          {detail && <code className="mt-0.5 block font-mono text-xs wrap-break-word text-ink-soft">{detail}</code>}
-        </div>
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-center gap-2 text-xs text-ink-soft">
+          {kind}
+          {badge && <span className="rounded-sm bg-seafoam/15 px-1.5 text-seafoam">{badge}</span>}
+        </p>
+        <code className="mt-1 block font-mono text-meta wrap-break-word">{title}</code>
+        {detail && <code className="mt-0.5 block font-mono text-xs wrap-break-word text-ink-soft">{detail}</code>}
       </div>
       {children}
     </li>
@@ -183,12 +181,14 @@ export function AppStoragePage() {
     [url, attempt],
   );
 
+  const reload = () => setAttempt((value) => value + 1);
+
   function refresh() {
     setChanged(true);
-    setAttempt((value) => value + 1);
+    reload();
   }
 
-  if (loadError && !storages) return <LoadError title="Could not load storage" message={loadError} onRetry={() => setAttempt((value) => value + 1)} />;
+  if (loadError && !storages) return <LoadError title="Could not load storage" message={loadError} onRetry={reload} />;
 
   const empty = !service.data_path && storages?.length === 0;
   const pendingDeploy = changed || storages?.some(({ applied }) => !applied);
