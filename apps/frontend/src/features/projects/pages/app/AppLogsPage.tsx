@@ -9,7 +9,7 @@ import { downloadText } from "@/lib/downloadText";
 
 const lineLimits = [100, 500, 1000, 5000, 10000];
 const maxLines = 50000;
-const validLimit = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 1 && (value as number) <= maxLines;
+const validLimit = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= maxLines;
 const refreshRates = [
   { seconds: 0, label: "Off" },
   { seconds: 5, label: "Every 5s" },
@@ -46,24 +46,27 @@ export function AppLogsPage() {
   const [customLimit, setCustomLimit] = useState<string | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const output = useRef<HTMLPreElement>(null);
-  const inFlight = useRef(false);
+  const inFlight = useRef<number | null>(null);
   const deployed = Boolean(service.server_id);
   const { limit, seconds, wrap } = preferences;
 
   const load = useCallback(async () => {
-    if (inFlight.current) return;
-    inFlight.current = true;
+    if (inFlight.current === limit) return;
+    inFlight.current = limit;
     setLoading(true);
     try {
       const result = await api<{ logs: string }>(`${path}/${service.id}/logs?source=runtime&tail=${limit}`);
+      if (inFlight.current !== limit) return;
       setLogs(result.logs);
       setUpdatedAt(new Date());
       setError(null);
     } catch (cause) {
-      setError(errorMessage(cause));
+      if (inFlight.current === limit) setError(errorMessage(cause));
     } finally {
-      inFlight.current = false;
-      setLoading(false);
+      if (inFlight.current === limit) {
+        inFlight.current = null;
+        setLoading(false);
+      }
     }
   }, [path, service.id, limit]);
 
