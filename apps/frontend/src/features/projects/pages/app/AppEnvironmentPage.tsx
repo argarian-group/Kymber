@@ -35,14 +35,15 @@ export function AppEnvironmentPage() {
     });
   }
 
-  if (template.fields.length === 0) return <EmptyState title={t("No environment variables")} />;
+  const fields = template.fields ?? [];
+  if (fields.length === 0) return <EmptyState title={t("No environment variables")} />;
 
   return (
     <AppSection title={t("Environment variables")} description={draft ? t("These go into the container at deploy.") : t("Variables can only change before the first deploy.")}>
       {draft ? (
         <form onSubmit={submit}>
           <div className="grid items-start gap-4 p-4 sm:grid-cols-2">
-            {template.fields.map((field) => (
+            {fields.map((field) => (
               <Field
                 label={translate(field.label)}
                 type={field.secret ? "password" : "text"}
@@ -66,7 +67,7 @@ export function AppEnvironmentPage() {
         </form>
       ) : (
         <div className="grid gap-4 p-4">
-          {template.fields.map((field) => (
+          {fields.map((field) => (
             <CopyField label={field.name} value={environment[field.name] ?? ""} secret={field.secret} key={field.name} />
           ))}
         </div>

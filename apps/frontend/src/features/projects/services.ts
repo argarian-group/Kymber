@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n";
 
 export type TemplateField = { name: string; label: string; type: string; required?: boolean; secret?: boolean; default?: string; generate?: boolean; min?: number; max?: number; pattern?: string };
 
-export type DatabaseTemplate = { engine: string; image: string; default_version: string; port: number; data_path: string; fields: TemplateField[]; custom?: boolean; category?: AppCategory };
+export type DatabaseTemplate = { engine: string; image: string; default_version: string; port: number; data_path: string; fields?: TemplateField[] | null; custom?: boolean; category?: AppCategory };
 
 export type Service = {
   id: string;

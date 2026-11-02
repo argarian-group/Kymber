@@ -13,6 +13,7 @@ import { t, translate } from "@/lib/i18n";
 export function CreateServiceForm({ template, path }: { template: DatabaseTemplate; path: string }) {
   const navigate = useNavigate();
   const { engine } = template;
+  const fields = template.fields ?? [];
   const [params] = useSearchParams();
   const [environmentId, setEnvironmentId] = useState(params.get("environment") ?? "");
   const [name, setName] = useState("");
@@ -47,7 +48,7 @@ export function CreateServiceForm({ template, path }: { template: DatabaseTempla
         <summary className="focus-ring cursor-pointer rounded-panel p-3 text-meta font-medium">{t("Advanced settings")}</summary>
         <div className="grid items-start gap-4 border-t border-line p-3 sm:grid-cols-2">
           <Field label={t("Image version")} maxLength={128} placeholder={template.default_version} value={version} onChange={(event) => setVersion(event.target.value)} />
-          {template.fields.map((field) => (
+          {fields.map((field) => (
             <Field
               label={translate(field.label)}
               type={field.type === "password" ? "password" : "text"}
