@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"kymber/backend/internal/templates"
@@ -22,6 +23,16 @@ var (
 )
 
 var dockerHubClient = &http.Client{Timeout: 15 * time.Second}
+var dockerHubRequests = make(chan struct{}, 2)
+var dockerHubSearchCache = struct {
+	sync.Mutex
+	entries map[string]dockerHubSearchResult
+}{entries: make(map[string]dockerHubSearchResult)}
+
+type dockerHubSearchResult struct {
+	images  []dockerHubImage
+	expires time.Time
+}
 
 type dockerHubImage struct {
 	Repository  string `json:"repository"`
@@ -78,9 +89,8 @@ func dockerLogoURL(raw string) string {
 	case "djeqr6to3dedg.cloudfront.net":
 		return raw
 	case "www.gravatar.com":
-		query := parsed.Query()
-		query.Set("d", "404")
-		parsed.RawQuery = query.Encode()
+		return parsed.String()
+	case "avatars.githubusercontent.com":
 		return parsed.String()
 	}
 	return ""
@@ -92,6 +102,13 @@ func (h *Handler) searchDockerHub(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "search text is required")
 		return
 	}
+	dockerHubSearchCache.Lock()
+	if cached, ok := dockerHubSearchCache.entries[query]; ok && time.Now().Before(cached.expires) {
+		dockerHubSearchCache.Unlock()
+		writeJSON(w, http.StatusOK, map[string][]dockerHubImage{"images": cached.images})
+		return
+	}
+	dockerHubSearchCache.Unlock()
 	var response struct {
 		Results []struct {
 			Type             string `json:"type"`
@@ -117,12 +134,35 @@ func (h *Handler) searchDockerHub(w http.ResponseWriter, r *http.Request) {
 		if result.Type != "image" {
 			continue
 		}
+		logoURL := dockerLogoURL(result.LogoURL.Small)
+		if logoURL == "" {
+			if namespace, _, ok := strings.Cut(result.Slug, "/"); ok {
+				for _, candidate := range response.Results {
+					if candidate.Slug == namespace {
+						logoURL = dockerLogoURL(candidate.LogoURL.Small)
+						break
+					}
+				}
+			}
+		}
 		slugs := make([]string, 0, len(result.Categories))
 		for _, category := range result.Categories {
 			slugs = append(slugs, category.Slug)
 		}
-		images = append(images, dockerHubImage{Repository: result.Slug, Description: result.ShortDescription, Official: result.Badge == "official", Stars: result.StarCount, LogoURL: dockerLogoURL(result.LogoURL.Small), Category: dockerImageCategory(slugs)})
+		images = append(images, dockerHubImage{Repository: result.Slug, Description: result.ShortDescription, Official: result.Badge == "official", Stars: result.StarCount, LogoURL: logoURL, Category: dockerImageCategory(slugs)})
 	}
+	dockerHubSearchCache.Lock()
+	if len(dockerHubSearchCache.entries) >= 256 {
+		oldest, expiry := "", time.Time{}
+		for key, entry := range dockerHubSearchCache.entries {
+			if oldest == "" || entry.expires.Before(expiry) {
+				oldest, expiry = key, entry.expires
+			}
+		}
+		delete(dockerHubSearchCache.entries, oldest)
+	}
+	dockerHubSearchCache.entries[query] = dockerHubSearchResult{images: images, expires: time.Now().Add(24 * time.Hour)}
+	dockerHubSearchCache.Unlock()
 	writeJSON(w, http.StatusOK, map[string][]dockerHubImage{"images": images})
 }
 
@@ -244,13 +284,31 @@ func fetchJSON(ctx context.Context, target, token string, output any) error {
 	if token != "" {
 		request.Header.Set("Authorization", "Bearer "+token)
 	}
-	response, err := dockerHubClient.Do(request)
-	if err != nil {
-		return err
+	for attempt := 0; attempt < 4; attempt++ {
+		dockerHubRequests <- struct{}{}
+		response, err := dockerHubClient.Do(request)
+		<-dockerHubRequests
+		if err != nil {
+			return err
+		}
+		if response.StatusCode == http.StatusTooManyRequests && attempt < 3 {
+			delay := time.Second
+			if seconds, err := strconv.Atoi(response.Header.Get("Retry-After")); err == nil && seconds > 0 {
+				delay = time.Duration(seconds) * time.Second
+			}
+			response.Body.Close()
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+			continue
+		}
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			return fmt.Errorf("docker hub returned %s", response.Status)
+		}
+		return json.NewDecoder(io.LimitReader(response.Body, 4<<20)).Decode(output)
 	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("docker hub returned %s", response.Status)
-	}
-	return json.NewDecoder(io.LimitReader(response.Body, 4<<20)).Decode(output)
+	return fmt.Errorf("docker hub rate limit exceeded")
 }
