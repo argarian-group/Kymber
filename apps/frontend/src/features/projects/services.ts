@@ -20,6 +20,8 @@ export type Service = {
   last_error?: string;
   internal_host?: string;
   port?: number;
+  domain?: string;
+  public_port?: number;
   data_path?: string;
   logo_url?: string;
   category: AppCategory;

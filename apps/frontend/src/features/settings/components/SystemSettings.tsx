@@ -2,6 +2,7 @@ import { useState } from "react";
 import { FormError } from "@/components/ui/FormError";
 import { LoadError } from "@/components/ui/LoadError";
 import { SettingsSection } from "@/features/settings/components/SettingsSection";
+import { PanelDomainForm } from "@/features/settings/components/PanelDomainForm";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
@@ -67,6 +68,9 @@ export function SystemSettings() {
             <FormError message={error} />
           </div>
         )}
+      </SettingsSection>
+      <SettingsSection title="Panel domain" description="Optional custom hostname for the Kymber dashboard. DNS must point to this server and ports 80 and 443 must be open.">
+        <PanelDomainForm />
       </SettingsSection>
     </>
   );

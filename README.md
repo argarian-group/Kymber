@@ -106,6 +106,12 @@ For a remote server, provide its SSH host key during registration and install th
 
 An app remains assigned to the server selected at its first deploy. The old heartbeat agent is optional and only reports presence; it has no task-claim or Docker-socket access.
 
+To publish a web app or the panel over HTTPS, set `TRAEFIK_ACME_EMAIL` and a random `TRAEFIK_CONFIG_TOKEN` in `.env`, point the public DNS record to this machine, and allow inbound ports 80 and 443. In the app's **Connection** section, set a domain and save it, then deploy the app. Traefik obtains and renews HTTPS certificates automatically. Public app domains currently support HTTP application services on the local server; remote servers and database services are not exposed.
+
+The root-account onboarding also offers an optional domain for the Kymber panel. It can later be edited or removed in **Settings → System**. DNS checking only reports whether the hostname resolves; create or update its A/AAAA record at your DNS provider and verify that it points to this server. Cloudflare changes are not automated.
+
+Apps can alternatively publish an HTTP host port from their **Connection** settings. Choose an unused port, save, then deploy; access it at `http://<server-ipv4>:<port>`. This bypasses the Docker network, exposes the app to anyone who can reach that host port, and does not enable TLS. Domain and host-port publishing are mutually exclusive.
+
 To delete all local data, stop the app and run `docker compose down -v`.
 
 ## Project structure

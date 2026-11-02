@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
@@ -34,6 +35,8 @@ type databaseService struct {
 	LastError       string           `json:"last_error,omitempty"`
 	InternalHost    string           `json:"internal_host,omitempty"`
 	Port            int              `json:"port,omitempty"`
+	Domain          string           `json:"domain,omitempty"`
+	PublicPort      int              `json:"public_port,omitempty"`
 	DataPath        string           `json:"data_path,omitempty"`
 	LogoURL         string           `json:"logo_url,omitempty"`
 	Category        string           `json:"category"`
@@ -44,6 +47,7 @@ type databaseService struct {
 }
 
 var serviceNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,62}$`)
+var serviceDomainPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$`)
 
 func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
@@ -55,7 +59,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, '') FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.workspace_id = ? AND d.project_id = ? ORDER BY d.created_at`, workspaceID, projectID)
+	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), COALESCE(d.public_port, 0), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, '') FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.workspace_id = ? AND d.project_id = ? ORDER BY d.created_at`, workspaceID, projectID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list services")
 		return
@@ -64,7 +68,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	services := make([]databaseService, 0)
 	for rows.Next() {
 		var service databaseService
-		if err := rows.Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError); err != nil {
+		if err := rows.Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.PublicPort, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read services")
 			return
 		}
@@ -244,6 +248,18 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "could not find an online server")
 			return
 		}
+		var domain string
+		if err := h.db.QueryRowContext(r.Context(), "SELECT domain FROM database_services WHERE id = ?", serviceID).Scan(&domain); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not read service domain")
+			return
+		}
+		if domain != "" {
+			var connectionType string
+			if err := h.db.QueryRowContext(r.Context(), "SELECT connection_type FROM servers WHERE id = ?", nullableServerID.String).Scan(&connectionType); err != nil || connectionType != "local" {
+				writeError(w, http.StatusConflict, "public domains currently require the local server with Traefik")
+				return
+			}
+		}
 		if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET server_id = ? WHERE id = ?", nullableServerID.String, serviceID); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not assign server")
 			return
@@ -257,6 +273,17 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 	if err := h.db.QueryRowContext(r.Context(), "SELECT connection_type FROM servers WHERE id = ?", nullableServerID.String).Scan(&connectionType); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read server connection")
 		return
+	}
+	if action == "deploy" {
+		var domain string
+		if err := h.db.QueryRowContext(r.Context(), "SELECT domain FROM database_services WHERE id = ?", serviceID).Scan(&domain); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not read service domain")
+			return
+		}
+		if domain != "" && connectionType != "local" {
+			writeError(w, http.StatusConflict, "public domains currently require the local server with Traefik")
+			return
+		}
 	}
 	if connectionType == "local" && !h.requireServerOnline(w, r, nullableServerID.String) {
 		return
@@ -401,7 +428,7 @@ func (h *Handler) executeServiceSSH(r *http.Request, serverID, serviceID, action
 	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = ?, last_error = NULL WHERE id = ?", status, serviceID); err != nil {
 		return err
 	}
-	command, err := h.sshDockerCommand(service, template, imageRef, action)
+	command, err := h.sshDockerCommand(r, service, template, imageRef, action)
 	if err == nil {
 		_, err = h.executeSSH(r.Context(), serverID, command)
 	}
@@ -432,7 +459,7 @@ func (h *Handler) startServiceDeploySSH(r *http.Request, serverID, serviceID, im
 	if err != nil {
 		return err
 	}
-	command, err := h.sshDockerCommand(service, template, image, "deploy")
+	command, err := h.sshDockerCommand(r, service, template, image, "deploy")
 	if err != nil {
 		return err
 	}
@@ -455,7 +482,7 @@ func shellQuote(value string) string {
 func (h *Handler) readServiceByID(r *http.Request, id string) (databaseService, error) {
 	var service databaseService
 	var encrypted []byte
-	err := h.db.QueryRowContext(r.Context(), "SELECT id, workspace_id, project_id, engine, name, image_version, image, port, data_path, COALESCE(server_id, ''), database_name, database_user, encrypted_config FROM database_services WHERE id = ?", id).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.DataPath, &service.ServerID, &service.DatabaseName, &service.DatabaseUser, &encrypted)
+	err := h.db.QueryRowContext(r.Context(), "SELECT id, workspace_id, project_id, engine, name, image_version, image, port, COALESCE(domain, ''), COALESCE(public_port, 0), data_path, COALESCE(server_id, ''), database_name, database_user, encrypted_config FROM database_services WHERE id = ?", id).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.PublicPort, &service.DataPath, &service.ServerID, &service.DatabaseName, &service.DatabaseUser, &encrypted)
 	if err != nil {
 		return service, err
 	}
@@ -469,7 +496,7 @@ func (h *Handler) readServiceByID(r *http.Request, id string) (databaseService, 
 	return service, nil
 }
 
-func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, image, action string) (string, error) {
+func (h *Handler) sshDockerCommand(r *http.Request, s databaseService, t templates.Template, image, action string) (string, error) {
 	name := t.ContainerName(s.Name, s.ID)
 	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'" }
 	if action == "stop" {
@@ -511,6 +538,46 @@ func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, imag
 		env.WriteString(" >> \"$f\"; ")
 	}
 	command := "set -eu; n=" + quote(name) + "; f=$(mktemp); trap 'rm -f \"$f\"' EXIT; " + env.String() + "docker network inspect " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null 2>&1 || docker network create --label kymber.managed=true " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null; docker rm -f \"$n\" >/dev/null 2>&1 || true; docker run --pull=missing -d --name \"$n\" --restart unless-stopped --network " + quote("kymber-workspace-"+s.WorkspaceID) + " --network-alias " + quote(t.InternalHost(s.ID)) + " --label kymber.managed=true --label " + quote("kymber.service="+s.ID)
+	if s.PublicPort != 0 {
+		if s.PublicPort < 1 || s.PublicPort > 65535 || t.Port < 1 || t.Port > 65535 || s.Domain != "" {
+			return "", fmt.Errorf("public port requires a valid HTTP container port and no domain")
+		}
+		var inUse bool
+		if err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM database_services WHERE public_port = ? AND server_id <=> NULLIF(?, '') AND id <> ?)", s.PublicPort, s.ServerID, s.ID).Scan(&inUse); err != nil {
+			return "", fmt.Errorf("could not verify public port availability")
+		}
+		if inUse {
+			return "", fmt.Errorf("public port is already assigned on this server")
+		}
+		command += " --publish " + quote(fmt.Sprintf("0.0.0.0:%d:%d/tcp", s.PublicPort, t.Port))
+	}
+	if s.Domain != "" {
+		if t.Port < 1 || t.Port > 65535 {
+			return "", fmt.Errorf("public domain requires an HTTP port")
+		}
+		if len(s.Domain) > 253 || !serviceDomainPattern.MatchString(s.Domain) || net.ParseIP(s.Domain) != nil {
+			return "", fmt.Errorf("invalid public domain")
+		}
+		name := "kymber-" + s.ID
+		host := "Host(`" + s.Domain + "`)"
+		for _, label := range []string{
+			"traefik.enable=true",
+			"traefik.docker.network=kymber",
+			"traefik.http.routers." + name + "-http.rule=" + host,
+			"traefik.http.routers." + name + "-http.entrypoints=web",
+			"traefik.http.routers." + name + "-http.middlewares=" + name + "-https",
+			"traefik.http.routers." + name + "-http.service=" + name,
+			"traefik.http.middlewares." + name + "-https.redirectscheme.scheme=https",
+			"traefik.http.routers." + name + ".rule=" + host,
+			"traefik.http.routers." + name + ".entrypoints=websecure",
+			"traefik.http.routers." + name + ".tls.certresolver=letsencrypt",
+			"traefik.http.routers." + name + ".service=" + name,
+			fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port=%d", name, t.Port),
+		} {
+			command += " --label " + quote(label)
+		}
+		command = strings.Replace(command, "; docker rm -f", "; docker network inspect kymber >/dev/null 2>&1 || { echo 'Traefik network kymber is missing; start the Kymber proxy first' >&2; exit 1; }; docker rm -f", 1)
+	}
 	if t.DataPath != "" {
 		command += " --volume " + quote(t.VolumeName(s.ID)+":"+t.DataPath)
 	}
@@ -520,6 +587,9 @@ func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, imag
 	command += " --env-file \"$f\" " + quote(image)
 	for _, arg := range config {
 		command += " " + quote(arg)
+	}
+	if s.Domain != "" {
+		command += " && docker network connect kymber \"$n\""
 	}
 	return command, nil
 }
@@ -623,10 +693,133 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, service)
 }
 
+func (h *Handler) updateServiceDomain(w http.ResponseWriter, r *http.Request) {
+	user, _ := auth.UserFromContext(r)
+	workspaceID, ok := pathID(w, r, "workspaceID")
+	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+		return
+	}
+	projectID, ok := pathID(w, r, "projectID")
+	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
+		return
+	}
+	serviceID, ok := pathID(w, r, "serviceID")
+	if !ok {
+		return
+	}
+	var input struct {
+		Domain string `json:"domain"`
+	}
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	domain := strings.ToLower(strings.TrimSpace(input.Domain))
+	if domain != "" && (len(domain) > 253 || !serviceDomainPattern.MatchString(domain) || net.ParseIP(domain) != nil) {
+		writeError(w, http.StatusBadRequest, "enter a valid public domain name")
+		return
+	}
+	service, err := h.readService(r, workspaceID, projectID, serviceID, false)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "service not found")
+		return
+	}
+	if service.Status == "queued" || service.Status == "deploying" {
+		writeError(w, http.StatusConflict, "wait for the current action to finish")
+		return
+	}
+	if domain != "" && (service.Category != "application" || service.Port < 1 || service.Port > 65535) {
+		writeError(w, http.StatusBadRequest, "public domains require an application with an HTTP port")
+		return
+	}
+	if domain != "" && service.PublicPort != 0 {
+		writeError(w, http.StatusConflict, "disable the public port before assigning a domain")
+		return
+	}
+	if domain != "" && service.ServerID != "" {
+		var connectionType string
+		if err := h.db.QueryRowContext(r.Context(), "SELECT connection_type FROM servers WHERE id = ?", service.ServerID).Scan(&connectionType); err != nil || connectionType != "local" {
+			writeError(w, http.StatusConflict, "public domains currently require the local server with Traefik")
+			return
+		}
+	}
+	if domain != "" {
+		var panelDomain string
+		if err := h.db.QueryRowContext(r.Context(), "SELECT COALESCE(panel_domain, '') FROM platform_settings WHERE id = 1").Scan(&panelDomain); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not check panel domain")
+			return
+		}
+		if domain == panelDomain {
+			writeError(w, http.StatusConflict, "domain is already assigned to the panel")
+			return
+		}
+	}
+	var savedDomain any
+	if domain != "" {
+		savedDomain = domain
+	}
+	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET domain = ? WHERE id = ? AND NOT EXISTS (SELECT 1 FROM platform_settings WHERE panel_domain = ? AND id = 1)", savedDomain, serviceID, domain); err != nil {
+		writeError(w, http.StatusConflict, "could not save domain")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"domain": domain})
+}
+
+func (h *Handler) updateServicePublicPort(w http.ResponseWriter, r *http.Request) {
+	user, _ := auth.UserFromContext(r)
+	workspaceID, ok := pathID(w, r, "workspaceID")
+	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+		return
+	}
+	projectID, ok := pathID(w, r, "projectID")
+	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
+		return
+	}
+	serviceID, ok := pathID(w, r, "serviceID")
+	if !ok {
+		return
+	}
+	var input struct {
+		Port int `json:"port"`
+	}
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	if input.Port < 0 || input.Port > 65535 {
+		writeError(w, http.StatusBadRequest, "port must be between 0 and 65535")
+		return
+	}
+	service, err := h.readService(r, workspaceID, projectID, serviceID, false)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "service not found")
+		return
+	}
+	if service.Status == "queued" || service.Status == "deploying" || service.ServerID != "" && service.Status != "stopped" {
+		writeError(w, http.StatusConflict, "stop the service before changing its public port")
+		return
+	}
+	if service.Domain != "" {
+		writeError(w, http.StatusConflict, "remove the domain before setting a public port")
+		return
+	}
+	if input.Port != 0 && (service.Category != "application" || service.Port < 1 || service.Port > 65535) {
+		writeError(w, http.StatusBadRequest, "public ports require an application HTTP port")
+		return
+	}
+	var savedPort any
+	if input.Port != 0 {
+		savedPort = input.Port
+	}
+	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET public_port = ? WHERE id = ?", savedPort, serviceID); err != nil {
+		writeError(w, http.StatusConflict, "could not save public port; it may already be in use")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"public_port": input.Port})
+}
+
 func (h *Handler) readService(r *http.Request, workspaceID, projectID string, serviceID string, includeSecret bool) (databaseService, error) {
 	var service databaseService
 	var encrypted []byte
-	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.encrypted_config FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.id = ? AND d.workspace_id = ? AND d.project_id = ?`, serviceID, workspaceID, projectID).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &encrypted)
+	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), COALESCE(d.public_port, 0), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.encrypted_config FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.id = ? AND d.workspace_id = ? AND d.project_id = ?`, serviceID, workspaceID, projectID).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.PublicPort, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &encrypted)
 	if err != nil {
 		return service, err
 	}

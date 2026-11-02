@@ -14,11 +14,23 @@ services:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --providers.docker.network=kymber
+      - --providers.http.endpoint=${TRAEFIK_CONFIG_URL:-http://backend:8080/internal/traefik/panel-domain}
+      - --providers.http.headers.Authorization=Bearer ${TRAEFIK_CONFIG_TOKEN:-}
+      - --providers.http.pollinterval=2s
       - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL:-}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
     ports:
+      - "${HTTP_PORT:-80}:80"
       - "${APP_PORT:-3000}:80"
+      - "${HTTPS_PORT:-443}:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_certs:/letsencrypt
+    extra_hosts:
+      - host.docker.internal:host-gateway
     networks:
       - proxy
 
@@ -50,11 +62,14 @@ services:
     restart: unless-stopped
     environment:
       SERVER_PORT: "8080"
+      TRAEFIK_CONFIG_TOKEN: ${TRAEFIK_CONFIG_TOKEN:-}
       SECURE_ONBOARD: ${SECURE_ONBOARD:-false}
       SERVICE_ENCRYPTION_KEY_FILE: /run/kymber-secrets/service-encryption-key
       KYMBER_LOCAL_SSH_HOST: host.docker.internal
       KYMBER_LOCAL_SSH_PRIVATE_KEY_FILE: /run/kymber-secrets/local-ssh-key
       KYMBER_LOCAL_SSH_HOST_KEY_FILE: /run/kymber-secrets/local-ssh-hostkey.pub
+      TRAEFIK_PANEL_API_TARGET: http://backend:8080
+      TRAEFIK_PANEL_WEB_TARGET: http://frontend:80
       KYMBER_SERVER_TOKEN_FILE: /run/kymber-secrets/server-token
       DB_HOST: mariadb
       DB_PORT: "3306"
@@ -124,6 +139,7 @@ services:
 volumes:
   mariadb_data:
   kymber_secrets:
+  traefik_certs:
 
 networks:
   data:

@@ -5,7 +5,9 @@ PNPM ?= $(shell command -v pnpm 2>/dev/null || { test -x "$$HOME/.bun/bin/pnpm" 
 DEV_ENV = SERVICE_ENCRYPTION_KEY_FILE=$(CURDIR)/.local/service-encryption-key \
 	KYMBER_LOCAL_SSH_PRIVATE_KEY_FILE=$(CURDIR)/.local/kymber-local-ssh \
 	KYMBER_LOCAL_SSH_HOST_KEY_FILE=/etc/ssh/ssh_host_ed25519_key.pub \
-	KYMBER_LOCAL_SSH_HOST=127.0.0.1
+	KYMBER_LOCAL_SSH_HOST=127.0.0.1 \
+	TRAEFIK_PANEL_API_TARGET=http://host.docker.internal:8080 \
+	TRAEFIK_PANEL_WEB_TARGET=http://host.docker.internal:5173
 
 build: template-registry
 	cd apps/backend && go build -o build/api ./cmd/api
@@ -68,6 +70,7 @@ docker-down:
 up:
 	$(MAKE) check-user
 	$(MAKE) init
+	TRAEFIK_CONFIG_URL=http://host.docker.internal:8080/internal/traefik/panel-domain docker compose up -d traefik
 	SERVICE_ENCRYPTION_KEY_FILE=$(CURDIR)/.local/service-encryption-key \
 	KYMBER_SERVER_TOKEN_FILE=$(CURDIR)/.local/server-token \
 	KYMBER_LOCAL_SSH_PRIVATE_KEY_FILE=$(CURDIR)/.local/kymber-local-ssh \
