@@ -1,0 +1,478 @@
+package services
+
+import (
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"kymber/backend/internal/auth"
+	"kymber/backend/internal/secrets"
+	"kymber/backend/internal/templates"
+	"kymber/backend/internal/templates/catalog"
+)
+
+func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
+	user, _ := auth.UserFromContext(r)
+	workspaceID, ok := pathID(w, r, "workspaceID")
+	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+		return
+	}
+	projectID, ok := pathID(w, r, "projectID")
+	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
+		return
+	}
+	serviceID, ok := pathID(w, r, "serviceID")
+	if !ok {
+		return
+	}
+	action := r.PathValue("action")
+	if action != "deploy" && action != "start" && action != "stop" && action != "restart" && action != "remove_container" && action != "remove_container_image" {
+		writeError(w, http.StatusBadRequest, "unsupported service action")
+		return
+	}
+	imageVersion, requestedServer := "", ""
+	if action == "deploy" && r.ContentLength != 0 {
+		var input struct {
+			ImageVersion string `json:"image_version"`
+			ServerID     string `json:"server_id"`
+		}
+		if !decodeJSON(w, r, &input) {
+			return
+		}
+		imageVersion, requestedServer = input.ImageVersion, input.ServerID
+	}
+	if action == "deploy" {
+		service, err := h.readService(r, workspaceID, projectID, serviceID, false)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "service not found")
+			return
+		}
+		template := serviceTemplate(service)
+		if imageVersion == "" {
+			imageVersion = service.ImageVersion
+		}
+		if _, err := template.ImageRef(imageVersion); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid image version")
+			return
+		}
+	}
+	var nullableServerID sql.NullString
+	if err := h.db.QueryRowContext(r.Context(), "SELECT server_id FROM database_services WHERE id = ? AND workspace_id = ? AND project_id = ?", serviceID, workspaceID, projectID).Scan(&nullableServerID); err != nil {
+		writeError(w, http.StatusNotFound, "service not found")
+		return
+	}
+	if requestedServer != "" && nullableServerID.Valid && requestedServer != nullableServerID.String {
+		writeError(w, http.StatusConflict, "app already runs on another server")
+		return
+	}
+	if action == "deploy" && !nullableServerID.Valid {
+		if requestedServer != "" {
+			if !h.requireServerOnline(w, r, requestedServer) {
+				return
+			}
+			nullableServerID = sql.NullString{String: requestedServer, Valid: true}
+		} else if err := h.db.QueryRowContext(r.Context(), "SELECT s.id FROM servers s WHERE s.connection_type = 'local' AND "+serverStatusSQL+" = 'online' ORDER BY s.created_at LIMIT 1").Scan(&nullableServerID); errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusConflict, "no online server is available")
+			return
+		} else if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not find an online server")
+			return
+		}
+		var domain string
+		if err := h.db.QueryRowContext(r.Context(), "SELECT COALESCE(domain, '') FROM database_services WHERE id = ?", serviceID).Scan(&domain); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not read service domain")
+			return
+		}
+		if domain != "" {
+			var connectionType string
+			if err := h.db.QueryRowContext(r.Context(), "SELECT connection_type FROM servers WHERE id = ?", nullableServerID.String).Scan(&connectionType); err != nil || connectionType != "local" {
+				writeError(w, http.StatusConflict, "public domains currently require the local server with Traefik")
+				return
+			}
+		}
+		if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET server_id = ? WHERE id = ?", nullableServerID.String, serviceID); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not assign server")
+			return
+		}
+	}
+	if !nullableServerID.Valid {
+		writeError(w, http.StatusConflict, "service has not been deployed")
+		return
+	}
+	var connectionType string
+	if err := h.db.QueryRowContext(r.Context(), "SELECT connection_type FROM servers WHERE id = ?", nullableServerID.String).Scan(&connectionType); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read server connection")
+		return
+	}
+	if action == "deploy" {
+		var domain string
+		if err := h.db.QueryRowContext(r.Context(), "SELECT COALESCE(domain, '') FROM database_services WHERE id = ?", serviceID).Scan(&domain); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not read service domain")
+			return
+		}
+		if domain != "" && connectionType != "local" {
+			writeError(w, http.StatusConflict, "public domains currently require the local server with Traefik")
+			return
+		}
+	}
+	if connectionType == "local" && !h.requireServerOnline(w, r, nullableServerID.String) {
+		return
+	}
+	if action == "remove_container" || action == "remove_container_image" {
+		var status string
+		if err := h.db.QueryRowContext(r.Context(), "SELECT status FROM database_services WHERE id = ?", serviceID).Scan(&status); err != nil || status != "stopped" {
+			writeError(w, http.StatusConflict, "stop the application before removing its container")
+			return
+		}
+	}
+	serverID := nullableServerID.String
+	var sshConfigured bool
+	if err := h.db.QueryRowContext(r.Context(), "SELECT encrypted_ssh_key IS NOT NULL FROM servers WHERE id = ?", serverID).Scan(&sshConfigured); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read server credentials")
+		return
+	}
+	if action == "deploy" {
+		ports, err := h.readPorts(r.Context(), serviceID)
+		if err == nil {
+			err = h.checkPortConflicts(r.Context(), serverID, serviceID, ports)
+		}
+		if err != nil {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
+	}
+	if connectionType == "ssh" || sshConfigured {
+		if action != "deploy" {
+			logFile, statusFile := deploymentLogFiles(serviceID)
+			if _, err := h.executeSSH(r.Context(), serverID, "rm -f "+shellQuote(logFile)+" "+shellQuote(statusFile)+" "+shellQuote(statusFile+".tmp")); err != nil {
+				writeError(w, http.StatusBadGateway, "could not clear previous deployment logs")
+				return
+			}
+		}
+		status := "deploying"
+		if action == "stop" {
+			status = "stopped"
+		}
+		if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = ?, last_error = NULL WHERE id = ?", status, serviceID); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not update service status")
+			return
+		}
+		if action == "deploy" {
+			if err := h.startServiceDeploySSH(r, serverID, serviceID, imageVersion); err != nil {
+				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ?", err.Error(), serviceID)
+				writeError(w, http.StatusBadGateway, "SSH service deployment failed: "+err.Error())
+				return
+			}
+			go h.watchDeploy(serverID, serviceID, false)
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		if err := h.executeServiceSSH(r, serverID, serviceID, action, imageVersion); err != nil {
+			_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ?", err.Error(), serviceID)
+			writeError(w, http.StatusBadGateway, "SSH service action failed: "+err.Error())
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
+	if err := h.queueServiceAction(r, serverID, serviceID, action, imageVersion); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not queue service action")
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
+	user, _ := auth.UserFromContext(r)
+	workspaceID, ok := pathID(w, r, "workspaceID")
+	if !ok || !h.authorize(w, r, user, workspaceID, false) {
+		return
+	}
+	projectID, ok := pathID(w, r, "projectID")
+	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
+		return
+	}
+	serviceID, ok := pathID(w, r, "serviceID")
+	if !ok {
+		return
+	}
+	service, err := h.readService(r, workspaceID, projectID, serviceID, false)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "service not found")
+		return
+	}
+	if service.ServerID == "" {
+		writeError(w, http.StatusConflict, "service has not been deployed")
+		return
+	}
+	var configured bool
+	if err := h.db.QueryRowContext(r.Context(), "SELECT encrypted_ssh_key IS NOT NULL FROM servers WHERE id = ?", service.ServerID).Scan(&configured); err != nil || !configured {
+		writeError(w, http.StatusConflict, "server does not support SSH logs")
+		return
+	}
+	name := service.Name + "-service-" + service.ID
+	if r.URL.Query().Get("source") == "runtime" {
+		tail, ok := parseLogTail(r.URL.Query().Get("tail"))
+		if !ok {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("tail must be between 1 and %d", maxLogTail))
+			return
+		}
+		logs, err := h.executeSSH(r.Context(), service.ServerID, runtimeLogsCommand(name, tail))
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "could not read container logs: "+err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": service.Status, "logs": string(logs)})
+		return
+	}
+	logFile, statusFile := deploymentLogFiles(service.ID)
+	command := "if test -f " + shellQuote(logFile) + "; then printf '__KYMBER_LOG__'; tail -c 65536 " + shellQuote(logFile) + "; else printf '__KYMBER_NO_LOG__'; fi; if test -f " + shellQuote(statusFile) + "; then code=$(cat " + shellQuote(statusFile) + "); printf '\\n__KYMBER_EXIT__%s' \"$code\"; if test \"$code\" = 0; then printf '\\n__KYMBER_CONTAINER__'; if docker inspect " + shellQuote(name) + " >/dev/null 2>&1; then docker logs --tail 300 " + shellQuote(name) + " 2>&1; else printf 'Container output is not available yet.'; fi; fi; fi"
+	logs, err := h.executeSSH(r.Context(), service.ServerID, command)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "could not read deployment logs: "+err.Error())
+		return
+	}
+	status := service.Status
+	if (service.Status == "deploying" || service.Status == "running") && strings.Contains(string(logs), "__KYMBER_LOG__") {
+		_, output, _ := strings.Cut(string(logs), "__KYMBER_LOG__")
+		if before, after, found := strings.Cut(output, "__KYMBER_EXIT__"); found {
+			output = before
+			code, after, _ := strings.Cut(after, "\n")
+			code = strings.TrimSpace(code)
+			if code == "0" {
+				status = "running"
+				h.finishDeploy(r.Context(), serviceID, true, "")
+				if _, container, found := strings.Cut(after, "__KYMBER_CONTAINER__"); found {
+					output = strings.TrimSpace(output) + "\n\n--- Container output ---\n" + strings.TrimSpace(container)
+				}
+			} else {
+				status = "failed"
+				h.finishDeploy(r.Context(), serviceID, false, strings.TrimSpace(output))
+			}
+		}
+		logs = []byte(strings.TrimSpace(output))
+	} else if service.Status == "deploying" || service.Status == "draft" || service.Status == "queued" {
+		logs = []byte("Preparing Docker deployment…")
+	} else {
+		logs, err = h.executeSSH(r.Context(), service.ServerID, "if docker inspect "+shellQuote(name)+" >/dev/null 2>&1; then docker logs --tail 300 "+shellQuote(name)+" 2>&1; else printf 'Container is not running.'; fi")
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "could not read container logs: "+err.Error())
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": status, "logs": string(logs)})
+}
+
+const (
+	maxLogTail  = 50000
+	maxLogBytes = 10 << 20
+)
+
+func parseLogTail(raw string) (int, bool) {
+	if raw == "" {
+		return 300, true
+	}
+	tail, err := strconv.Atoi(raw)
+	return tail, err == nil && tail >= 1 && tail <= maxLogTail
+}
+
+// The byte cap keeps a few enormous lines from loading the whole log into the API's memory.
+func runtimeLogsCommand(container string, tail int) string {
+	return fmt.Sprintf("if docker inspect %[1]s >/dev/null 2>&1; then docker logs --tail %[2]d %[1]s 2>&1 | tail -c %[3]d; else printf 'Container is not running.\\n'; fi", shellQuote(container), tail, maxLogBytes)
+}
+
+func (h *Handler) executeServiceSSH(r *http.Request, serverID, serviceID, action, imageVersion string) error {
+	service, err := h.readServiceByID(r, serviceID)
+	if err != nil {
+		return err
+	}
+	if action != "deploy" {
+		imageVersion = service.ImageVersion
+	}
+	template := serviceTemplate(service)
+	imageRef, err := template.ImageRef(imageVersion)
+	if err != nil {
+		return err
+	}
+	status := "deploying"
+	if action == "stop" {
+		status = "stopped"
+	}
+	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = ?, last_error = NULL WHERE id = ?", status, serviceID); err != nil {
+		return err
+	}
+	storages, err := h.readStorages(r.Context(), serviceID, false)
+	if err != nil {
+		return err
+	}
+	ports, err := h.readPorts(r.Context(), serviceID)
+	if err != nil {
+		return err
+	}
+	command, err := h.sshDockerCommand(service, template, imageRef, action, storages, ports)
+	if err == nil {
+		_, err = h.executeSSH(r.Context(), serverID, command)
+	}
+	if err != nil {
+		_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ?", err.Error(), serviceID)
+		return err
+	}
+	status = "running"
+	switch action {
+	case "stop":
+		status = "stopped"
+	case "delete":
+		status = "deleted"
+	case "remove_container", "remove_container_image":
+		status = "stopped"
+	}
+	_, err = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = ?, last_error = NULL WHERE id = ?", status, serviceID)
+	return err
+}
+
+func (h *Handler) startServiceDeploySSH(r *http.Request, serverID, serviceID, imageVersion string) error {
+	service, err := h.readServiceByID(r, serviceID)
+	if err != nil {
+		return err
+	}
+	template := serviceTemplate(service)
+	image, err := template.ImageRef(imageVersion)
+	if err != nil {
+		return err
+	}
+	storages, err := h.readStorages(r.Context(), serviceID, true)
+	if err != nil {
+		return err
+	}
+	ports, err := h.readPorts(r.Context(), serviceID)
+	if err != nil {
+		return err
+	}
+	command, err := h.sshDockerCommand(service, template, image, "deploy", storages, ports)
+	if err != nil {
+		return err
+	}
+	logFile, statusFile := deploymentLogFiles(serviceID)
+	script := "(" + command + ") > " + shellQuote(logFile) + " 2>&1; code=$?; printf '%s' \"$code\" > " + shellQuote(statusFile+".tmp") + "; mv " + shellQuote(statusFile+".tmp") + " " + shellQuote(statusFile)
+	launch := ": > " + shellQuote(logFile) + "; rm -f " + shellQuote(statusFile) + "; nohup sh -c " + shellQuote(script) + " </dev/null >/dev/null 2>&1 &"
+	_, err = h.executeSSH(r.Context(), serverID, launch)
+	return err
+}
+
+func deploymentLogFiles(serviceID string) (string, string) {
+	base := "/tmp/kymber-service-" + serviceID
+	return base + ".log", base + ".exit"
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func (h *Handler) readServiceByID(r *http.Request, id string) (databaseService, error) {
+	var service databaseService
+	var encrypted []byte
+	err := h.db.QueryRowContext(r.Context(), "SELECT id, workspace_id, project_id, engine, name, image_version, image, port, COALESCE(domain, ''), data_path, COALESCE(server_id, ''), database_name, database_user, encrypted_config FROM database_services WHERE id = ?", id).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.ServerID, &service.DatabaseName, &service.DatabaseUser, &encrypted)
+	if err != nil {
+		return service, err
+	}
+	plain, err := secrets.Decrypt(encrypted)
+	if err != nil {
+		return service, err
+	}
+	if err := json.Unmarshal(plain, &service.Environment); err != nil {
+		return service, err
+	}
+	return service, nil
+}
+
+func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, image, action string, storages []serviceStorage, ports []servicePort) (string, error) {
+	name := t.ContainerName(s.Name, s.ID)
+	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'" }
+	if action == "stop" {
+		return "docker stop " + quote(name), nil
+	}
+	if action == "start" {
+		return "docker start " + quote(name), nil
+	}
+	if action == "restart" {
+		return "docker restart " + quote(name), nil
+	}
+	if action == "remove_container" {
+		return "docker rm -f " + quote(name), nil
+	}
+	if action == "remove_container_image" {
+		return "docker rm -f " + quote(name) + " >/dev/null 2>&1 || true; docker image rm " + quote(image), nil
+	}
+	if action == "delete" {
+		command := "docker rm -f " + quote(name) + " >/dev/null 2>&1 || true; " + storageDeleteCommand(s.ID) + ":"
+		if t.DataPath != "" {
+			command += "; docker volume rm " + quote(t.VolumeName(s.ID))
+		}
+		return command, nil
+	}
+	if action != "deploy" {
+		return "", fmt.Errorf("unsupported action")
+	}
+	if !templates.ValidDataPath(t.DataPath) {
+		return "", fmt.Errorf("invalid data path")
+	}
+	config, ok := catalog.DockerArgs(s.Engine, s.Environment)
+	if !ok {
+		return "", fmt.Errorf("unsupported engine")
+	}
+	var env strings.Builder
+	for key, value := range s.Environment {
+		env.WriteString("printf '%s\\n' ")
+		env.WriteString(quote(key + "=" + value))
+		env.WriteString(" >> \"$f\"; ")
+	}
+	prepare, storageArgs := storageDeployCommand(s.ID, storages)
+	portCheck, portArgs := portDeployCommand(ports)
+	command := "set -eu; n=" + quote(name) + "; f=$(mktemp); trap 'rm -f \"$f\"' EXIT; " + portCheck + env.String() + prepare + "docker network inspect " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null 2>&1 || docker network create --label kymber.managed=true " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null; docker rm -f \"$n\" >/dev/null 2>&1 || true; docker run --pull=missing -d --name \"$n\" --restart unless-stopped --network " + quote("kymber-workspace-"+s.WorkspaceID) + " --network-alias " + quote(t.InternalHost(s.ID)) + " --label kymber.managed=true --label " + quote("kymber.service="+s.ID)
+	if s.Domain != "" {
+		if t.Port < 1 || t.Port > 65535 {
+			return "", fmt.Errorf("public domain requires an HTTP port")
+		}
+		if len(s.Domain) > 253 || !serviceDomainPattern.MatchString(s.Domain) || net.ParseIP(s.Domain) != nil {
+			return "", fmt.Errorf("invalid public domain")
+		}
+		name := "kymber-" + s.ID
+		host := "Host(`" + s.Domain + "`)"
+		for _, label := range []string{
+			"traefik.enable=true",
+			"traefik.docker.network=kymber",
+			"traefik.http.routers." + name + "-http.rule=" + host,
+			"traefik.http.routers." + name + "-http.entrypoints=web",
+			"traefik.http.routers." + name + "-http.middlewares=" + name + "-https",
+			"traefik.http.routers." + name + "-http.service=" + name,
+			"traefik.http.middlewares." + name + "-https.redirectscheme.scheme=https",
+			"traefik.http.routers." + name + ".rule=" + host,
+			"traefik.http.routers." + name + ".entrypoints=websecure",
+			"traefik.http.routers." + name + ".tls.certresolver=letsencrypt",
+			"traefik.http.routers." + name + ".service=" + name,
+			fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port=%d", name, t.Port),
+		} {
+			command += " --label " + quote(label)
+		}
+		command = strings.Replace(command, "; docker rm -f", "; docker network inspect kymber >/dev/null 2>&1 || { echo 'Traefik network kymber is missing; start the Kymber proxy first' >&2; exit 1; }; docker rm -f", 1)
+	}
+	if t.DataPath != "" {
+		command += " --volume " + quote(t.VolumeName(s.ID)+":"+t.DataPath)
+	}
+	if t.HealthCmd != "" {
+		command += " --health-cmd " + quote(t.HealthCmd) + " --health-interval 10s --health-timeout 5s --health-retries 10 --health-start-period 30s"
+	}
+	command += storageArgs + portArgs + " --env-file \"$f\" " + quote(image)
+	for _, arg := range config {
+		command += " " + quote(arg)
+	}
+	if s.Domain != "" {
+		command += " && docker network connect kymber \"$n\""
+	}
+	return command, nil
+}

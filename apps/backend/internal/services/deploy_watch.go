@@ -91,4 +91,7 @@ func (h *Handler) resumeDeployWatches() {
 			go h.watchDeploy(serverID, serviceID, true)
 		}
 	}
+	if err := rows.Err(); err != nil {
+		logger.Warn("could not read deploy watches: %v", err)
+	}
 }
