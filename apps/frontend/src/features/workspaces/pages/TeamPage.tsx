@@ -6,7 +6,7 @@ import { useProjects } from "@/features/projects/ProjectsContext";
 import { Members } from "@/features/workspaces/components/Members";
 import { t } from "@/lib/i18n";
 
-export function TeamPage() {
+export function TeamPage({ section }: { section: "members" | "roles" }) {
   const { state, retry } = useProjects();
 
   if (state.status === "loading") return <PageSkeleton />;
@@ -26,5 +26,5 @@ export function TeamPage() {
       </>
     );
   }
-  return <Members workspace={state.workspace} key={state.workspace.id} />;
+  return <Members workspace={state.workspace} section={section} key={state.workspace.id} />;
 }

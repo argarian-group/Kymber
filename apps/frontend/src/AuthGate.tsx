@@ -82,7 +82,8 @@ export function AuthGate() {
                   </Route>
                   <Route path="tasks" element={<Navigate to="/projects" replace />} />
                   <Route path="deploys" element={<Navigate to="/projects" replace />} />
-                  <Route path="team" element={<TeamPage />} />
+                  <Route path="team" element={<TeamPage section="members" />} />
+                  <Route path="team/roles" element={<TeamPage section="roles" />} />
                   <Route path="servers" element={<ServersPage />} />
                   <Route path="terminal" element={<TerminalPage />} />
                   <Route path="invite" element={<InviteAcceptPage />} />

@@ -1,142 +1,132 @@
 import { type FormEvent, useState } from "react";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { Modal } from "@/components/ui/Modal";
 import { type Permission, permissionList } from "@/features/projects/ProjectsContext";
-import { type Role } from "@/features/workspaces/types";
+import { type Member, type Role } from "@/features/workspaces/types";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { t, translate } from "@/lib/i18n";
 
-const permissionLabels: Record<Permission, string> = {
-  "workspace.manage": t("Rename the workspace"),
-  "members.invite": t("Invite members"),
-  "members.manage": t("Manage members and roles"),
-  "projects.manage": t("Create, edit and delete projects"),
-  "apps.manage": t("Create, configure and deploy apps"),
-  "terminal.use": t("Open app terminals"),
-  "tasks.delete": t("Delete tasks, lists, labels and others' comments"),
+const permissionText: Record<Permission, { label: string; hint: string }> = {
+  "workspace.manage": { label: t("Rename the workspace"), hint: t("Change the workspace name in settings.") },
+  "members.invite": { label: t("Invite members"), hint: t("Create invite links with roles they can grant.") },
+  "members.manage": { label: t("Manage members and roles"), hint: t("Add and remove members, change their roles and edit roles.") },
+  "projects.manage": { label: t("Manage projects"), hint: t("Create, rename and delete projects and their environments.") },
+  "apps.manage": { label: t("Manage apps"), hint: t("Create, configure, deploy and delete apps, and browse their files.") },
+  "terminal.use": { label: t("Use app terminals"), hint: t("Open a shell inside running app containers.") },
+  "tasks.delete": { label: t("Delete tasks"), hint: t("Delete tasks, lists, labels and other people's comments. Everyone can create and edit tasks.") },
 };
 
-function PermissionChecks({ idPrefix, value, grantable, disabled, onChange }: { idPrefix: string; value: string[]; grantable: (permission: Permission) => boolean; disabled?: boolean; onChange?: (value: string[]) => void }) {
-  return (
-    <ul className="grid gap-1 sm:grid-cols-2">
-      {permissionList.map((permission) => (
-        <li key={permission}>
-          <label className="flex min-h-8 cursor-pointer items-center gap-2 text-meta" htmlFor={`${idPrefix}-${permission}`}>
-            <input
-              className="size-4 flex-none cursor-pointer accent-seafoam"
-              type="checkbox"
-              id={`${idPrefix}-${permission}`}
-              checked={value.includes(permission)}
-              disabled={disabled || !onChange || !grantable(permission)}
-              onChange={(event) => onChange?.(event.target.checked ? [...value, permission] : value.filter((item) => item !== permission))}
-            />
-            <span>{permissionLabels[permission]}</span>
-          </label>
-        </li>
-      ))}
-    </ul>
-  );
+const permissionGroups: { title: string; permissions: Permission[] }[] = [
+  { title: t("Workspace and team"), permissions: ["workspace.manage", "members.invite", "members.manage"] },
+  { title: t("Projects and apps"), permissions: ["projects.manage", "apps.manage", "terminal.use"] },
+  { title: t("Tasks"), permissions: ["tasks.delete"] },
+];
+
+function summary(role: Role) {
+  if (role.permissions.length === 0) return t("View only");
+  if (role.permissions.length === permissionList.length) return t("Full access");
+  return role.permissions.map((permission) => permissionText[permission as Permission]?.label ?? permission).join(", ");
 }
 
-function RoleRow({ role, workspaceId, editable, grantable, onChanged }: { role: Role; workspaceId: string; editable: boolean; grantable: (permission: Permission) => boolean; onChanged: (name: string) => void }) {
-  const [draft, setDraft] = useState(role.permissions);
-  const [confirming, setConfirming] = useState(false);
-  const { pending, error, run } = useAction();
-  const url = `/workspaces/${workspaceId}/roles/${encodeURIComponent(role.name)}`;
-  const dirty = draft.length !== role.permissions.length || draft.some((item) => !role.permissions.includes(item));
+function memberCount(count: number) {
+  if (count === 0) return t("No members");
+  return count === 1 ? t("1 member") : t("{count} members", { count });
+}
 
+export function RoleList({ roles, members, canEdit, onEdit }: { roles: Role[]; members: Member[]; canEdit: (role: Role) => boolean; onEdit: (role: Role) => void }) {
   return (
-    <li className="border-b border-line px-4 py-3 md:px-6">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <p className="min-w-0 flex-1 font-medium wrap-break-word">
-          {translate(role.name)}
-          {role.builtin && <span className="ml-2 text-xs font-normal text-ink-soft">{t("Built-in")}</span>}
-        </p>
-        {editable && (
-          <span className="flex gap-2">
-            {dirty && (
-              <button className="btn btn-primary" type="button" disabled={pending} onClick={() => run(async () => { await api(url, { method: "PUT", body: { permissions: draft } }); onChanged(role.name); })}>
-                {t("Save")}
+    <>
+      <p className="px-4 pt-4 text-meta text-ink-soft md:px-6">{t("Every member can view the workspace. A role decides what they can change. Built-in roles are fixed; create a role to choose exact permissions.")}</p>
+      <ul className="mt-4 border-t border-line">
+        {roles.map((role) => (
+          <li className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-4 py-3 md:px-6" key={role.name}>
+            <div className="min-w-0 flex-1 basis-60">
+              <p className="font-medium wrap-break-word">
+                {translate(role.name)}
+                {role.builtin && <span className="ml-2 text-xs font-normal text-ink-soft">{t("Built-in")}</span>}
+              </p>
+              <p className="text-meta wrap-break-word text-ink-soft">{summary(role)}</p>
+            </div>
+            <span className="text-meta text-ink-soft tabular-nums">{memberCount(members.filter((member) => member.role === role.name).length)}</span>
+            {canEdit(role) && (
+              <button className="btn" type="button" onClick={() => onEdit(role)} aria-label={t("Edit {name}", { name: role.name })}>
+                {t("Edit")}
               </button>
             )}
-            <button className="btn btn-danger" type="button" disabled={pending} onClick={confirming ? () => run(async () => { await api(url, { method: "DELETE" }); onChanged(role.name); }) : () => setConfirming(true)} aria-label={confirming ? t("Confirm delete {name}", { name: role.name }) : t("Delete {name}", { name: role.name })}>
-              {confirming ? t("Confirm delete") : t("Delete")}
-            </button>
-          </span>
-        )}
-      </div>
-      <div className="mt-2">
-        <PermissionChecks idPrefix={`role-${role.name}`} value={editable ? draft : role.permissions} grantable={grantable} disabled={pending} onChange={editable ? setDraft : undefined} />
-      </div>
-      <FormError message={error} />
-    </li>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
-function NewRoleForm({ workspaceId, grantable, onCreated, onClose }: { workspaceId: string; grantable: (permission: Permission) => boolean; onCreated: (name: string) => void; onClose: () => void }) {
-  const [name, setName] = useState("");
-  const [granted, setGranted] = useState<string[]>([]);
+export function RoleDialog({ role, workspaceId, inUse, grantable, onSaved, onClose }: { role: Role | null; workspaceId: string; inUse: boolean; grantable: (permission: Permission) => boolean; onSaved: () => void; onClose: () => void }) {
+  const [name, setName] = useState(role?.name ?? "");
+  const [granted, setGranted] = useState<string[]>(role?.permissions ?? []);
+  const [confirming, setConfirming] = useState(false);
   const { pending, error, run } = useAction();
+  const url = role ? `/workspaces/${workspaceId}/roles/${encodeURIComponent(role.name)}` : `/workspaces/${workspaceId}/roles`;
+  const title = role ? t("Edit role {name}", { name: role.name }) : t("New role");
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const created = await run(async () => {
-      await api(`/workspaces/${workspaceId}/roles`, { method: "POST", body: { name, permissions: granted } });
-    });
-    if (created) {
-      onCreated(name);
+    const saved = await run(() => api(url, { method: role ? "PUT" : "POST", body: role ? { permissions: granted } : { name, permissions: granted } }));
+    if (saved) {
+      onSaved();
       onClose();
     }
   }
 
-  return (
-    <form className="mx-4 mt-4 rounded-panel bg-raised p-4 md:mx-6" onSubmit={submit} aria-label={t("New role")}>
-      <Field label={t("Role name")} required autoFocus maxLength={32} value={name} onChange={(event) => setName(event.target.value)} />
-      <fieldset className="mt-3">
-        <legend className="mb-1 text-meta font-medium">{t("Permissions")}</legend>
-        <PermissionChecks idPrefix="new-role" value={granted} grantable={grantable} disabled={pending} onChange={setGranted} />
-      </fieldset>
-      <div className="mt-3">
-        <FormError message={error} />
-      </div>
-      <div className="mt-2 flex flex-wrap gap-2">
-        <button className="btn btn-primary" type="submit" disabled={pending}>
-          {pending ? t("Creating…") : t("Create role")}
-        </button>
-        <button className="btn" type="button" onClick={onClose} disabled={pending}>
-          {t("Cancel")}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-export function Roles({ roles, workspaceId, canManage, grantable, onChanged }: { roles: Role[]; workspaceId: string; canManage: boolean; grantable: (permission: Permission) => boolean; onChanged: (name: string) => void }) {
-  const [adding, setAdding] = useState(false);
-  const covered = (role: Role) => role.permissions.every((permission) => grantable(permission as Permission));
+  async function remove() {
+    if (await run(() => api(url, { method: "DELETE" }))) {
+      onSaved();
+      onClose();
+    } else setConfirming(false);
+  }
 
   return (
-    <section className="mt-8" aria-labelledby="roles-heading">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 md:px-6">
-        <div>
-          <h2 className="font-medium" id="roles-heading">
-            {t("Roles")}
-          </h2>
-          <p className="text-meta text-ink-soft">{t("Every member can view the workspace. Roles add what they can change.")}</p>
-        </div>
-        {canManage && !adding && (
-          <button className="btn" type="button" onClick={() => setAdding(true)}>
-            {t("New role")}
-          </button>
-        )}
-      </div>
-      {adding && <NewRoleForm workspaceId={workspaceId} grantable={grantable} onCreated={onChanged} onClose={() => setAdding(false)} />}
-      <ul className="mt-4 border-t border-line">
-        {roles.map((role) => (
-          <RoleRow role={role} workspaceId={workspaceId} editable={canManage && !role.builtin && covered(role)} grantable={grantable} onChanged={onChanged} key={`${role.name}-${role.permissions.join()}`} />
+    <Modal label={title} className="max-w-lg" onClose={onClose}>
+      <form className="grid gap-4 p-4" onSubmit={submit}>
+        <h2 className="section-title">{title}</h2>
+        {!role && <Field label={t("Role name")} required autoFocus maxLength={32} hint={t("Names cannot be changed later.")} value={name} onChange={(event) => setName(event.target.value)} />}
+        {permissionGroups.map((group) => (
+          <fieldset className="grid gap-1" key={group.title}>
+            <legend className="mb-1 text-xs font-medium tracking-wide text-ink-soft uppercase">{group.title}</legend>
+            {group.permissions.map((permission) => (
+              <label className={`flex items-start gap-2 py-1 ${grantable(permission) ? "cursor-pointer" : "opacity-60"}`} key={permission}>
+                <input
+                  className="mt-1 size-4 flex-none cursor-pointer accent-seafoam disabled:cursor-not-allowed"
+                  type="checkbox"
+                  checked={granted.includes(permission)}
+                  disabled={pending || !grantable(permission)}
+                  onChange={(event) => setGranted(event.target.checked ? [...granted, permission] : granted.filter((item) => item !== permission))}
+                />
+                <span>
+                  <span className="block text-meta font-medium">{permissionText[permission].label}</span>
+                  <span className="block text-xs text-ink-soft">{grantable(permission) ? permissionText[permission].hint : t("You do not have this permission, so you cannot grant it.")}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
         ))}
-      </ul>
-    </section>
+        <FormError message={error} />
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="btn btn-primary" type="submit" disabled={pending}>
+            {role ? t("Save") : t("Create role")}
+          </button>
+          <button className="btn" type="button" onClick={onClose} disabled={pending}>
+            {t("Cancel")}
+          </button>
+          {role && !inUse && (
+            <button className="btn btn-danger ml-auto" type="button" disabled={pending} onClick={confirming ? remove : () => setConfirming(true)}>
+              {confirming ? t("Confirm delete") : t("Delete role")}
+            </button>
+          )}
+        </div>
+        {role && inUse && <p className="text-xs text-ink-soft">{t("Move its members to another role before deleting it.")}</p>}
+      </form>
+    </Modal>
   );
 }
