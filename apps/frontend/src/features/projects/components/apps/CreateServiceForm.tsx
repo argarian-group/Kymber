@@ -32,7 +32,7 @@ export function CreateServiceForm({ template, path }: { template: DatabaseTempla
   return (
     <form className="mx-auto grid w-full max-w-xl gap-5" onSubmit={submit} aria-label={t("New {engine} app", { engine: engineLabel(engine) })}>
       <div className="flex items-center gap-3 rounded-panel bg-raised p-4">
-        <EngineMark engine={engine} />
+        <EngineMark engine={engine} image={template.image} />
         <span className="min-w-0 flex-1">
           <span className="block font-display text-base font-semibold">{engineLabel(engine)}</span>
           <span className="block truncate text-meta text-ink-soft">{engines[engine]?.description ?? template.image}</span>

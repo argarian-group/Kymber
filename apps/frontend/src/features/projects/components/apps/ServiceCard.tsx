@@ -8,7 +8,7 @@ export function ServiceCard({ service, to }: { service: Service; to: string }) {
     <li className="min-w-0">
       <Link className="row-link flex h-full flex-col gap-4 rounded-panel bg-raised p-4" to={to}>
         <span className="flex items-start gap-3">
-          <EngineMark engine={service.engine} logo={service.logo_url} />
+          <EngineMark engine={service.engine} logo={service.logo_url} image={service.image} />
           <span className="min-w-0 flex-1">
             <span className="block truncate font-display text-base font-semibold">{service.name}</span>
             <span className="block truncate text-meta text-ink-soft">{service.engine === "docker" ? service.image.replace(/^docker\.io\/(library\/)?/, "") : service.engine}</span>

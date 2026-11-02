@@ -65,7 +65,7 @@ function ImageSearch({ onPick }: { onPick: (image: HubImage) => void }) {
           {shown.map((image) => (
             <li className="min-w-0" key={image.repository}>
               <button className="row-link flex w-full items-center gap-3 rounded-panel bg-raised p-3 text-left" type="button" onClick={() => onPick(image)}>
-                <EngineMark engine="docker" logo={image.logo_url} />
+                <EngineMark engine="docker" logo={image.logo_url} image={image.repository} />
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2 font-medium">
                     <span className="min-w-0 break-all">{image.repository}</span>
@@ -132,7 +132,7 @@ function ImageSettings({ image, path, onChange }: { image: HubImage; path: strin
   return (
     <form className="mx-auto grid w-full max-w-xl gap-5" onSubmit={submit} aria-label={t("New app from {repository}", { repository })}>
       <div className="flex items-center gap-3 rounded-panel bg-raised p-4">
-        <EngineMark engine="docker" logo={logo_url} />
+        <EngineMark engine="docker" logo={logo_url} image={repository} />
         <span className="min-w-0 flex-1">
           <span className="block break-all font-display text-base font-semibold">{repository}</span>
           <span className="block truncate text-meta text-ink-soft">{t("Docker Hub image")}</span>

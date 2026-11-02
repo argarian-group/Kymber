@@ -102,7 +102,7 @@ export function AppLayout() {
 
       <section className="grid gap-5 rounded-panel bg-raised p-5" aria-label={service.name}>
         <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
-          <EngineMark engine={service.engine} logo={service.logo_url} size="lg" />
+          <EngineMark engine={service.engine} logo={service.logo_url} image={service.image} size="lg" />
           <div className="min-w-0 flex-1 basis-48">
             <h2 className="font-display text-xl leading-tight font-semibold wrap-break-word">{service.name}</h2>
             <p className="mt-1 font-mono text-xs wrap-break-word text-ink-soft">
