@@ -102,7 +102,7 @@ function PortRow({ port, address, url, locked, canWrite, onChanged }: { port: Se
 }
 
 export function PublishedPorts() {
-  const { service, path, canWrite } = useAppOutlet();
+  const { service, detail, path, canWrite } = useAppOutlet();
   const [ports, setPorts] = useState<ServicePort[] | null>(null);
   const [host, setHost] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -149,7 +149,7 @@ export function PublishedPorts() {
         (adding ? (
           <AddPortForm
             url={url}
-            defaultContainerPort={service.port ? String(service.port) : ""}
+            defaultContainerPort={detail?.port ? String(detail.port) : ""}
             defaultBind={service.category === "database" ? "127.0.0.1" : "0.0.0.0"}
             onCancel={() => setAdding(false)}
             onAdded={() => {
