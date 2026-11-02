@@ -7,7 +7,9 @@ import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { api, errorMessage } from "@/lib/api";
 import { downloadText } from "@/lib/downloadText";
 
-const lineLimits = [50, 100, 200, 300];
+const lineLimits = [100, 500, 1000, 5000, 10000];
+const maxLines = 50000;
+const validLimit = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 1 && (value as number) <= maxLines;
 const refreshRates = [
   { seconds: 0, label: "Off" },
   { seconds: 5, label: "Every 5s" },
@@ -21,7 +23,7 @@ function loadPreferences() {
   try {
     const saved = JSON.parse(localStorage.getItem(preferencesKey) ?? "{}");
     return {
-      limit: lineLimits.includes(saved.limit) ? (saved.limit as number) : defaults.limit,
+      limit: validLimit(saved.limit) ? saved.limit : defaults.limit,
       seconds: refreshRates.some(({ seconds }) => seconds === saved.seconds) ? (saved.seconds as number) : defaults.seconds,
       wrap: typeof saved.wrap === "boolean" ? saved.wrap : defaults.wrap,
     };
@@ -41,6 +43,7 @@ export function AppLogsPage() {
   const [follow, setFollow] = useState(true);
   const [copied, setCopied] = useState<boolean | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [customLimit, setCustomLimit] = useState<string | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const output = useRef<HTMLPreElement>(null);
   const inFlight = useRef(false);
@@ -52,7 +55,7 @@ export function AppLogsPage() {
     inFlight.current = true;
     setLoading(true);
     try {
-      const result = await api<{ logs: string }>(`${path}/${service.id}/logs?source=runtime`);
+      const result = await api<{ logs: string }>(`${path}/${service.id}/logs?source=runtime&tail=${limit}`);
       setLogs(result.logs);
       setUpdatedAt(new Date());
       setError(null);
@@ -62,7 +65,7 @@ export function AppLogsPage() {
       inFlight.current = false;
       setLoading(false);
     }
-  }, [path, service.id]);
+  }, [path, service.id, limit]);
 
   useEffect(() => {
     if (deployed) void load();
@@ -133,14 +136,42 @@ export function AppLogsPage() {
           </label>
           <label className="flex items-center gap-2 text-meta text-ink-soft">
             Lines
-            <select className="field w-auto cursor-pointer" value={limit} onChange={(event) => save({ limit: Number(event.target.value) })}>
+            <select
+              className="field w-auto cursor-pointer"
+              value={customLimit !== null || !lineLimits.includes(limit) ? "custom" : limit}
+              onChange={(event) => {
+                if (event.target.value === "custom") setCustomLimit(String(limit));
+                else {
+                  setCustomLimit(null);
+                  save({ limit: Number(event.target.value) });
+                }
+              }}
+            >
               {lineLimits.map((value) => (
                 <option value={value} key={value}>
-                  {value}
+                  {value.toLocaleString("en-US")}
                 </option>
               ))}
+              <option value="custom">Custom{lineLimits.includes(limit) ? "" : ` (${limit.toLocaleString("en-US")})`}</option>
             </select>
           </label>
+          {customLimit !== null && (
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const value = Number(customLimit);
+                if (!validLimit(value)) return;
+                save({ limit: value });
+                setCustomLimit(null);
+              }}
+            >
+              <input className="field w-28" type="number" autoFocus required min={1} max={maxLines} step={1} aria-label={`Number of lines, up to ${maxLines}`} value={customLimit} onChange={(event) => setCustomLimit(event.target.value)} />
+              <button className="btn" type="submit">
+                Apply
+              </button>
+            </form>
+          )}
           <label className="flex items-center gap-2 text-meta text-ink-soft">
             Auto-refresh
             <select className="field w-auto cursor-pointer" value={seconds} onChange={(event) => save({ seconds: Number(event.target.value) })}>

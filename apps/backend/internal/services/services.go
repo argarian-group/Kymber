@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"kymber/backend/internal/auth"
@@ -355,7 +356,12 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	name := service.Name + "-service-" + service.ID
 	if r.URL.Query().Get("source") == "runtime" {
-		logs, err := h.executeSSH(r.Context(), service.ServerID, "if docker inspect "+shellQuote(name)+" >/dev/null 2>&1; then docker logs --tail 300 "+shellQuote(name)+" 2>&1; else printf 'Container is not running.\\n'; fi")
+		tail, ok := parseLogTail(r.URL.Query().Get("tail"))
+		if !ok {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("tail must be between 1 and %d", maxLogTail))
+			return
+		}
+		logs, err := h.executeSSH(r.Context(), service.ServerID, runtimeLogsCommand(name, tail))
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "could not read container logs: "+err.Error())
 			return
@@ -399,6 +405,24 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": status, "logs": string(logs)})
+}
+
+const (
+	maxLogTail  = 50000
+	maxLogBytes = 10 << 20
+)
+
+func parseLogTail(raw string) (int, bool) {
+	if raw == "" {
+		return 300, true
+	}
+	tail, err := strconv.Atoi(raw)
+	return tail, err == nil && tail >= 1 && tail <= maxLogTail
+}
+
+// The byte cap keeps a few enormous lines from loading the whole log into the API's memory.
+func runtimeLogsCommand(container string, tail int) string {
+	return fmt.Sprintf("if docker inspect %[1]s >/dev/null 2>&1; then docker logs --tail %[2]d %[1]s 2>&1 | tail -c %[3]d; else printf 'Container is not running.\\n'; fi", shellQuote(container), tail, maxLogBytes)
 }
 
 func (h *Handler) executeServiceSSH(r *http.Request, serverID, serviceID, action, imageVersion string) error {
