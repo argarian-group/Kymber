@@ -24,7 +24,7 @@ export type Appearance = {
   density: (typeof densities)[number]["id"];
 };
 
-export const defaultAppearance: Appearance = { theme: "pine", accent: "seafoam", density: "comfortable" };
+export const defaultAppearance: Appearance = { theme: "graphite", accent: "seafoam", density: "comfortable" };
 
 const storageKey = "kymber.appearance";
 
