@@ -64,7 +64,7 @@ export function ServiceDanger({ service, path, appsPath, onChanged }: { service:
         </>
       ) : (
         <div className="flex flex-wrap gap-2">
-          {service.status === "stopped" &&
+          {!service.compose && service.status === "stopped" &&
             service.server_id &&
             removals.map((item) => (
               <button className="btn" type="button" disabled={pending} onClick={() => setRemoval(item)} key={item.action}>
