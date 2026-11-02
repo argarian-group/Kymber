@@ -1,4 +1,4 @@
-import { ArrowLeft, HardDrive, KeyRound, Plug, Settings2, TriangleAlert } from "lucide-react";
+import { ArrowLeft, FolderOpen, HardDrive, KeyRound, Plug, ScrollText, Settings2, SquareTerminal, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, Outlet, useParams } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -11,6 +11,7 @@ import { ServiceStatus } from "@/features/projects/components/apps/ServiceStatus
 import { useProjects } from "@/features/projects/ProjectsContext";
 import type { DatabaseTemplate, Service } from "@/features/projects/services";
 import type { AppOutlet } from "@/features/projects/useAppOutlet";
+import { useDeploymentOutput } from "@/features/projects/useDeploymentOutput";
 import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
 import { useServices } from "@/features/projects/useServices";
 import { api } from "@/lib/api";
@@ -30,6 +31,7 @@ export function AppLayout() {
   const [templates, setTemplates] = useState<DatabaseTemplate[]>([]);
   const [revision, setRevision] = useState(0);
   const service = services?.find(({ id }) => id === appId);
+  const deployOutput = useDeploymentOutput(path, service?.id, service?.status);
 
   useLoadEffect(
     () => (canWrite && appId ? api<Service>(`${path}/${appId}`) : Promise.resolve(null)),
@@ -66,10 +68,13 @@ export function AppLayout() {
   };
   const sections = [
     { label: "General", to: "", end: true, icon: Settings2 },
+    { label: "Logs", to: "logs", end: false, icon: ScrollText },
     ...(canWrite
       ? [
           { label: "Environment", to: "environment", end: false, icon: KeyRound },
           { label: "Connection", to: "connection", end: false, icon: Plug },
+          { label: "Files", to: "files", end: false, icon: FolderOpen },
+          { label: "Terminal", to: "terminal", end: false, icon: SquareTerminal },
         ]
       : []),
     { label: "Storage", to: "storage", end: false, icon: HardDrive },
@@ -83,6 +88,7 @@ export function AppLayout() {
     canWrite,
     appsPath: `/projects/${project.id}/apps`,
     onChanged,
+    deployOutput,
   };
 
   return (
@@ -104,7 +110,7 @@ export function AppLayout() {
               <ServiceStatus status={service.status} />
             </div>
           </div>
-          {canWrite && <ServiceActions service={service} path={path} workspaceId={workspace.id} onChanged={onChanged} />}
+          {canWrite && <ServiceActions service={service} path={path} workspaceId={workspace.id} deployOutput={deployOutput} onChanged={onChanged} />}
         </div>
         <ServiceLifecycle status={service.status} />
       </section>

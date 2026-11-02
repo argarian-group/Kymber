@@ -13,6 +13,6 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     fs: { allow: ["../.."] },
-    proxy: { "/api": `http://localhost:${loadEnv(mode, "../..", "SERVER_").SERVER_PORT || 8080}` },
+    proxy: { "/api": { target: `http://localhost:${loadEnv(mode, "../..", "SERVER_").SERVER_PORT || 8080}`, ws: true } },
   },
 }));

@@ -19,7 +19,7 @@ export function ServersPage() {
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [adding, setAdding] = useState(false);
-  const [connecting, setConnecting] = useState<{ id: string; token: string } | null>(null);
+  const [connecting, setConnecting] = useState<{ id: string; publicKey: string } | null>(null);
   const reload = () => setAttempt((value) => value + 1);
 
   useLoadEffect(
@@ -57,14 +57,14 @@ export function ServersPage() {
           )
         }
       />
-      <div className="grid max-w-4xl gap-4 px-4 py-6 md:px-6">
-        {connecting && connectingServer && <ServerConnectSteps server={connectingServer} token={connecting.token} onDone={() => setConnecting(null)} />}
+      <div className="grid gap-4 px-4 py-6 md:px-6">
+        {connecting && connectingServer && <ServerConnectSteps server={connectingServer} publicKey={connecting.publicKey} onDone={() => setConnecting(null)} />}
         {(servers.length === 0 || adding) && (
           <RegisterServerForm
             onCancel={servers.length > 0 ? () => setAdding(false) : undefined}
-            onRegistered={(server, token) => {
+            onRegistered={(server, publicKey) => {
               setServers([...servers, server]);
-              if (server.connection_type === "ssh") setConnecting({ id: server.id, token });
+              if (server.connection_type === "ssh") setConnecting({ id: server.id, publicKey });
               setAdding(false);
             }}
           />

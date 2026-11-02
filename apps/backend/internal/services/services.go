@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"kymber/backend/internal/auth"
@@ -36,7 +37,6 @@ type databaseService struct {
 	InternalHost    string           `json:"internal_host,omitempty"`
 	Port            int              `json:"port,omitempty"`
 	Domain          string           `json:"domain,omitempty"`
-	PublicPort      int              `json:"public_port,omitempty"`
 	DataPath        string           `json:"data_path,omitempty"`
 	LogoURL         string           `json:"logo_url,omitempty"`
 	Category        string           `json:"category"`
@@ -59,7 +59,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), COALESCE(d.public_port, 0), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, '') FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.workspace_id = ? AND d.project_id = ? ORDER BY d.created_at`, workspaceID, projectID)
+	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, '') FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.workspace_id = ? AND d.project_id = ? ORDER BY d.created_at`, workspaceID, projectID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list services")
 		return
@@ -68,7 +68,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	services := make([]databaseService, 0)
 	for rows.Next() {
 		var service databaseService
-		if err := rows.Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.PublicPort, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError); err != nil {
+		if err := rows.Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read services")
 			return
 		}
@@ -301,6 +301,16 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not read server credentials")
 		return
 	}
+	if action == "deploy" {
+		ports, err := h.readPorts(r.Context(), serviceID)
+		if err == nil {
+			err = h.checkPortConflicts(r.Context(), serverID, serviceID, ports)
+		}
+		if err != nil {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
+	}
 	if connectionType == "ssh" || sshConfigured {
 		if action != "deploy" {
 			logFile, statusFile := deploymentLogFiles(serviceID)
@@ -323,6 +333,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusBadGateway, "SSH service deployment failed: "+err.Error())
 				return
 			}
+			go h.watchDeploy(serverID, serviceID, false)
 			w.WriteHeader(http.StatusAccepted)
 			return
 		}
@@ -370,6 +381,20 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := service.Name + "-service-" + service.ID
+	if r.URL.Query().Get("source") == "runtime" {
+		tail, ok := parseLogTail(r.URL.Query().Get("tail"))
+		if !ok {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("tail must be between 1 and %d", maxLogTail))
+			return
+		}
+		logs, err := h.executeSSH(r.Context(), service.ServerID, runtimeLogsCommand(name, tail))
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "could not read container logs: "+err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": service.Status, "logs": string(logs)})
+		return
+	}
 	logFile, statusFile := deploymentLogFiles(service.ID)
 	command := "if test -f " + shellQuote(logFile) + "; then printf '__KYMBER_LOG__'; tail -c 65536 " + shellQuote(logFile) + "; else printf '__KYMBER_NO_LOG__'; fi; if test -f " + shellQuote(statusFile) + "; then code=$(cat " + shellQuote(statusFile) + "); printf '\\n__KYMBER_EXIT__%s' \"$code\"; if test \"$code\" = 0; then printf '\\n__KYMBER_CONTAINER__'; if docker inspect " + shellQuote(name) + " >/dev/null 2>&1; then docker logs --tail 300 " + shellQuote(name) + " 2>&1; else printf 'Container output is not available yet.'; fi; fi; fi"
 	logs, err := h.executeSSH(r.Context(), service.ServerID, command)
@@ -386,13 +411,13 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 			code = strings.TrimSpace(code)
 			if code == "0" {
 				status = "running"
-				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'running', last_error = NULL WHERE id = ? AND status = 'deploying'", serviceID)
+				h.finishDeploy(r.Context(), serviceID, true, "")
 				if _, container, found := strings.Cut(after, "__KYMBER_CONTAINER__"); found {
 					output = strings.TrimSpace(output) + "\n\n--- Container output ---\n" + strings.TrimSpace(container)
 				}
 			} else {
 				status = "failed"
-				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", strings.TrimSpace(output), serviceID)
+				h.finishDeploy(r.Context(), serviceID, false, strings.TrimSpace(output))
 			}
 		}
 		logs = []byte(strings.TrimSpace(output))
@@ -406,6 +431,24 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": status, "logs": string(logs)})
+}
+
+const (
+	maxLogTail  = 50000
+	maxLogBytes = 10 << 20
+)
+
+func parseLogTail(raw string) (int, bool) {
+	if raw == "" {
+		return 300, true
+	}
+	tail, err := strconv.Atoi(raw)
+	return tail, err == nil && tail >= 1 && tail <= maxLogTail
+}
+
+// The byte cap keeps a few enormous lines from loading the whole log into the API's memory.
+func runtimeLogsCommand(container string, tail int) string {
+	return fmt.Sprintf("if docker inspect %[1]s >/dev/null 2>&1; then docker logs --tail %[2]d %[1]s 2>&1 | tail -c %[3]d; else printf 'Container is not running.\\n'; fi", shellQuote(container), tail, maxLogBytes)
 }
 
 func (h *Handler) executeServiceSSH(r *http.Request, serverID, serviceID, action, imageVersion string) error {
@@ -428,7 +471,15 @@ func (h *Handler) executeServiceSSH(r *http.Request, serverID, serviceID, action
 	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = ?, last_error = NULL WHERE id = ?", status, serviceID); err != nil {
 		return err
 	}
-	command, err := h.sshDockerCommand(r, service, template, imageRef, action)
+	storages, err := h.readStorages(r.Context(), serviceID, false)
+	if err != nil {
+		return err
+	}
+	ports, err := h.readPorts(r.Context(), serviceID)
+	if err != nil {
+		return err
+	}
+	command, err := h.sshDockerCommand(service, template, imageRef, action, storages, ports)
 	if err == nil {
 		_, err = h.executeSSH(r.Context(), serverID, command)
 	}
@@ -459,7 +510,15 @@ func (h *Handler) startServiceDeploySSH(r *http.Request, serverID, serviceID, im
 	if err != nil {
 		return err
 	}
-	command, err := h.sshDockerCommand(r, service, template, image, "deploy")
+	storages, err := h.readStorages(r.Context(), serviceID, true)
+	if err != nil {
+		return err
+	}
+	ports, err := h.readPorts(r.Context(), serviceID)
+	if err != nil {
+		return err
+	}
+	command, err := h.sshDockerCommand(service, template, image, "deploy", storages, ports)
 	if err != nil {
 		return err
 	}
@@ -482,7 +541,7 @@ func shellQuote(value string) string {
 func (h *Handler) readServiceByID(r *http.Request, id string) (databaseService, error) {
 	var service databaseService
 	var encrypted []byte
-	err := h.db.QueryRowContext(r.Context(), "SELECT id, workspace_id, project_id, engine, name, image_version, image, port, COALESCE(domain, ''), COALESCE(public_port, 0), data_path, COALESCE(server_id, ''), database_name, database_user, encrypted_config FROM database_services WHERE id = ?", id).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.PublicPort, &service.DataPath, &service.ServerID, &service.DatabaseName, &service.DatabaseUser, &encrypted)
+	err := h.db.QueryRowContext(r.Context(), "SELECT id, workspace_id, project_id, engine, name, image_version, image, port, COALESCE(domain, ''), data_path, COALESCE(server_id, ''), database_name, database_user, encrypted_config FROM database_services WHERE id = ?", id).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.ServerID, &service.DatabaseName, &service.DatabaseUser, &encrypted)
 	if err != nil {
 		return service, err
 	}
@@ -496,7 +555,7 @@ func (h *Handler) readServiceByID(r *http.Request, id string) (databaseService, 
 	return service, nil
 }
 
-func (h *Handler) sshDockerCommand(r *http.Request, s databaseService, t templates.Template, image, action string) (string, error) {
+func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, image, action string, storages []serviceStorage, ports []servicePort) (string, error) {
 	name := t.ContainerName(s.Name, s.ID)
 	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'" }
 	if action == "stop" {
@@ -515,7 +574,7 @@ func (h *Handler) sshDockerCommand(r *http.Request, s databaseService, t templat
 		return "docker rm -f " + quote(name) + " >/dev/null 2>&1 || true; docker image rm " + quote(image), nil
 	}
 	if action == "delete" {
-		command := "docker rm -f " + quote(name) + " >/dev/null 2>&1 || true"
+		command := "docker rm -f " + quote(name) + " >/dev/null 2>&1 || true; " + storageDeleteCommand(s.ID) + ":"
 		if t.DataPath != "" {
 			command += "; docker volume rm " + quote(t.VolumeName(s.ID))
 		}
@@ -537,20 +596,9 @@ func (h *Handler) sshDockerCommand(r *http.Request, s databaseService, t templat
 		env.WriteString(quote(key + "=" + value))
 		env.WriteString(" >> \"$f\"; ")
 	}
-	command := "set -eu; n=" + quote(name) + "; f=$(mktemp); trap 'rm -f \"$f\"' EXIT; " + env.String() + "docker network inspect " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null 2>&1 || docker network create --label kymber.managed=true " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null; docker rm -f \"$n\" >/dev/null 2>&1 || true; docker run --pull=missing -d --name \"$n\" --restart unless-stopped --network " + quote("kymber-workspace-"+s.WorkspaceID) + " --network-alias " + quote(t.InternalHost(s.ID)) + " --label kymber.managed=true --label " + quote("kymber.service="+s.ID)
-	if s.PublicPort != 0 {
-		if s.PublicPort < 1 || s.PublicPort > 65535 || t.Port < 1 || t.Port > 65535 || s.Domain != "" {
-			return "", fmt.Errorf("public port requires a valid HTTP container port and no domain")
-		}
-		var inUse bool
-		if err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM database_services WHERE public_port = ? AND server_id <=> NULLIF(?, '') AND id <> ?)", s.PublicPort, s.ServerID, s.ID).Scan(&inUse); err != nil {
-			return "", fmt.Errorf("could not verify public port availability")
-		}
-		if inUse {
-			return "", fmt.Errorf("public port is already assigned on this server")
-		}
-		command += " --publish " + quote(fmt.Sprintf("0.0.0.0:%d:%d/tcp", s.PublicPort, t.Port))
-	}
+	prepare, storageArgs := storageDeployCommand(s.ID, storages)
+	portCheck, portArgs := portDeployCommand(ports)
+	command := "set -eu; n=" + quote(name) + "; f=$(mktemp); trap 'rm -f \"$f\"' EXIT; " + portCheck + env.String() + prepare + "docker network inspect " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null 2>&1 || docker network create --label kymber.managed=true " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null; docker rm -f \"$n\" >/dev/null 2>&1 || true; docker run --pull=missing -d --name \"$n\" --restart unless-stopped --network " + quote("kymber-workspace-"+s.WorkspaceID) + " --network-alias " + quote(t.InternalHost(s.ID)) + " --label kymber.managed=true --label " + quote("kymber.service="+s.ID)
 	if s.Domain != "" {
 		if t.Port < 1 || t.Port > 65535 {
 			return "", fmt.Errorf("public domain requires an HTTP port")
@@ -584,7 +632,7 @@ func (h *Handler) sshDockerCommand(r *http.Request, s databaseService, t templat
 	if t.HealthCmd != "" {
 		command += " --health-cmd " + quote(t.HealthCmd) + " --health-interval 10s --health-timeout 5s --health-retries 10 --health-start-period 30s"
 	}
-	command += " --env-file \"$f\" " + quote(image)
+	command += storageArgs + portArgs + " --env-file \"$f\" " + quote(image)
 	for _, arg := range config {
 		command += " " + quote(arg)
 	}
@@ -731,10 +779,6 @@ func (h *Handler) updateServiceDomain(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "public domains require an application with an HTTP port")
 		return
 	}
-	if domain != "" && service.PublicPort != 0 {
-		writeError(w, http.StatusConflict, "disable the public port before assigning a domain")
-		return
-	}
 	if domain != "" && service.ServerID != "" {
 		var connectionType string
 		if err := h.db.QueryRowContext(r.Context(), "SELECT connection_type FROM servers WHERE id = ?", service.ServerID).Scan(&connectionType); err != nil || connectionType != "local" {
@@ -764,62 +808,10 @@ func (h *Handler) updateServiceDomain(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"domain": domain})
 }
 
-func (h *Handler) updateServicePublicPort(w http.ResponseWriter, r *http.Request) {
-	user, _ := auth.UserFromContext(r)
-	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, true) {
-		return
-	}
-	projectID, ok := pathID(w, r, "projectID")
-	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
-		return
-	}
-	serviceID, ok := pathID(w, r, "serviceID")
-	if !ok {
-		return
-	}
-	var input struct {
-		Port int `json:"port"`
-	}
-	if !decodeJSON(w, r, &input) {
-		return
-	}
-	if input.Port < 0 || input.Port > 65535 {
-		writeError(w, http.StatusBadRequest, "port must be between 0 and 65535")
-		return
-	}
-	service, err := h.readService(r, workspaceID, projectID, serviceID, false)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "service not found")
-		return
-	}
-	if service.Status == "queued" || service.Status == "deploying" || service.ServerID != "" && service.Status != "stopped" {
-		writeError(w, http.StatusConflict, "stop the service before changing its public port")
-		return
-	}
-	if service.Domain != "" {
-		writeError(w, http.StatusConflict, "remove the domain before setting a public port")
-		return
-	}
-	if input.Port != 0 && (service.Category != "application" || service.Port < 1 || service.Port > 65535) {
-		writeError(w, http.StatusBadRequest, "public ports require an application HTTP port")
-		return
-	}
-	var savedPort any
-	if input.Port != 0 {
-		savedPort = input.Port
-	}
-	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET public_port = ? WHERE id = ?", savedPort, serviceID); err != nil {
-		writeError(w, http.StatusConflict, "could not save public port; it may already be in use")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]int{"public_port": input.Port})
-}
-
 func (h *Handler) readService(r *http.Request, workspaceID, projectID string, serviceID string, includeSecret bool) (databaseService, error) {
 	var service databaseService
 	var encrypted []byte
-	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), COALESCE(d.public_port, 0), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.encrypted_config FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.id = ? AND d.workspace_id = ? AND d.project_id = ?`, serviceID, workspaceID, projectID).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.PublicPort, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &encrypted)
+	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.encrypted_config FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.id = ? AND d.workspace_id = ? AND d.project_id = ?`, serviceID, workspaceID, projectID).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &encrypted)
 	if err != nil {
 		return service, err
 	}

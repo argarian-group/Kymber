@@ -9,6 +9,7 @@ export type AppOutlet = {
   canWrite: boolean;
   appsPath: string;
   onChanged: () => void;
+  deployOutput: string | null;
 };
 
 export function useAppOutlet() {

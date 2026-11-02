@@ -10,7 +10,7 @@ export function SettingsSection({ title, description, children }: { title: strin
         </h2>
         {description && <p className="mt-1 text-meta text-ink-soft">{description}</p>}
       </div>
-      <div className="max-w-2xl min-w-0 rounded-panel bg-raised">{children}</div>
+      <div className="min-w-0 rounded-panel bg-raised">{children}</div>
     </section>
   );
 }

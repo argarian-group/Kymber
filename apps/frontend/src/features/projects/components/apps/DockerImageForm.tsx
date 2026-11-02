@@ -108,7 +108,10 @@ function ImageSettings({ image, path, onChange }: { image: HubImage; path: strin
       setPort(response.port ? String(response.port) : "");
       setDataPath(response.data_path);
     },
-    setLoadError,
+    () => {
+      setVersion((current) => current || "latest");
+      setLoadError("Could not read this image's details from Docker Hub. Check the version, and fill in the port and data path by hand.");
+    },
     [repository],
   );
 
@@ -141,7 +144,7 @@ function ImageSettings({ image, path, onChange }: { image: HubImage; path: strin
       <Field label="App name" autoFocus maxLength={63} pattern="[a-z][a-z0-9\-]{1,62}" title="Lowercase letters, numbers and hyphens, starting with a letter" hint="Optional. Leave blank to generate one." value={name} onChange={(event) => setName(event.target.value)} />
       <EnvironmentField value={environmentId} onChange={setEnvironmentId} />
       <div className="grid items-start gap-4 sm:grid-cols-2">
-        <Field label="Image version" list="docker-image-tags" maxLength={128} required placeholder={details ? undefined : "Loading…"} value={version} onChange={(event) => setVersion(event.target.value)} />
+        <Field label="Image version" list="docker-image-tags" maxLength={128} required placeholder={details || loadError ? undefined : "Loading…"} value={version} onChange={(event) => setVersion(event.target.value)} />
         <datalist id="docker-image-tags">
           {details?.tags.map((tag) => <option value={tag} key={tag} />)}
         </datalist>

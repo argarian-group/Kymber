@@ -1,5 +1,6 @@
 import { Server as ServerIcon } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { ServerStatusBadge } from "@/features/servers/components/ServerStatusBadge";
@@ -54,8 +55,8 @@ export function ServerCard({ server, onChanged }: { server: Server; onChanged: (
           <dd className="font-display text-lg font-semibold tabular-nums">{server.apps}</dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-xs text-ink-soft">Last seen</dt>
-          <dd className="mt-1 tabular-nums">{server.last_seen ? formatRelative(server.last_seen) : "Never"}</dd>
+          <dt className="text-xs text-ink-soft">{server.ssh_configured ? "Connection" : "Last seen"}</dt>
+          <dd className="mt-1 tabular-nums">{server.ssh_configured ? "SSH" : server.last_seen ? formatRelative(server.last_seen) : "Never"}</dd>
         </div>
         <div className="min-w-0">
           <dt className="text-xs text-ink-soft">Registered</dt>
@@ -66,6 +67,11 @@ export function ServerCard({ server, onChanged }: { server: Server; onChanged: (
         {mode === "view" && (
           <div className="flex flex-wrap gap-2">
             {server.connection_type === "local" && !server.ssh_configured && <button className="btn btn-primary" type="button" disabled={pending} onClick={setupSSH}>{pending ? "Configuring…" : "Enable SSH for local host"}</button>}
+            {server.ssh_configured && (
+              <Link className="btn" to={`/terminal?server=${server.id}`}>
+                Terminal
+              </Link>
+            )}
             <button className="btn" type="button" onClick={() => setMode("rename")}>
               Rename
             </button>
@@ -75,7 +81,7 @@ export function ServerCard({ server, onChanged }: { server: Server; onChanged: (
           </div>
         )}
         {mode === "rename" && (
-          <form className="grid max-w-md gap-3" onSubmit={rename}>
+          <form className="grid gap-3" onSubmit={rename}>
             <Field label="Server name" required autoFocus maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
             <div className="flex gap-2">
               <button className="btn btn-primary" type="submit" disabled={pending}>

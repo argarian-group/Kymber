@@ -33,6 +33,15 @@ func UserFromContext(r *http.Request) (User, bool) {
 	return user, ok
 }
 
+// ActiveUser rereads the request's session for long-lived connections, which outlast the check made when they opened. It reports false only when the session has definitely ended.
+func ActiveUser(db *sql.DB, r *http.Request) (User, bool, error) {
+	user, err := userFromSession(db, r)
+	if errors.Is(err, errUnauthenticated) {
+		return User{}, false, nil
+	}
+	return user, err == nil, err
+}
+
 func userFromSession(db *sql.DB, r *http.Request) (User, error) {
 	cookie, err := r.Cookie(sessionCookie)
 	if err != nil {

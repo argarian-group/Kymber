@@ -23,20 +23,37 @@ END`
 
 func New(db *sql.DB) *Handler { return &Handler{db: db} }
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	go h.resumeDeployWatches()
 	for _, route := range []struct {
 		pattern string
 		handler http.HandlerFunc
 	}{
 		{"GET /api/database-templates", h.listDatabaseTemplates},
 		{"GET /api/docker-hub/search", h.searchDockerHub},
+		{"GET /api/docker-hub/image", h.dockerImageDetails},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services", h.listServices},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services", h.createService},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}", h.getService},
 		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/domain", h.updateServiceDomain},
-		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/public-port", h.updateServicePublicPort},
 		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}", h.updateService},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/{action}", h.serviceAction},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/logs", h.serviceLogs},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/ports", h.listPorts},
+		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/ports", h.createPort},
+		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/ports/{portID}", h.deletePort},
+		{"GET /api/servers/{serverID}/terminal", h.serverTerminal},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/terminal", h.serviceTerminal},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/files", h.listFiles},
+		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/files", h.createFile},
+		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/files", h.deleteFile},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/files/content", h.readFile},
+		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/files/content", h.writeFile},
+		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/files/move", h.moveFile},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/storages", h.listStorages},
+		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/storages", h.createStorage},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/storages/{storageID}", h.getStorageContent},
+		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/storages/{storageID}", h.updateStorageContent},
+		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/storages/{storageID}", h.deleteStorage},
 		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}", h.deleteService},
 	} {
 		mux.Handle(route.pattern, auth.Authenticate(h.db, route.handler))

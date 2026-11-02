@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
 import { useProjectOutlet } from "./useProjectOutlet";
-import { servicesPath, type Service } from "./services";
+import { isServiceBusy, servicesPath, type Service } from "./services";
 
-const pollMs = 1000;
+const busyPollMs = 2000;
+const idlePollMs = 15000;
 
 export function useServices() {
   const { project, workspace } = useProjectOutlet();
@@ -25,11 +26,19 @@ export function useServices() {
     [path, attempt, poll],
   );
 
+  const busy = services?.some(({ status }) => isServiceBusy(status)) ?? false;
+
   useEffect(() => {
-    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-    const timer = window.setInterval(() => setPoll((value) => value + 1), pollMs);
-    return () => window.clearInterval(timer);
-  }, [path]);
+    const refresh = () => {
+      if (document.visibilityState === "visible") setPoll((value) => value + 1);
+    };
+    const timer = window.setInterval(refresh, busy ? busyPollMs : idlePollMs);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [path, busy]);
 
   return { services, error, reload, path };
 }

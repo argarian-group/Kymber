@@ -5,6 +5,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,8 +34,10 @@ const maxBuckets = 25000
 
 func RateLimit(next http.Handler) http.Handler {
 	limiter := &limiter{buckets: make(map[string]*bucket)}
+	// Behind a proxy every request shares its address, which would make all users share one limit.
+	trustProxy := os.Getenv("KYMBER_TRUST_PROXY") == "true"
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := clientIP(r.RemoteAddr)
+		ip := clientIP(r, trustProxy)
 		if !strings.HasPrefix(r.URL.Path, "/api/agent/") {
 			if ok, wait := limiter.allow(ip+"/all", policy{name: "all", burst: 120, period: time.Minute}); !ok {
 				reject(w, wait)
@@ -125,10 +128,16 @@ func (l *limiter) allow(key string, p policy) (bool, time.Duration) {
 	return true, 0
 }
 
-func clientIP(remoteAddr string) string {
-	ip, _, err := net.SplitHostPort(remoteAddr)
+// The nearest proxy appends the address it saw last, so entries further left can be forged by the client.
+func clientIP(r *http.Request, trustProxy bool) string {
+	if trustProxy {
+		if entries := strings.Split(r.Header.Get("X-Forwarded-For"), ","); net.ParseIP(strings.TrimSpace(entries[len(entries)-1])) != nil {
+			return strings.TrimSpace(entries[len(entries)-1])
+		}
+	}
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return remoteAddr
+		return r.RemoteAddr
 	}
 	return ip
 }

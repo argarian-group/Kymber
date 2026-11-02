@@ -4,7 +4,7 @@ import { organizationItems, workspaceItems } from "./navItems";
 
 export function MobileTabBar() {
   const user = useCurrentUser();
-  const navItems = [...workspaceItems, ...organizationItems(user.is_root)];
+  const navItems = [...workspaceItems, ...organizationItems(user.is_root)].filter(({ to }) => to !== "/terminal");
 
   return (
     <nav
