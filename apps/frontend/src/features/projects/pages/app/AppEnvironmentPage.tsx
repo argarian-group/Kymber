@@ -5,6 +5,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Field } from "@/components/ui/Field";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
+import { ComposeEnvironmentEditor } from "@/features/projects/components/apps/ComposeForm";
+import { isServiceBusy } from "@/features/projects/services";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { FormFooter } from "@/features/settings/components/FormFooter";
 import { api } from "@/lib/api";
@@ -18,6 +20,20 @@ export function AppEnvironmentPage() {
   const { pending, error, run } = useAction();
 
   if (!canWrite) return <Navigate to=".." replace />;
+  if (service.compose) {
+    const busy = isServiceBusy(service.status);
+    function saveCompose(file: string, deploy: boolean) {
+      return run(async () => {
+        await api(`${path}/${service.id}`, { method: "PUT", body: { compose_file: file } });
+        if (deploy && service.status !== "draft") await api(`${path}/${service.id}/deploy`, { method: "POST", body: {} });
+        setSaved(t("Saved."));
+        onChanged();
+      });
+    }
+    return <AppSection title={t("Environment variables")} description={t("Choose a service to edit its container environment.")}>
+      <ComposeEnvironmentEditor key={service.compose_file} initialFile={service.compose_file ?? ""} pending={pending} error={error} submitLabel={t("Save")} deployLabel={t("Save and deploy stack")} deployDisabled={busy || service.status === "draft"} onSave={saveCompose} />
+    </AppSection>;
+  }
   if (!detail || !template) return <PageSkeleton />;
 
   const environment = detail.environment ?? {};
