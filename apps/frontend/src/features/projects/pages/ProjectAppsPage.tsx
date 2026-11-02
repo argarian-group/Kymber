@@ -14,7 +14,8 @@ import { t } from "@/lib/i18n";
 const noEnvironment = "none";
 
 export function ProjectAppsPage() {
-  const { canWrite } = useProjects();
+  const { can } = useProjects();
+  const canWrite = can("apps.manage");
   const { services, error, reload } = useServices();
   const [query, setQuery] = useState("");
   const { environments } = useEnvironments();
@@ -58,7 +59,7 @@ export function ProjectAppsPage() {
         </div>
       )}
       {services.length === 0 ? (
-        <EmptyState title={t("No apps yet")} description={canWrite ? t("Create your first app from a template.") : t("A workspace admin can create the first app.")} />
+        <EmptyState title={t("No apps yet")} description={canWrite ? t("Create your first app from a template.") : t("Ask someone who manages apps to create the first one.")} />
       ) : inEnvironment.length === 0 ? (
         <EmptyState title={selected === noEnvironment ? t("No apps without an environment") : selectedName ? t("No apps in {name}", { name: selectedName }) : t("No apps in this environment")} />
       ) : visible.length === 0 ? (

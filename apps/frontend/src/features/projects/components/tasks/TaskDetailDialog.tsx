@@ -36,7 +36,8 @@ function editOf(task: TaskDetail): TaskEdit {
 
 export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClose }: TaskDetailDialogProps) {
   const { workspace } = useProjectOutlet();
-  const { canWrite } = useProjects();
+  const { can } = useProjects();
+  const canDeleteTasks = can("tasks.delete");
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [edit, setEdit] = useState<TaskEdit | null>(null);
   const latest = useRef<TaskEdit | null>(null);
@@ -221,7 +222,7 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
                 </ul>
               </fieldset>
               <TaskLabelPicker labels={board.labels} selected={edit.label_ids} path={path} onToggle={(id, checked) => toggle("label_ids", id, checked)} onChanged={refresh} />
-              {canWrite && (
+              {canDeleteTasks && (
                 <div>
                   <FormError message={removal.error} />
                   <button className="btn btn-danger mt-1" type="button" onClick={confirming ? confirmDelete : () => setConfirming(true)} disabled={removal.pending}>

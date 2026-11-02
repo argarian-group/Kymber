@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"kymber/backend/internal/auth"
+	"kymber/backend/internal/permissions"
 	"kymber/backend/internal/secrets"
 	"kymber/backend/internal/templates"
 )
@@ -18,7 +19,7 @@ import (
 func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.AppsManage) {
 		return
 	}
 	projectID, ok := pathID(w, r, "projectID")
@@ -189,7 +190,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, false) {
+	if !ok || !h.authorize(w, r, user, workspaceID, "") {
 		return
 	}
 	projectID, ok := pathID(w, r, "projectID")

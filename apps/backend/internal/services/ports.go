@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/permissions"
 )
 
 const maxPortsPerService = 20
@@ -93,7 +94,7 @@ func (h *Handler) checkPortConflicts(ctx context.Context, serverID, serviceID st
 }
 
 func (h *Handler) listPorts(w http.ResponseWriter, r *http.Request) {
-	service, _, ok := h.storageRequest(w, r, false)
+	service, _, ok := h.storageRequest(w, r, "")
 	if !ok {
 		return
 	}
@@ -114,7 +115,7 @@ func (h *Handler) listPorts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createPort(w http.ResponseWriter, r *http.Request) {
-	service, _, ok := h.storageRequest(w, r, true)
+	service, _, ok := h.storageRequest(w, r, permissions.AppsManage)
 	if !ok {
 		return
 	}
@@ -164,7 +165,7 @@ func (h *Handler) createPort(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) deletePort(w http.ResponseWriter, r *http.Request) {
-	service, _, ok := h.storageRequest(w, r, true)
+	service, _, ok := h.storageRequest(w, r, permissions.AppsManage)
 	if !ok {
 		return
 	}

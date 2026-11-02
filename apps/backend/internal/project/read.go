@@ -11,7 +11,7 @@ import (
 func (h *Handler) listProjects(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, false) {
+	if !ok || !h.authorize(w, r, user, workspaceID, "") {
 		return
 	}
 	rows, err := h.db.QueryContext(r.Context(), "SELECT p.id, p.workspace_id, p.name, p.slug, p.created_at, COALESCE(l.version, '') FROM projects p LEFT JOIN project_logos l ON l.project_id = p.id WHERE p.workspace_id = ? ORDER BY p.id", workspaceID)
@@ -39,7 +39,7 @@ func (h *Handler) listProjects(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) getProject(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, false) {
+	if !ok || !h.authorize(w, r, user, workspaceID, "") {
 		return
 	}
 	projectID, ok := pathID(w, r, "projectID")

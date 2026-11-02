@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/permissions"
 )
 
 const maxTaskRelations = 50
@@ -162,7 +163,7 @@ func (h *Handler) loadTasks(ctx context.Context, projectID, taskID string) ([]Ta
 }
 
 func (h *Handler) getBoard(w http.ResponseWriter, r *http.Request) {
-	_, projectID, ok := h.authorizeProjectAccess(w, r, false)
+	_, projectID, ok := h.authorizeProjectAccess(w, r, "")
 	if !ok {
 		return
 	}
@@ -185,7 +186,7 @@ func (h *Handler) getBoard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getTask(w http.ResponseWriter, r *http.Request) {
-	_, projectID, ok := h.authorizeProjectAccess(w, r, false)
+	_, projectID, ok := h.authorizeProjectAccess(w, r, "")
 	if !ok {
 		return
 	}
@@ -223,7 +224,7 @@ func (h *Handler) writeTaskDetail(w http.ResponseWriter, r *http.Request, status
 }
 
 func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
-	_, projectID, ok := h.authorizeProjectAccess(w, r, false)
+	_, projectID, ok := h.authorizeProjectAccess(w, r, "")
 	if !ok {
 		return
 	}
@@ -256,7 +257,7 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
-	workspaceID, projectID, taskID, ok := h.authorizeTask(w, r, false)
+	workspaceID, projectID, taskID, ok := h.authorizeTask(w, r, "")
 	if !ok {
 		return
 	}
@@ -338,7 +339,7 @@ func saveTask(ctx context.Context, tx *sql.Tx, taskID string, input taskPayload,
 }
 
 func (h *Handler) moveTask(w http.ResponseWriter, r *http.Request) {
-	_, projectID, taskID, ok := h.authorizeTask(w, r, false)
+	_, projectID, taskID, ok := h.authorizeTask(w, r, "")
 	if !ok {
 		return
 	}
@@ -400,7 +401,7 @@ func (h *Handler) moveTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) deleteTask(w http.ResponseWriter, r *http.Request) {
-	_, _, taskID, ok := h.authorizeTask(w, r, true)
+	_, _, taskID, ok := h.authorizeTask(w, r, permissions.TasksDelete)
 	if !ok {
 		return
 	}
@@ -411,8 +412,8 @@ func (h *Handler) deleteTask(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) authorizeTask(w http.ResponseWriter, r *http.Request, write bool) (string, string, string, bool) {
-	workspaceID, projectID, ok := h.authorizeProjectAccess(w, r, write)
+func (h *Handler) authorizeTask(w http.ResponseWriter, r *http.Request, permission string) (string, string, string, bool) {
+	workspaceID, projectID, ok := h.authorizeProjectAccess(w, r, permission)
 	if !ok {
 		return "", "", "", false
 	}

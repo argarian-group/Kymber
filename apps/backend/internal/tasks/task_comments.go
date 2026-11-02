@@ -11,6 +11,7 @@ import (
 
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/permissions"
 )
 
 type TaskComment struct {
@@ -62,7 +63,7 @@ func commentBody(w http.ResponseWriter, r *http.Request) (string, bool) {
 
 func (h *Handler) createComment(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
-	_, _, taskID, ok := h.authorizeTask(w, r, false)
+	_, _, taskID, ok := h.authorizeTask(w, r, "")
 	if !ok {
 		return
 	}
@@ -102,7 +103,7 @@ func (h *Handler) commentAuthor(w http.ResponseWriter, r *http.Request, projectI
 
 func (h *Handler) updateComment(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
-	_, projectID, ok := h.authorizeProjectAccess(w, r, false)
+	_, projectID, ok := h.authorizeProjectAccess(w, r, "")
 	if !ok {
 		return
 	}
@@ -127,7 +128,7 @@ func (h *Handler) updateComment(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) deleteComment(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
-	workspaceID, projectID, ok := h.authorizeProjectAccess(w, r, false)
+	workspaceID, projectID, ok := h.authorizeProjectAccess(w, r, "")
 	if !ok {
 		return
 	}
@@ -135,7 +136,7 @@ func (h *Handler) deleteComment(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if authorID != user.ID && !h.authorize(w, r, user, workspaceID, true) {
+	if authorID != user.ID && !h.authorize(w, r, user, workspaceID, permissions.TasksDelete) {
 		return
 	}
 	if _, err := h.db.ExecContext(r.Context(), "DELETE FROM task_comments WHERE id = ?", commentID); err != nil {

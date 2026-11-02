@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/permissions"
 )
 
 type TaskLabel struct {
@@ -63,7 +64,7 @@ func taskLabelInput(w http.ResponseWriter, r *http.Request) (taskLabelPayload, b
 }
 
 func (h *Handler) createTaskLabel(w http.ResponseWriter, r *http.Request) {
-	_, projectID, ok := h.authorizeProjectAccess(w, r, false)
+	_, projectID, ok := h.authorizeProjectAccess(w, r, "")
 	if !ok {
 		return
 	}
@@ -83,8 +84,8 @@ func (h *Handler) createTaskLabel(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]TaskLabel{"label": {ID: id, Name: input.Name, Color: input.Color}})
 }
 
-func (h *Handler) authorizeTaskLabel(w http.ResponseWriter, r *http.Request, write bool) (string, string, bool) {
-	_, projectID, ok := h.authorizeProjectAccess(w, r, write)
+func (h *Handler) authorizeTaskLabel(w http.ResponseWriter, r *http.Request, permission string) (string, string, bool) {
+	_, projectID, ok := h.authorizeProjectAccess(w, r, permission)
 	if !ok {
 		return "", "", false
 	}
@@ -96,7 +97,7 @@ func (h *Handler) authorizeTaskLabel(w http.ResponseWriter, r *http.Request, wri
 }
 
 func (h *Handler) updateTaskLabel(w http.ResponseWriter, r *http.Request) {
-	_, labelID, ok := h.authorizeTaskLabel(w, r, false)
+	_, labelID, ok := h.authorizeTaskLabel(w, r, "")
 	if !ok {
 		return
 	}
@@ -112,7 +113,7 @@ func (h *Handler) updateTaskLabel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) deleteTaskLabel(w http.ResponseWriter, r *http.Request) {
-	_, labelID, ok := h.authorizeTaskLabel(w, r, true)
+	_, labelID, ok := h.authorizeTaskLabel(w, r, permissions.TasksDelete)
 	if !ok {
 		return
 	}

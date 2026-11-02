@@ -9,7 +9,8 @@ import { t } from "@/lib/i18n";
 
 export function EditProject() {
   const { project } = useProjectOutlet();
-  const { canWrite, updateProject } = useProjects();
+  const { updateProject, can } = useProjects();
+  const canWrite = can("projects.manage");
   const [name, setName] = useState(project.name);
   const [slug, setSlug] = useState(project.slug);
   const [saved, setSaved] = useState<string | null>(null);
@@ -26,7 +27,7 @@ export function EditProject() {
   }
 
   return (
-    <SettingsSection title={t("General")} description={canWrite ? undefined : t("Only admins and owners can edit this project.")}>
+    <SettingsSection title={t("General")} description={canWrite ? undefined : t("Your role cannot edit this project.")}>
       <form onSubmit={submit}>
         <div className="grid items-start gap-4 p-4 sm:grid-cols-2">
           <Field label={t("Name")} required maxLength={120} disabled={!canWrite} value={name} onChange={(event) => setName(event.target.value)} />

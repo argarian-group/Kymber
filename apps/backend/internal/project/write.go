@@ -8,12 +8,13 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/permissions"
 )
 
 func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.ProjectsManage) {
 		return
 	}
 	input, ok := projectInput(w, r)
@@ -56,7 +57,7 @@ func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) updateProject(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.ProjectsManage) {
 		return
 	}
 	projectID, ok := pathID(w, r, "projectID")
@@ -101,7 +102,7 @@ func (h *Handler) updateProject(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) deleteProject(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.ProjectsManage) {
 		return
 	}
 	projectID, ok := pathID(w, r, "projectID")

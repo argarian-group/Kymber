@@ -11,7 +11,8 @@ import { ProjectRow } from "@/features/projects/components/ProjectRow";
 import { t } from "@/lib/i18n";
 
 export function ProjectsPage() {
-  const { state, workspaces, canWrite, retry } = useProjects();
+  const { state, workspaces, retry, can } = useProjects();
+  const canWrite = can("projects.manage");
   const user = useCurrentUser();
   const [creatingIn, setCreatingIn] = useState<string | null>(null);
 
@@ -55,7 +56,7 @@ export function ProjectsPage() {
       {count === 0 && !creating ? (
         <EmptyState
           title={t("No projects yet")}
-          description={canWrite ? t("Create the first project in this workspace.") : t("A workspace admin can create the first project.")}
+          description={canWrite ? t("Create the first project in this workspace.") : t("Ask someone who manages projects to create the first one.")}
           action={
             canWrite && (
               <button className="btn" type="button" onClick={startCreating}>

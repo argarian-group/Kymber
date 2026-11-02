@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	"kymber/backend/internal/auth"
+	"kymber/backend/internal/permissions"
 )
 
 type WorkspaceMember struct {
@@ -32,7 +33,7 @@ type memberRolePayload struct {
 func (h *Handler) listMembers(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, false) {
+	if !ok || !h.authorize(w, r, user, workspaceID, "") {
 		return
 	}
 	rows, err := h.db.QueryContext(r.Context(), `SELECT u.id, u.username, u.email, m.role, m.created_at FROM workspace_members m JOIN users u ON u.id = m.user_id WHERE m.workspace_id = ? ORDER BY m.created_at, u.id`, workspaceID)
@@ -60,7 +61,11 @@ func (h *Handler) listMembers(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) addMember(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.requireWorkspaceOwner(w, r, user, workspaceID) {
+	if !ok {
+		return
+	}
+	actor, ok := h.requirePermission(w, r, user, workspaceID, permissions.MembersManage)
+	if !ok {
 		return
 	}
 	var input memberPayload
@@ -69,8 +74,11 @@ func (h *Handler) addMember(w http.ResponseWriter, r *http.Request) {
 	}
 	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
 	address, err := mail.ParseAddress(input.Email)
-	if err != nil || address.Address != input.Email || len(input.Email) > 254 || !validMemberRole(input.Role) {
+	if err != nil || address.Address != input.Email || len(input.Email) > 254 {
 		writeError(w, http.StatusBadRequest, "valid email and role are required")
+		return
+	}
+	if !h.assignableRole(w, r, workspaceID, actor, input.Role) {
 		return
 	}
 	var member WorkspaceMember
@@ -108,7 +116,11 @@ func (h *Handler) addMember(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) updateMember(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.requireWorkspaceOwner(w, r, user, workspaceID) {
+	if !ok {
+		return
+	}
+	actor, ok := h.requirePermission(w, r, user, workspaceID, permissions.MembersManage)
+	if !ok {
 		return
 	}
 	userID, ok := pathUserID(w, r)
@@ -119,8 +131,7 @@ func (h *Handler) updateMember(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &input) {
 		return
 	}
-	if !validMemberRole(input.Role) {
-		writeError(w, http.StatusBadRequest, "role must be owner, admin, or member")
+	if !h.outranks(w, r, workspaceID, actor, userID) || !h.assignableRole(w, r, workspaceID, actor, input.Role) {
 		return
 	}
 	var creatorID uint64
@@ -164,11 +175,15 @@ func (h *Handler) updateMember(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) deleteMember(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.requireWorkspaceOwner(w, r, user, workspaceID) {
+	if !ok {
+		return
+	}
+	actor, ok := h.requirePermission(w, r, user, workspaceID, permissions.MembersManage)
+	if !ok {
 		return
 	}
 	userID, ok := pathUserID(w, r)
-	if !ok {
+	if !ok || !h.outranks(w, r, workspaceID, actor, userID) {
 		return
 	}
 	var creatorID uint64
@@ -211,41 +226,57 @@ func (h *Handler) deleteMember(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) requireWorkspaceOwner(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID string) bool {
-	_, ok := h.requireWorkspaceRole(w, r, user, workspaceID, false)
-	return ok
-}
-
-func (h *Handler) requireWorkspaceRole(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID string, allowAdmin bool) (string, bool) {
-	if !h.authorize(w, r, user, workspaceID, false) {
-		return "", false
+func (h *Handler) requirePermission(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID, permission string) (permissions.Set, bool) {
+	if !h.authorize(w, r, user, workspaceID, permission) {
+		return nil, false
 	}
 	if user.IsRoot {
-		return "root", true
+		return permissions.Of(permissions.All), true
 	}
-	var role string
-	err := h.db.QueryRowContext(r.Context(), "SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?", workspaceID, user.ID).Scan(&role)
+	_, granted, err := permissions.Lookup(r.Context(), h.db, workspaceID, user.ID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "could not verify workspace ownership")
-		return "", false
+		writeError(w, http.StatusInternalServerError, "could not verify workspace access")
+		return nil, false
 	}
-	if role != "owner" && !(allowAdmin && role == "admin") {
-		message := "workspace owner access required"
-		if allowAdmin {
-			message = "workspace owner or admin access required"
-		}
-		writeError(w, http.StatusForbidden, message)
-		return "", false
+	return granted, true
+}
+
+func (h *Handler) assignableRole(w http.ResponseWriter, r *http.Request, workspaceID string, actor permissions.Set, role string) bool {
+	granted, exists, err := permissions.RolePermissions(r.Context(), h.db, workspaceID, role)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read role")
+		return false
 	}
-	return role, true
+	if !exists {
+		writeError(w, http.StatusBadRequest, "unknown role")
+		return false
+	}
+	if !actor.Covers(granted) {
+		writeError(w, http.StatusForbidden, "you cannot grant permissions you do not have")
+		return false
+	}
+	return true
+}
+
+func (h *Handler) outranks(w http.ResponseWriter, r *http.Request, workspaceID string, actor permissions.Set, userID uint64) bool {
+	_, granted, err := permissions.Lookup(r.Context(), h.db, workspaceID, userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "workspace member not found")
+		return false
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read workspace member")
+		return false
+	}
+	if !actor.Covers(granted) {
+		writeError(w, http.StatusForbidden, "this member has permissions you do not have")
+		return false
+	}
+	return true
 }
 
 func (h *Handler) findMember(r *http.Request, workspaceID string, userID uint64) (WorkspaceMember, error) {
 	var member WorkspaceMember
 	err := h.db.QueryRowContext(r.Context(), `SELECT u.id, u.username, u.email, m.role, m.created_at FROM workspace_members m JOIN users u ON u.id = m.user_id WHERE m.workspace_id = ? AND u.id = ?`, workspaceID, userID).Scan(&member.UserID, &member.Username, &member.Email, &member.Role, &member.CreatedAt)
 	return member, err
-}
-
-func validMemberRole(role string) bool {
-	return role == "owner" || role == "admin" || role == "member"
 }

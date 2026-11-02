@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/permissions"
 )
 
 var defaultTaskLists = []struct {
@@ -97,7 +98,7 @@ func taskListInput(w http.ResponseWriter, r *http.Request) (taskListPayload, boo
 }
 
 func (h *Handler) createTaskList(w http.ResponseWriter, r *http.Request) {
-	_, projectID, ok := h.authorizeProjectAccess(w, r, false)
+	_, projectID, ok := h.authorizeProjectAccess(w, r, "")
 	if !ok {
 		return
 	}
@@ -118,7 +119,7 @@ func (h *Handler) createTaskList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) updateTaskList(w http.ResponseWriter, r *http.Request) {
-	projectID, listID, ok := h.authorizeTaskList(w, r, false)
+	projectID, listID, ok := h.authorizeTaskList(w, r, "")
 	if !ok {
 		return
 	}
@@ -134,7 +135,7 @@ func (h *Handler) updateTaskList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) reorderTaskLists(w http.ResponseWriter, r *http.Request) {
-	_, projectID, ok := h.authorizeProjectAccess(w, r, false)
+	_, projectID, ok := h.authorizeProjectAccess(w, r, "")
 	if !ok {
 		return
 	}
@@ -175,7 +176,7 @@ func (h *Handler) reorderTaskLists(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) deleteTaskList(w http.ResponseWriter, r *http.Request) {
-	projectID, listID, ok := h.authorizeTaskList(w, r, true)
+	projectID, listID, ok := h.authorizeTaskList(w, r, permissions.TasksDelete)
 	if !ok {
 		return
 	}
@@ -196,8 +197,8 @@ func (h *Handler) deleteTaskList(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) authorizeTaskList(w http.ResponseWriter, r *http.Request, write bool) (string, string, bool) {
-	_, projectID, ok := h.authorizeProjectAccess(w, r, write)
+func (h *Handler) authorizeTaskList(w http.ResponseWriter, r *http.Request, permission string) (string, string, bool) {
+	_, projectID, ok := h.authorizeProjectAccess(w, r, permission)
 	if !ok {
 		return "", "", false
 	}

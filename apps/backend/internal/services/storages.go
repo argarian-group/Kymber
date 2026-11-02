@@ -11,6 +11,7 @@ import (
 
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/permissions"
 	"kymber/backend/internal/secrets"
 	"kymber/backend/internal/templates"
 )
@@ -114,10 +115,10 @@ func (h *Handler) readStorages(ctx context.Context, serviceID string, withConten
 }
 
 // storageRequest authorizes the caller and returns the app the URL names.
-func (h *Handler) storageRequest(w http.ResponseWriter, r *http.Request, write bool) (databaseService, auth.User, bool) {
+func (h *Handler) storageRequest(w http.ResponseWriter, r *http.Request, permission string) (databaseService, auth.User, bool) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, write) {
+	if !ok || !h.authorize(w, r, user, workspaceID, permission) {
 		return databaseService{}, user, false
 	}
 	projectID, ok := pathID(w, r, "projectID")
@@ -137,7 +138,7 @@ func (h *Handler) storageRequest(w http.ResponseWriter, r *http.Request, write b
 		writeError(w, http.StatusInternalServerError, "could not read service")
 		return service, user, false
 	}
-	if write && (service.Status == "queued" || service.Status == "deploying") {
+	if permission != "" && (service.Status == "queued" || service.Status == "deploying") {
 		writeError(w, http.StatusConflict, "wait for the current action to finish")
 		return service, user, false
 	}
@@ -158,7 +159,7 @@ func (h *Handler) checkStorageContent(w http.ResponseWriter, r *http.Request, se
 }
 
 func (h *Handler) listStorages(w http.ResponseWriter, r *http.Request) {
-	service, _, ok := h.storageRequest(w, r, false)
+	service, _, ok := h.storageRequest(w, r, "")
 	if !ok {
 		return
 	}
@@ -171,7 +172,7 @@ func (h *Handler) listStorages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createStorage(w http.ResponseWriter, r *http.Request) {
-	service, user, ok := h.storageRequest(w, r, true)
+	service, user, ok := h.storageRequest(w, r, permissions.AppsManage)
 	if !ok {
 		return
 	}
@@ -252,7 +253,7 @@ func (h *Handler) readStorageRow(w http.ResponseWriter, r *http.Request, service
 
 // File content can hold secrets, so unlike the list it needs write access.
 func (h *Handler) getStorageContent(w http.ResponseWriter, r *http.Request) {
-	service, _, ok := h.storageRequest(w, r, true)
+	service, _, ok := h.storageRequest(w, r, permissions.AppsManage)
 	if !ok {
 		return
 	}
@@ -273,7 +274,7 @@ func (h *Handler) getStorageContent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) updateStorageContent(w http.ResponseWriter, r *http.Request) {
-	service, _, ok := h.storageRequest(w, r, true)
+	service, _, ok := h.storageRequest(w, r, permissions.AppsManage)
 	if !ok {
 		return
 	}
@@ -308,7 +309,7 @@ func (h *Handler) updateStorageContent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) deleteStorage(w http.ResponseWriter, r *http.Request) {
-	service, _, ok := h.storageRequest(w, r, true)
+	service, _, ok := h.storageRequest(w, r, permissions.AppsManage)
 	if !ok {
 		return
 	}

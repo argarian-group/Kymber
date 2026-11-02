@@ -1,7 +1,5 @@
 import { translate } from "@/lib/i18n";
-export const roles = ["owner", "admin", "member"];
-
-export function RoleSelect({ id, label, value, options = roles, disabled, onChange }: { id: string; label: string; value: string; options?: string[]; disabled?: boolean; onChange: (role: string) => void }) {
+export function RoleSelect({ id, label, value, options, disabled, onChange }: { id: string; label: string; value: string; options: string[]; disabled?: boolean; onChange: (role: string) => void }) {
   return (
     <>
       <label className="sr-only" htmlFor={id}>

@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/permissions"
 )
 
 type projectEnvironment struct {
@@ -23,7 +24,7 @@ func environmentName(raw string) string {
 }
 
 func (h *Handler) listEnvironments(w http.ResponseWriter, r *http.Request) {
-	_, projectID, ok := h.authorizeProjectAccess(w, r, false)
+	_, projectID, ok := h.authorizeProjectAccess(w, r, "")
 	if !ok {
 		return
 	}
@@ -50,7 +51,7 @@ func (h *Handler) listEnvironments(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createEnvironment(w http.ResponseWriter, r *http.Request) {
-	_, projectID, ok := h.authorizeProjectAccess(w, r, true)
+	_, projectID, ok := h.authorizeProjectAccess(w, r, permissions.ProjectsManage)
 	if !ok {
 		return
 	}
@@ -78,7 +79,7 @@ func (h *Handler) createEnvironment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) deleteEnvironment(w http.ResponseWriter, r *http.Request) {
-	_, projectID, ok := h.authorizeProjectAccess(w, r, true)
+	_, projectID, ok := h.authorizeProjectAccess(w, r, permissions.ProjectsManage)
 	if !ok {
 		return
 	}

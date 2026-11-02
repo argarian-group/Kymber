@@ -25,7 +25,9 @@ function appTemplate(template: DatabaseTemplate | null, detail: Service | null):
 
 export function AppLayout() {
   const { appId } = useParams();
-  const { canWrite } = useProjects();
+  const { can } = useProjects();
+  const canWrite = can("apps.manage");
+  const canTerminal = can("terminal.use");
   const { project, workspace } = useProjectOutlet();
   const { services, error, reload, path } = useServices();
   const [detail, setDetail] = useState<Service | null>(null);
@@ -76,9 +78,9 @@ export function AppLayout() {
           { label: t("Environment"), to: "environment", end: false, icon: KeyRound },
           { label: t("Connection"), to: "connection", end: false, icon: Plug },
           { label: t("Files"), to: "files", end: false, icon: FolderOpen },
-          { label: t("Terminal"), to: "terminal", end: false, icon: SquareTerminal },
         ]
       : []),
+    ...(canTerminal ? [{ label: t("Terminal"), to: "terminal", end: false, icon: SquareTerminal }] : []),
     { label: t("Storage"), to: "storage", end: false, icon: HardDrive },
     ...(canWrite ? [{ label: t("Danger zone"), to: "danger", end: false, icon: TriangleAlert }] : []),
   ];
@@ -88,6 +90,7 @@ export function AppLayout() {
     template: appTemplate(templates.find(({ engine }) => engine === service.engine) ?? null, detail),
     path,
     canWrite,
+    canTerminal,
     appsPath: `/projects/${project.id}/apps`,
     onChanged,
     deployOutput,

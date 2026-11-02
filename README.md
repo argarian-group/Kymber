@@ -29,7 +29,7 @@ Knowing how a project is doing usually means checking one tool for tasks, anothe
 - **Overview:** workspace dashboard with project health, late tasks, deadlines and app status.
 - **Accounts:** first-run root account, login, optional registration, and profile and password settings.
 - **Workspaces:** create, rename and delete workspaces, and switch between them.
-- **Team:** owner, admin and member roles, and invite links.
+- **Team:** built-in owner, admin and member roles, custom roles with per-area permissions, and invite links.
 - **Projects:** create, edit and delete projects inside a workspace, each with an optional logo.
 - **Apps:** create MySQL and Redis apps from templates, or any public Docker Hub image, then deploy, start, stop and restart them in Docker.
 - **Environments:** add environments such as production and dev to a project. Apps in an environment share a private network, and apps can also stay outside any environment.

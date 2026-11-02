@@ -16,6 +16,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/logger"
+	"kymber/backend/internal/permissions"
 )
 
 const (
@@ -90,11 +91,11 @@ func (h *Handler) terminalAllowed(r *http.Request, workspaceID string) bool {
 	if workspaceID == "" {
 		return false
 	}
-	var role string
-	if err := h.db.QueryRowContext(r.Context(), "SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?", workspaceID, user.ID).Scan(&role); err != nil {
+	_, granted, err := permissions.Lookup(r.Context(), h.db, workspaceID, user.ID)
+	if err != nil {
 		return !errors.Is(err, sql.ErrNoRows)
 	}
-	return role == "owner" || role == "admin"
+	return granted.Has(permissions.TerminalUse)
 }
 
 func (h *Handler) serverTerminal(w http.ResponseWriter, r *http.Request) {
@@ -112,7 +113,7 @@ func (h *Handler) serverTerminal(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serviceTerminal(w http.ResponseWriter, r *http.Request) {
-	service, ok := h.fileRequest(w, r)
+	service, ok := h.fileRequest(w, r, permissions.TerminalUse)
 	if !ok {
 		return
 	}

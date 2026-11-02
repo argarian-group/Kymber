@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"kymber/backend/internal/auth"
+	"kymber/backend/internal/permissions"
 )
 
 type invitationPayload struct {
@@ -23,7 +24,7 @@ func (h *Handler) createInvitation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	actorRole, allowed := h.requireWorkspaceRole(w, r, user, workspaceID, true)
+	actor, allowed := h.requirePermission(w, r, user, workspaceID, permissions.MembersInvite)
 	if !allowed {
 		return
 	}
@@ -33,12 +34,11 @@ func (h *Handler) createInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
 	address, err := mail.ParseAddress(input.Email)
-	if err != nil || address.Address != input.Email || len(input.Email) > 254 || !validMemberRole(input.Role) {
+	if err != nil || address.Address != input.Email || len(input.Email) > 254 {
 		writeError(w, http.StatusBadRequest, "valid email and role are required")
 		return
 	}
-	if actorRole == "admin" && input.Role == "owner" {
-		writeError(w, http.StatusForbidden, "only an owner can invite another owner")
+	if !h.assignableRole(w, r, workspaceID, actor, input.Role) {
 		return
 	}
 	var alreadyMember bool

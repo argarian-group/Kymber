@@ -7,6 +7,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/permissions"
 )
 
 func (h *Handler) createWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -42,7 +43,7 @@ func (h *Handler) createWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not complete workspace creation")
 		return
 	}
-	workspace, err := scanWorkspace(h.db.QueryRowContext(r.Context(), `SELECT w.id, w.name, w.created_at, 'owner', u.id, u.username, u.email FROM workspaces w LEFT JOIN users u ON u.id = w.created_by WHERE w.id = ?`, id))
+	workspace, err := scanWorkspace(h.db.QueryRowContext(r.Context(), `SELECT w.id, w.name, w.created_at, 'owner', NULL, u.id, u.username, u.email FROM workspaces w LEFT JOIN users u ON u.id = w.created_by WHERE w.id = ?`, id))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read created workspace")
 		return
@@ -54,7 +55,7 @@ func (h *Handler) createWorkspace(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) updateWorkspace(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.WorkspaceManage) {
 		return
 	}
 	input, ok := workspaceInput(w, r)
@@ -65,7 +66,7 @@ func (h *Handler) updateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not update workspace")
 		return
 	}
-	workspace, err := scanWorkspace(h.db.QueryRowContext(r.Context(), `SELECT w.id, w.name, w.created_at, COALESCE(m.role, 'root'), c.id, c.username, c.email FROM workspaces w LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = ? LEFT JOIN users c ON c.id = w.created_by WHERE w.id = ?`, user.ID, workspaceID))
+	workspace, err := scanWorkspace(h.db.QueryRowContext(r.Context(), `SELECT w.id, w.name, w.created_at, COALESCE(m.role, 'root'), rp.permissions, c.id, c.username, c.email FROM workspaces w LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = ? LEFT JOIN workspace_roles rp ON rp.workspace_id = w.id AND rp.name = m.role LEFT JOIN users c ON c.id = w.created_by WHERE w.id = ?`, user.ID, workspaceID))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read updated workspace")
 		return
@@ -76,7 +77,7 @@ func (h *Handler) updateWorkspace(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) deleteWorkspace(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, false) {
+	if !ok || !h.authorize(w, r, user, workspaceID, "") {
 		return
 	}
 	if !user.IsRoot {

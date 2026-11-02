@@ -12,7 +12,8 @@ import { t } from "@/lib/i18n";
 
 export function TaskCommentRow({ comment, path, onChanged }: { comment: TaskComment; path: string; onChanged: () => void }) {
   const user = useCurrentUser();
-  const { canWrite } = useProjects();
+  const { can } = useProjects();
+  const canDeleteTasks = can("tasks.delete");
   const [editing, setEditing] = useState(false);
   const [body, setBody] = useState(comment.body);
   const { pending, error, run } = useAction();
@@ -63,7 +64,7 @@ export function TaskCommentRow({ comment, path, onChanged }: { comment: TaskComm
                   {t("Edit")}
                 </button>
               )}
-              {(isAuthor || canWrite) && (
+              {(isAuthor || canDeleteTasks) && (
                 <button
                   className="text-button"
                   type="button"

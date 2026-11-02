@@ -8,9 +8,9 @@ import { t } from "@/lib/i18n";
 const TerminalView = lazy(() => import("@/features/terminal/TerminalView"));
 
 export function AppTerminalPage() {
-  const { service, path, canWrite } = useAppOutlet();
+  const { service, path, canTerminal } = useAppOutlet();
 
-  if (!canWrite) return <Navigate to=".." replace />;
+  if (!canTerminal) return <Navigate to=".." replace />;
   if (service.status !== "running") return <EmptyState title={t("The app is not running")} description={t("Start or deploy the app to open a terminal in its container.")} />;
 
   return (

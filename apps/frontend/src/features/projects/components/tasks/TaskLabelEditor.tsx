@@ -7,7 +7,8 @@ import { useAction } from "@/lib/useAction";
 import { t } from "@/lib/i18n";
 
 export function TaskLabelEditor({ label, path, onDone }: { label: TaskLabel | null; path: string; onDone: (changed: boolean) => void }) {
-  const { canWrite } = useProjects();
+  const { can } = useProjects();
+  const canDeleteTasks = can("tasks.delete");
   const [name, setName] = useState(label?.name ?? "");
   const [color, setColor] = useState<LabelColor>(label?.color ?? "teal");
   const { pending, error, run } = useAction();
@@ -34,7 +35,7 @@ export function TaskLabelEditor({ label, path, onDone }: { label: TaskLabel | nu
         <button className="btn" type="button" onClick={() => onDone(false)}>
           {t("Cancel")}
         </button>
-        {label && canWrite && (
+        {label && canDeleteTasks && (
           <button
             className="btn btn-danger"
             type="button"

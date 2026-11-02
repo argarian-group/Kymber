@@ -75,7 +75,7 @@ func checklistTitle(w http.ResponseWriter, title string, limit int) (string, boo
 }
 
 func (h *Handler) authorizeChecklist(w http.ResponseWriter, r *http.Request) (string, string, bool) {
-	_, projectID, ok := h.authorizeProjectAccess(w, r, false)
+	_, projectID, ok := h.authorizeProjectAccess(w, r, "")
 	if !ok {
 		return "", "", false
 	}
@@ -87,7 +87,7 @@ func (h *Handler) authorizeChecklist(w http.ResponseWriter, r *http.Request) (st
 }
 
 func (h *Handler) authorizeChecklistItem(w http.ResponseWriter, r *http.Request) (string, bool) {
-	_, projectID, ok := h.authorizeProjectAccess(w, r, false)
+	_, projectID, ok := h.authorizeProjectAccess(w, r, "")
 	if !ok {
 		return "", false
 	}
@@ -99,7 +99,7 @@ func (h *Handler) authorizeChecklistItem(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) createChecklist(w http.ResponseWriter, r *http.Request) {
-	_, _, taskID, ok := h.authorizeTask(w, r, false)
+	_, _, taskID, ok := h.authorizeTask(w, r, "")
 	if !ok {
 		return
 	}

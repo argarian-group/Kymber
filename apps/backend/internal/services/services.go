@@ -13,6 +13,7 @@ import (
 
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/permissions"
 	"kymber/backend/internal/secrets"
 	"kymber/backend/internal/templates"
 )
@@ -49,7 +50,7 @@ var serviceDomainPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9]
 func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, false) {
+	if !ok || !h.authorize(w, r, user, workspaceID, "") {
 		return
 	}
 	projectID, ok := pathID(w, r, "projectID")
@@ -90,7 +91,7 @@ func (h *Handler) listDatabaseTemplates(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) createService(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.AppsManage) {
 		return
 	}
 	projectID, ok := pathID(w, r, "projectID")
@@ -184,7 +185,7 @@ func (h *Handler) getService(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, allowed := h.requireWorkspaceRole(w, r, user, workspaceID, true); !allowed {
+	if !h.authorize(w, r, user, workspaceID, permissions.AppsManage) {
 		return
 	}
 	projectID, ok := pathID(w, r, "projectID")
@@ -210,7 +211,7 @@ func (h *Handler) getService(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.AppsManage) {
 		return
 	}
 	projectID, ok := pathID(w, r, "projectID")
@@ -280,7 +281,7 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) updateServiceDomain(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.AppsManage) {
 		return
 	}
 	projectID, ok := pathID(w, r, "projectID")
@@ -378,7 +379,7 @@ func serviceTemplate(service databaseService) templates.Template {
 func (h *Handler) deleteService(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.AppsManage) {
 		return
 	}
 	projectID, ok := pathID(w, r, "projectID")

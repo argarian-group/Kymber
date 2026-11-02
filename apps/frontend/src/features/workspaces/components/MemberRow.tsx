@@ -8,7 +8,7 @@ import { formatDate } from "@/lib/format";
 import { useAction } from "@/lib/useAction";
 import { t, translate } from "@/lib/i18n";
 
-export function MemberRow({ member, workspaceId, isCreator, canManage, onChanged }: { member: Member; workspaceId: string; isCreator: boolean; canManage: boolean; onChanged: (member: Member, removed: boolean) => void }) {
+export function MemberRow({ member, workspaceId, roles, isCreator, canManage, onChanged }: { member: Member; workspaceId: string; roles: string[]; isCreator: boolean; canManage: boolean; onChanged: (member: Member, removed: boolean) => void }) {
   const user = useCurrentUser();
   const isSelf = member.user_id === user.id;
   const [confirming, setConfirming] = useState(false);
@@ -43,8 +43,8 @@ export function MemberRow({ member, workspaceId, isCreator, canManage, onChanged
       <span className="text-meta text-ink-soft tabular-nums">{t("Joined {date}", { date: formatDate(member.created_at) })}</span>
       {canManage && !isCreator ? (
         <>
-          <div className="w-28">
-            <RoleSelect id={`role-${member.user_id}`} label={t("Role of {name}", { name: member.username })} value={member.role} disabled={pending} onChange={changeRole} />
+          <div className="w-36">
+            <RoleSelect id={`role-${member.user_id}`} label={t("Role of {name}", { name: member.username })} value={member.role} options={roles.includes(member.role) ? roles : [member.role, ...roles]} disabled={pending} onChange={changeRole} />
           </div>
           {confirming ? (
             <span className="flex gap-2">

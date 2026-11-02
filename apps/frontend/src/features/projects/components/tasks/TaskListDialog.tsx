@@ -19,7 +19,8 @@ type TaskListDialogProps = {
 };
 
 export function TaskListDialog({ list, index, count, onSave, onDelete, onMove, onClose }: TaskListDialogProps) {
-  const { canWrite } = useProjects();
+  const { can } = useProjects();
+  const canDeleteTasks = can("tasks.delete");
   const [name, setName] = useState(list.name);
   const [isDone, setIsDone] = useState(list.is_done);
   const [confirming, setConfirming] = useState(false);
@@ -65,7 +66,7 @@ export function TaskListDialog({ list, index, count, onSave, onDelete, onMove, o
           <button className="btn" type="button" onClick={onClose} disabled={pending}>
             {t("Cancel")}
           </button>
-          {canWrite && (
+          {canDeleteTasks && (
             <button className="btn btn-danger ml-auto" type="button" onClick={confirming ? confirmDelete : () => setConfirming(true)} disabled={pending}>
               {confirming ? t("Confirm delete") : t("Delete")}
             </button>

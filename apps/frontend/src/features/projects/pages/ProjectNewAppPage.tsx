@@ -14,7 +14,8 @@ import { useLoadEffect } from "@/lib/useLoadEffect";
 import { t } from "@/lib/i18n";
 
 export function ProjectNewAppPage() {
-  const { canWrite } = useProjects();
+  const { can } = useProjects();
+  const canWrite = can("apps.manage");
   const { project, workspace } = useProjectOutlet();
   const [templates, setTemplates] = useState<DatabaseTemplate[] | null>(null);
   const [error, setError] = useState<string | null>(null);

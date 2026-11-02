@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"kymber/backend/internal/auth"
+	"kymber/backend/internal/permissions"
 )
 
 type Handler struct{ db *sql.DB }
@@ -98,7 +99,7 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
 }
-func (h *Handler) authorize(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID string, write bool) bool {
+func (h *Handler) authorize(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID string, permission string) bool {
 	if user.IsRoot {
 		var exists bool
 		if err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM workspaces WHERE id = ?)", workspaceID).Scan(&exists); err != nil {
@@ -111,8 +112,7 @@ func (h *Handler) authorize(w http.ResponseWriter, r *http.Request, user auth.Us
 		}
 		return true
 	}
-	var role string
-	err := h.db.QueryRowContext(r.Context(), "SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?", workspaceID, user.ID).Scan(&role)
+	_, granted, err := permissions.Lookup(r.Context(), h.db, workspaceID, user.ID)
 	if err == sql.ErrNoRows {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return false
@@ -121,33 +121,11 @@ func (h *Handler) authorize(w http.ResponseWriter, r *http.Request, user auth.Us
 		writeError(w, http.StatusInternalServerError, "could not verify workspace access")
 		return false
 	}
-	if write && role != "owner" && role != "admin" {
-		writeError(w, http.StatusForbidden, "workspace write access required")
+	if permission != "" && !granted.Has(permission) {
+		writeError(w, http.StatusForbidden, "you do not have permission for this action")
 		return false
 	}
 	return true
-}
-func (h *Handler) requireWorkspaceRole(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID string, allowAdmin bool) (string, bool) {
-	if !h.authorize(w, r, user, workspaceID, false) {
-		return "", false
-	}
-	if user.IsRoot {
-		return "root", true
-	}
-	var role string
-	if err := h.db.QueryRowContext(r.Context(), "SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?", workspaceID, user.ID).Scan(&role); err != nil {
-		writeError(w, http.StatusInternalServerError, "could not verify workspace ownership")
-		return "", false
-	}
-	if role != "owner" && !(allowAdmin && role == "admin") {
-		msg := "workspace owner access required"
-		if allowAdmin {
-			msg = "workspace owner or admin access required"
-		}
-		writeError(w, http.StatusForbidden, msg)
-		return "", false
-	}
-	return role, true
 }
 func (h *Handler) requireServerOnline(w http.ResponseWriter, r *http.Request, id string) bool {
 	var online bool

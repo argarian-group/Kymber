@@ -28,17 +28,22 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"PUT", "/api/workspaces/{workspaceID}/members/{userID}", h.updateMember},
 		{"DELETE", "/api/workspaces/{workspaceID}/members/{userID}", h.deleteMember},
 		{"POST", "/api/workspaces/{workspaceID}/invitations", h.createInvitation},
+		{"GET", "/api/workspaces/{workspaceID}/roles", h.listRoles},
+		{"POST", "/api/workspaces/{workspaceID}/roles", h.createRole},
+		{"PUT", "/api/workspaces/{workspaceID}/roles/{roleName}", h.updateRole},
+		{"DELETE", "/api/workspaces/{workspaceID}/roles/{roleName}", h.deleteRole},
 	} {
 		mux.Handle(route.method+" "+route.pattern, auth.Authenticate(h.db, route.handler))
 	}
 }
 
 type Workspace struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
-	Role      string            `json:"role"`
-	CreatedAt time.Time         `json:"created_at"`
-	CreatedBy *WorkspaceCreator `json:"created_by"`
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Role        string            `json:"role"`
+	Permissions []string          `json:"permissions"`
+	CreatedAt   time.Time         `json:"created_at"`
+	CreatedBy   *WorkspaceCreator `json:"created_by"`
 }
 
 type WorkspaceCreator struct {

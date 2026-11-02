@@ -2,14 +2,14 @@ import { type FormEvent, useRef, useState } from "react";
 import { CopyField } from "@/components/ui/CopyField";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
-import { roles, RoleSelect } from "@/features/workspaces/components/RoleSelect";
+import { RoleSelect } from "@/features/workspaces/components/RoleSelect";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { t } from "@/lib/i18n";
 
-export function InviteForm({ workspaceId, canAddDirectly, onAdded, onClose }: { workspaceId: string; canAddDirectly: boolean; onAdded: () => void; onClose: () => void }) {
+export function InviteForm({ workspaceId, roles, canAddDirectly, onAdded, onClose }: { workspaceId: string; roles: string[]; canAddDirectly: boolean; onAdded: () => void; onClose: () => void }) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState("member");
+  const [role, setRole] = useState(roles.includes("member") ? "member" : (roles[0] ?? ""));
   const { pending, error, run } = useAction();
   const [invite, setInvite] = useState<{ email: string; link: string } | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -54,7 +54,7 @@ export function InviteForm({ workspaceId, canAddDirectly, onAdded, onClose }: { 
           <span className="mb-1 block text-meta font-medium" aria-hidden="true">
             {t("Role")}
           </span>
-          <RoleSelect id="new-member-role" label={t("Role")} value={role} options={canAddDirectly ? roles : roles.filter((item) => item !== "owner")} onChange={setRole} />
+          <RoleSelect id="new-member-role" label={t("Role")} value={role} options={roles} onChange={setRole} />
         </div>
       </div>
       <div className="mt-3">

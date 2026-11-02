@@ -7,6 +7,7 @@ export type AppOutlet = {
   template: DatabaseTemplate | null;
   path: string;
   canWrite: boolean;
+  canTerminal: boolean;
   appsPath: string;
   onChanged: () => void;
   deployOutput: string | null;

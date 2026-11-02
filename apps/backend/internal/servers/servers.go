@@ -20,6 +20,7 @@ import (
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
 	"kymber/backend/internal/monitoring"
+	"kymber/backend/internal/permissions"
 	"kymber/backend/internal/secrets"
 )
 
@@ -84,7 +85,7 @@ func (h *Handler) listServers(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) listDeployTargets(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
-	if !ok || !h.authorize(w, r, user, workspaceID, true) {
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.AppsManage) {
 		return
 	}
 	rows, err := h.db.QueryContext(r.Context(), "SELECT s.id, s.name FROM servers s WHERE "+serverStatusSQL+" = 'online' ORDER BY s.created_at")

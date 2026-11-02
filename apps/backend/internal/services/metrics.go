@@ -7,7 +7,7 @@ import (
 )
 
 func (h *Handler) serviceMetrics(w http.ResponseWriter, r *http.Request) {
-	service, _, ok := h.storageRequest(w, r, false)
+	service, _, ok := h.storageRequest(w, r, "")
 	if !ok {
 		return
 	}

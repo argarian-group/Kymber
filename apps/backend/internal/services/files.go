@@ -12,6 +12,8 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/crypto/ssh"
+
+	"kymber/backend/internal/permissions"
 )
 
 const (
@@ -102,8 +104,8 @@ func containerCommand(container string, stdin bool, script string, args ...strin
 	return command
 }
 
-func (h *Handler) fileRequest(w http.ResponseWriter, r *http.Request) (databaseService, bool) {
-	service, _, ok := h.storageRequest(w, r, true)
+func (h *Handler) fileRequest(w http.ResponseWriter, r *http.Request, permission string) (databaseService, bool) {
+	service, _, ok := h.storageRequest(w, r, permission)
 	if !ok {
 		return service, false
 	}
@@ -154,7 +156,7 @@ func (h *Handler) runInContainer(w http.ResponseWriter, r *http.Request, service
 }
 
 func (h *Handler) listFiles(w http.ResponseWriter, r *http.Request) {
-	service, ok := h.fileRequest(w, r)
+	service, ok := h.fileRequest(w, r, permissions.AppsManage)
 	if !ok {
 		return
 	}
@@ -186,7 +188,7 @@ func (h *Handler) listFiles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) readFile(w http.ResponseWriter, r *http.Request) {
-	service, ok := h.fileRequest(w, r)
+	service, ok := h.fileRequest(w, r, permissions.AppsManage)
 	if !ok {
 		return
 	}
@@ -212,7 +214,7 @@ func (h *Handler) readFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) writeFile(w http.ResponseWriter, r *http.Request) {
-	service, ok := h.fileRequest(w, r)
+	service, ok := h.fileRequest(w, r, permissions.AppsManage)
 	if !ok {
 		return
 	}
@@ -241,7 +243,7 @@ func (h *Handler) writeFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createFile(w http.ResponseWriter, r *http.Request) {
-	service, ok := h.fileRequest(w, r)
+	service, ok := h.fileRequest(w, r, permissions.AppsManage)
 	if !ok {
 		return
 	}
@@ -267,7 +269,7 @@ func (h *Handler) createFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) moveFile(w http.ResponseWriter, r *http.Request) {
-	service, ok := h.fileRequest(w, r)
+	service, ok := h.fileRequest(w, r, permissions.AppsManage)
 	if !ok {
 		return
 	}
@@ -290,7 +292,7 @@ func (h *Handler) moveFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) deleteFile(w http.ResponseWriter, r *http.Request) {
-	service, ok := h.fileRequest(w, r)
+	service, ok := h.fileRequest(w, r, permissions.AppsManage)
 	if !ok {
 		return
 	}

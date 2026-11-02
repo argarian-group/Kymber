@@ -7,7 +7,8 @@ import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
 
 export function ProjectSettingsPage() {
   const { project } = useProjectOutlet();
-  const { canWrite } = useProjects();
+  const { can } = useProjects();
+  const canWrite = can("projects.manage");
 
   return (
     <>

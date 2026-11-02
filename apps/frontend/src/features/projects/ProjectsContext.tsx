@@ -3,7 +3,10 @@ import { useCurrentUser } from "@/features/auth/AuthContext";
 import { api } from "@/lib/api";
 import { useLoadEffect } from "@/lib/useLoadEffect";
 
-export type Workspace = { id: string; name: string; role: string; created_at: string; created_by: { id: string; username: string; email: string } | null };
+export const permissionList = ["workspace.manage", "members.invite", "members.manage", "projects.manage", "apps.manage", "terminal.use", "tasks.delete"] as const;
+export type Permission = (typeof permissionList)[number];
+
+export type Workspace = { id: string; name: string; role: string; permissions: Permission[]; created_at: string; created_by: { id: string; username: string; email: string } | null };
 export type Project = { id: string; workspace_id: string; name: string; slug: string; created_at: string; logo_version?: string };
 
 type ProjectsState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; workspace: Workspace | null; projects: Project[] };
@@ -12,9 +15,7 @@ type ProjectsContextValue = {
   state: ProjectsState;
   workspaces: Workspace[];
   selectedWorkspaceId: string | null;
-  canWrite: boolean;
-  canManageMembers: boolean;
-  canInvite: boolean;
+  can: (permission: Permission) => boolean;
   canDelete: boolean;
   retry: () => void;
   selectWorkspace: (id: string) => void;
@@ -107,10 +108,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   );
 
   const workspaceId = workspace?.id;
-  const canWrite = workspace !== null && (user.is_root || workspace.role === "owner" || workspace.role === "admin");
-
-  const canManageMembers = workspace !== null && (user.is_root || workspace.role === "owner");
-  const canInvite = workspace !== null && (user.is_root || workspace.role === "owner" || workspace.role === "admin");
+  const can = useCallback((permission: Permission) => workspace !== null && (user.is_root || workspace.permissions.includes(permission)), [workspace, user.is_root]);
   const canDelete = workspace !== null && (user.is_root || workspace.created_by?.id === user.id);
 
   const createWorkspace = useCallback(
@@ -177,8 +175,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, canInvite, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, updateProject, deleteProject, uploadProjectLogo, removeProjectLogo }),
-    [state, workspaces, selectedWorkspaceId, canWrite, canManageMembers, canInvite, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, updateProject, deleteProject, uploadProjectLogo, removeProjectLogo],
+    () => ({ state, workspaces, selectedWorkspaceId, can, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, updateProject, deleteProject, uploadProjectLogo, removeProjectLogo }),
+    [state, workspaces, selectedWorkspaceId, can, canDelete, retry, selectWorkspace, createWorkspace, renameWorkspace, deleteWorkspace, createProject, updateProject, deleteProject, uploadProjectLogo, removeProjectLogo],
   );
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;
 }

@@ -7,7 +7,8 @@ import { useAction } from "@/lib/useAction";
 import { t } from "@/lib/i18n";
 
 export function RenameWorkspace({ workspace }: { workspace: Workspace }) {
-  const { canWrite, renameWorkspace } = useProjects();
+  const { renameWorkspace, can } = useProjects();
+  const canWrite = can("workspace.manage");
   const [name, setName] = useState(workspace.name);
   const [saved, setSaved] = useState<string | null>(null);
   const { pending, error, run } = useAction();
@@ -24,7 +25,7 @@ export function RenameWorkspace({ workspace }: { workspace: Workspace }) {
   }
 
   return (
-    <SettingsSection title={t("General")} description={[!canWrite && t("Only admins and owners can rename this workspace."), workspace.created_by && t("Created by {name}.", { name: workspace.created_by.username })].filter(Boolean).join(" ")}>
+    <SettingsSection title={t("General")} description={[!canWrite && t("Your role cannot rename this workspace."), workspace.created_by && t("Created by {name}.", { name: workspace.created_by.username })].filter(Boolean).join(" ")}>
       <form onSubmit={submit}>
         <div className="p-4">
           <Field label={t("Workspace name")} required maxLength={120} disabled={!canWrite} value={name} onChange={(event) => setName(event.target.value)} />
