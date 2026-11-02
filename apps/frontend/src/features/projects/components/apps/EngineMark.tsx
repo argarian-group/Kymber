@@ -6,11 +6,20 @@ import { useEffect, useState } from "react";
 
 const brands: Record<string, string> = { docker, mysql, redis };
 const repositoryLogos = new Map<string, Promise<string | undefined>>();
+const logoCachePrefix = "kymber:docker-logo:";
 
 function dockerHubLogo(image?: string) {
   if (!image) return undefined;
   const repository = image.replace(/^docker\.io\//, "").split(":")[0];
   const name = repository.includes("/") ? repository : `library/${repository}`;
+  try {
+    const cached = localStorage.getItem(logoCachePrefix + name);
+    if (cached) {
+      const { logo, expires } = JSON.parse(cached) as { logo?: string; expires: number };
+      if (Date.now() < expires) return Promise.resolve(logo);
+      localStorage.removeItem(logoCachePrefix + name);
+    }
+  } catch {}
   let logo = repositoryLogos.get(name);
   if (!logo) {
     const query = name.startsWith("library/") ? name.slice("library/".length) : name;
@@ -20,6 +29,12 @@ function dockerHubLogo(image?: string) {
         const resultName = result.repository.includes("/") ? result.repository : `library/${result.repository}`;
         return resultName === name;
       })?.logo_url)
+      .then((result) => {
+        try {
+          localStorage.setItem(logoCachePrefix + name, JSON.stringify({ logo: result, expires: Date.now() + 86400000 }));
+        } catch {}
+        return result;
+      })
       .catch(() => undefined);
     repositoryLogos.set(name, logo);
   }
@@ -32,10 +47,10 @@ export function EngineMark({ engine, logo, image, size = "md" }: { engine: strin
   const hubLogo = logo?.includes("/repo-logos/library/redis/") ? redis : logo;
   useEffect(() => {
     let active = true;
-    if (image) void dockerHubLogo(image)?.then((result) => { if (active) setImageLogo(result); });
-    else setImageLogo(undefined);
+    setImageLogo(undefined);
+    if (image && !logo) void dockerHubLogo(image)?.then((result) => { if (active) setImageLogo(result); });
     return () => { active = false; };
-  }, [image]);
+  }, [image, logo]);
   const src = hubLogo && hubLogo !== failedLogo ? hubLogo : imageLogo && imageLogo !== failedLogo ? imageLogo : brands[engine];
   const box = size === "lg" ? "size-14" : "size-10";
 

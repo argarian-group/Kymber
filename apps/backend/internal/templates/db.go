@@ -72,21 +72,7 @@ func databasePresets() []Template {
 			HealthCmd: `valkey-cli -a "$VALKEY_PASSWORD" ping | grep PONG`,
 			Fields:    []Field{passwordField("VALKEY_PASSWORD", "Password")},
 		},
-		{
-			Engine: "keydb", Category: "database", Image: "docker.io/eqalpha/keydb", DefaultVersion: "latest", Port: 6379, DataPath: "/data",
-			HealthCmd: `keydb-cli -a "$KEYDB_PASSWORD" ping | grep PONG`,
-			Fields:    []Field{passwordField("KEYDB_PASSWORD", "Password")},
-		},
-		{
-			Engine: "dragonfly", Category: "database", Image: "docker.io/dragonflydb/dragonfly", DefaultVersion: "latest", Port: 6379, DataPath: "/data",
-			Fields: []Field{passwordField("DRAGONFLY_PASSWORD", "Password")},
-		},
 		{Engine: "memcached", Category: "database", Image: "docker.io/library/memcached", DefaultVersion: "latest", Port: 11211},
 		{Engine: "cassandra", Category: "database", Image: "docker.io/library/cassandra", DefaultVersion: "latest", Port: 9042, DataPath: "/var/lib/cassandra"},
-		{
-			Engine: "scylladb", Category: "database", Image: "docker.io/scylladb/scylla", DefaultVersion: "latest", Port: 9042, DataPath: "/var/lib/scylla",
-			HealthCmd: "nodetool status",
-		},
-		{Engine: "yugabyte", Category: "database", Image: "docker.io/yugabytedb/yugabyte", DefaultVersion: "latest", Port: 5433, DataPath: "/home/yugabyte/yb_data"},
 	}
 }
