@@ -4,7 +4,6 @@ import { organizationItems, workspaceItems } from "./navItems";
 
 export function MobileTabBar() {
   const user = useCurrentUser();
-  // Five tabs is what fits; the Servers page links to the terminal on phones.
   const navItems = [...workspaceItems, ...organizationItems(user.is_root)].filter(({ to }) => to !== "/terminal");
 
   return (

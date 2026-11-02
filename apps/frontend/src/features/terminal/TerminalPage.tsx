@@ -35,6 +35,7 @@ export function TerminalPage() {
   if (!servers) return <PageSkeleton />;
 
   const selected = servers.find(({ id }) => id === params.get("server")) ?? servers[0];
+  const isConnected = connected === selected?.id;
 
   return (
     <>
@@ -68,21 +69,20 @@ export function TerminalPage() {
                   ))}
                 </SelectField>
               </div>
-              {connected !== selected.id && (
-                <button className="btn btn-primary" type="button" onClick={() => setConnected(selected.id)}>
-                  Connect
-                </button>
-              )}
-              {connected === selected.id && (
+              {isConnected ? (
                 <button className="btn" type="button" onClick={() => setConnected(null)}>
                   Disconnect
+                </button>
+              ) : (
+                <button className="btn btn-primary" type="button" onClick={() => setConnected(selected.id)}>
+                  Connect
                 </button>
               )}
             </div>
             <p className="text-meta text-ink-soft">
               Connects as <code className="font-mono">{selected.ssh_user || "root"}</code>. Commands run directly on the server and can affect every app on it.
             </p>
-            {connected === selected.id && (
+            {isConnected && (
               <Suspense fallback={<p className="text-meta text-ink-soft">Loading terminal…</p>}>
                 <TerminalView path={`/servers/${selected.id}/terminal`} label={`Terminal for ${selected.name}`} key={selected.id} />
               </Suspense>

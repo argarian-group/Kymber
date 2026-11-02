@@ -7,7 +7,6 @@ import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { api, errorMessage } from "@/lib/api";
 import { downloadText } from "@/lib/downloadText";
 
-// shortcut: the API always returns the last 300 lines without timestamps, upgrade the options when it accepts tail and timestamps.
 const lineLimits = [50, 100, 200, 300];
 const refreshRates = [
   { seconds: 0, label: "Off" },
@@ -49,7 +48,6 @@ export function AppLogsPage() {
   const { limit, seconds, wrap } = preferences;
 
   const load = useCallback(async () => {
-    // SSH reads can outlast the refresh interval, so requests must not pile up.
     if (inFlight.current) return;
     inFlight.current = true;
     setLoading(true);
@@ -107,9 +105,7 @@ export function AppLogsPage() {
     setPreferences(next);
     try {
       localStorage.setItem(preferencesKey, JSON.stringify(next));
-    } catch {
-      // The choice still applies to this visit when storage is blocked.
-    }
+    } catch {}
   }
 
   async function copy() {

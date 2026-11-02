@@ -26,7 +26,6 @@ export default function CodeEditor({ filename, value, readOnly, label, onChange,
   const callbacks = useRef({ onChange, onSave });
   callbacks.current = { onChange, onSave };
 
-  // The parent remounts this per opened file, so the editor owns the text after the first render.
   useEffect(() => {
     const language = new Compartment();
     const view = new EditorView({

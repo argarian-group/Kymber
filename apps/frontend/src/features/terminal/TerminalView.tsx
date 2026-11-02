@@ -13,12 +13,13 @@ export default function TerminalView({ path, label }: { path: string; label: str
   useEffect(() => {
     setStatus({ state: "connecting" });
     const styles = getComputedStyle(document.documentElement);
+    const ink = styles.getPropertyValue("--color-ink").trim();
     const terminal = new Terminal({
       cursorBlink: true,
       fontSize: 13,
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
       scrollback: 5000,
-      theme: { background: styles.getPropertyValue("--color-canvas").trim(), foreground: styles.getPropertyValue("--color-ink").trim(), cursor: styles.getPropertyValue("--color-ink").trim() },
+      theme: { background: styles.getPropertyValue("--color-canvas").trim(), foreground: ink, cursor: ink },
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
@@ -45,7 +46,6 @@ export default function TerminalView({ path, label }: { path: string; label: str
     };
     socket.onmessage = (event) => terminal.write(new Uint8Array(event.data as ArrayBuffer));
     socket.onclose = (event) => setStatus({ state: "closed", message: event.reason || (opened ? "The connection was lost." : "Could not connect. Check your access and that you have fewer than 5 terminals open.") });
-    // A page kept in the back/forward cache would otherwise hold its shell open.
     const leave = () => socket.close();
     window.addEventListener("pagehide", leave);
     const observer = new ResizeObserver(() => fit.fit());

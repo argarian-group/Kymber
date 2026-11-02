@@ -109,7 +109,6 @@ function ImageSettings({ image, path, onChange }: { image: HubImage; path: strin
       setDataPath(response.data_path);
     },
     () => {
-      // The image can still be created by hand when its details are unavailable.
       setVersion((current) => current || "latest");
       setLoadError("Could not read this image's details from Docker Hub. Check the version, and fill in the port and data path by hand.");
     },

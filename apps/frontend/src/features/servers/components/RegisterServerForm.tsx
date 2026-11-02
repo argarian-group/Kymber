@@ -6,7 +6,7 @@ import type { Server } from "@/features/servers/types";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 
-export function RegisterServerForm({ onRegistered, onCancel }: { onRegistered: (server: Server, token: string) => void; onCancel?: () => void }) {
+export function RegisterServerForm({ onRegistered, onCancel }: { onRegistered: (server: Server, publicKey: string) => void; onCancel?: () => void }) {
   const [name, setName] = useState("");
   const [connectionType, setConnectionType] = useState<"local" | "ssh">("local");
   const [host, setHost] = useState("");
@@ -18,8 +18,8 @@ export function RegisterServerForm({ onRegistered, onCancel }: { onRegistered: (
   async function submit(event: FormEvent) {
     event.preventDefault();
     await run(async () => {
-      const response = await api<{ server: Server; token?: string; public_key?: string }>("/servers", { method: "POST", body: { name, connection_type: connectionType, host, ssh_port: Number(port), ssh_user: sshUser, ssh_host_key: hostKey } });
-      onRegistered(response.server, response.token ?? response.public_key ?? "");
+      const response = await api<{ server: Server; public_key?: string }>("/servers", { method: "POST", body: { name, connection_type: connectionType, host, ssh_port: Number(port), ssh_user: sshUser, ssh_host_key: hostKey } });
+      onRegistered(response.server, response.public_key ?? "");
     });
   }
 

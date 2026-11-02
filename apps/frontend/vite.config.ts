@@ -13,7 +13,6 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     fs: { allow: ["../.."] },
-    // ws: terminals are WebSockets under /api.
     proxy: { "/api": { target: `http://localhost:${loadEnv(mode, "../..", "SERVER_").SERVER_PORT || 8080}`, ws: true } },
   },
 }));

@@ -13,9 +13,9 @@ import { AppEnvironmentPage } from "@/features/projects/pages/app/AppEnvironment
 import { AppFilesPage } from "@/features/projects/pages/app/AppFilesPage";
 import { AppGeneralPage } from "@/features/projects/pages/app/AppGeneralPage";
 import { AppLayout } from "@/features/projects/pages/app/AppLayout";
-import { AppTerminalPage } from "@/features/projects/pages/app/AppTerminalPage";
 import { AppLogsPage } from "@/features/projects/pages/app/AppLogsPage";
 import { AppStoragePage } from "@/features/projects/pages/app/AppStoragePage";
+import { AppTerminalPage } from "@/features/projects/pages/app/AppTerminalPage";
 import { ProjectNewAppPage } from "@/features/projects/pages/ProjectNewAppPage";
 import { ProjectAppsPage } from "@/features/projects/pages/ProjectAppsPage";
 import { ProjectLayout } from "@/features/projects/pages/ProjectLayout";
