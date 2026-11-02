@@ -1,4 +1,4 @@
-package projects
+package workspaces
 
 import (
 	"errors"
