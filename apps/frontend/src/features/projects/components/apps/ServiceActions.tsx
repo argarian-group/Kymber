@@ -25,6 +25,13 @@ const available: Record<string, { action: ServiceAction; label: string; primary?
   failed: [{ action: "deploy", label: t("Deploy"), primary: true }],
 };
 
+const composeAvailable: typeof available = {
+  draft: [{ action: "deploy", label: t("Deploy"), primary: true }],
+  running: [{ action: "restart", label: t("Restart") }, { action: "stop", label: t("Stop") }],
+  stopped: [{ action: "start", label: t("Start"), primary: true }, { action: "deploy", label: t("Deploy") }],
+  failed: [{ action: "deploy", label: t("Deploy"), primary: true }],
+};
+
 export function ServiceActions({ service, path, workspaceId, deployOutput, onChanged }: { service: Service; path: string; workspaceId: string; deployOutput: string | null; onChanged: () => void }) {
   const user = useCurrentUser();
   const { pending, error, run } = useAction();
@@ -43,7 +50,7 @@ export function ServiceActions({ service, path, workspaceId, deployOutput, onCha
   );
 
   function act(action: ServiceAction) {
-    if (action === "deploy") setShowDeployment(true);
+    if (action === "deploy" || (service.compose && (action === "start" || action === "restart"))) setShowDeployment(true);
     return run(async () => {
       const body = action === "deploy" && choosing && target ? { server_id: target } : undefined;
       await api(`${path}/${service.id}/${action}`, { method: "POST", body });
@@ -66,9 +73,9 @@ export function ServiceActions({ service, path, workspaceId, deployOutput, onCha
             </select>
           </label>
         )}
-        {(available[service.status] ?? []).map(({ action, label, primary }) => (
+        {(service.compose ? composeAvailable[service.status] : available[service.status])?.map(({ action, label, primary }) => (
           <button className={`btn ${primary ? "btn-primary" : ""}`} type="button" disabled={pending || busy} onClick={() => act(action)} key={action}>
-            {label}
+            {pending && action === "restart" ? t("Restarting…") : label}
           </button>
         ))}
       </div>
