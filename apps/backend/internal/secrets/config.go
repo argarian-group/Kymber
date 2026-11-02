@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"strings"
 )
 
 func Encrypt(plaintext []byte) ([]byte, error) {
@@ -52,12 +53,12 @@ func Decrypt(ciphertext []byte) ([]byte, error) {
 
 func encryptionKey() ([]byte, error) {
 	value := os.Getenv("SERVICE_ENCRYPTION_KEY")
-	if value == "" && os.Getenv("SERVICE_ENCRYPTION_KEY_FILE") != "" {
-		data, err := os.ReadFile(os.Getenv("SERVICE_ENCRYPTION_KEY_FILE"))
+	if path := os.Getenv("SERVICE_ENCRYPTION_KEY_FILE"); path != "" {
+		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
-		value = string(data)
+		value = strings.TrimSpace(string(data))
 	}
 	key, err := hex.DecodeString(value)
 	if err != nil || len(key) != 32 {
