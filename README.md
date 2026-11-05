@@ -38,6 +38,16 @@ Knowing how a project is doing usually means checking one tool for tasks, anothe
 
 ## Getting started
 
+### Production install
+
+On Debian, Ubuntu, Arch Linux, Fedora, RHEL 8–10, Rocky Linux, AlmaLinux, Oracle Linux, or CentOS Stream 9–10, the installer installs Docker Engine, Compose, OpenSSH, and Buildx, configures local SSH access, generates `.env` secrets without replacing an existing `.env`, and starts the stack:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/argarian-group/Kymber/main/install.sh | sudo bash
+```
+
+The default install directory is `/opt/kymber`; set `KYMBER_INSTALL_DIR` to change it. Git builds remain disabled by default.
+
 ### Requirements
 
 - [Go](https://go.dev/dl/) 1.27.3 or newer

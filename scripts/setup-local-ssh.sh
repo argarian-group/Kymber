@@ -8,6 +8,10 @@ installed_marker="$root/.local/kymber-local-ssh-installed"
 host_key="/etc/ssh/ssh_host_ed25519_key.pub"
 owner_uid="${SUDO_UID:-$(id -u)}"
 owner_gid="${SUDO_GID:-$(id -g)}"
+root_cmd=(sudo)
+if [[ "$EUID" -eq 0 ]]; then
+  root_cmd=()
+fi
 
 mkdir -p "$root/.local"
 chmod 700 "$root/.local"
@@ -22,7 +26,7 @@ if [[ "$(stat -c %u "$private_key")" != "$owner_uid" ]]; then
 	if [[ "$EUID" -eq 0 ]]; then
 		chown "$owner_uid:$owner_gid" "$private_key" "$public_key"
 	else
-		sudo chown "$owner_uid:$owner_gid" "$private_key" "$public_key"
+		"${root_cmd[@]}" chown "$owner_uid:$owner_gid" "$private_key" "$public_key"
 	fi
 fi
 chmod 600 "$private_key"
@@ -43,12 +47,12 @@ public_line="$(cat "$public_key")"
 if [[ -s "$installed_marker" ]] && cmp -s "$installed_marker" <(printf '%s\n' "$public_line"); then
   exit 0
 fi
-sudo install -d -o root -g root -m 0700 /root/.ssh
-sudo touch /root/.ssh/authorized_keys
-if ! sudo grep -Fqx -- "$public_line" /root/.ssh/authorized_keys; then
-  printf '%s\n' "$public_line" | sudo tee -a /root/.ssh/authorized_keys >/dev/null
+"${root_cmd[@]}" install -d -o root -g root -m 0700 /root/.ssh
+"${root_cmd[@]}" touch /root/.ssh/authorized_keys
+if ! "${root_cmd[@]}" grep -Fqx -- "$public_line" /root/.ssh/authorized_keys; then
+	printf '%s\n' "$public_line" | "${root_cmd[@]}" tee -a /root/.ssh/authorized_keys >/dev/null
 fi
-sudo chown root:root /root/.ssh/authorized_keys
-sudo chmod 0600 /root/.ssh/authorized_keys
+"${root_cmd[@]}" chown root:root /root/.ssh/authorized_keys
+"${root_cmd[@]}" chmod 0600 /root/.ssh/authorized_keys
 printf '%s\n' "$public_line" > "$installed_marker"
 chmod 600 "$installed_marker"
