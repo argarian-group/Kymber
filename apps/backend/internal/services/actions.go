@@ -212,18 +212,32 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusInternalServerError, "could not create deployment")
 				return
 			}
-			result, updateErr := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'deploying', image_version = ?, last_error = NULL WHERE id = ? AND status NOT IN ('deploying', 'queued')", imageVersion, serviceID)
-			if updateErr != nil {
+			tx, err := h.db.BeginTx(r.Context(), nil)
+			if err != nil {
 				writeError(w, http.StatusInternalServerError, "could not update service status")
 				return
 			}
-			if changed, _ := result.RowsAffected(); changed == 0 {
+			defer tx.Rollback()
+			result, err := tx.ExecContext(r.Context(), "UPDATE database_services SET status = 'deploying', image_version = ?, last_error = NULL WHERE id = ? AND status NOT IN ('deploying', 'queued')", imageVersion, serviceID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "could not update service status")
+				return
+			}
+			changed, err := result.RowsAffected()
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "could not check service status")
+				return
+			}
+			if changed == 0 {
 				writeError(w, http.StatusConflict, "wait for the current action to finish")
 				return
 			}
-			if _, err := h.db.ExecContext(r.Context(), "INSERT INTO service_deployments (id, service_id, action, image_version, status, output) VALUES (?, ?, ?, ?, 'deploying', '')", deploymentID, serviceID, action, imageVersion); err != nil {
-				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", "Could not record deployment.", serviceID)
+			if _, err := tx.ExecContext(r.Context(), "INSERT INTO service_deployments (id, service_id, action, image_version, status, output) VALUES (?, ?, ?, ?, 'deploying', '')", deploymentID, serviceID, action, imageVersion); err != nil {
 				writeError(w, http.StatusInternalServerError, "could not record deployment")
+				return
+			}
+			if err := tx.Commit(); err != nil {
+				writeError(w, http.StatusInternalServerError, "could not start deployment")
 				return
 			}
 		} else {
