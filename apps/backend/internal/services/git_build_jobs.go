@@ -289,9 +289,17 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 	var githubCommit struct {
 		SHA string `json:"sha"`
 	}
-	decodeErr := json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&githubCommit)
+	decodeErr := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&githubCommit)
 	response.Body.Close()
-	if response.StatusCode != http.StatusOK || decodeErr != nil || githubCommit.SHA != commitSHA {
+	if response.StatusCode != http.StatusOK {
+		writeError(w, http.StatusBadGateway, fmt.Sprintf("GitHub returned HTTP %d while verifying the requested ref", response.StatusCode))
+		return
+	}
+	if decodeErr != nil {
+		writeError(w, http.StatusBadGateway, "GitHub returned an invalid ref response")
+		return
+	}
+	if githubCommit.SHA != commitSHA {
 		writeError(w, http.StatusConflict, "reported commit does not match the requested Git ref")
 		return
 	}
@@ -340,7 +348,7 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "could not persist artifact")
 		return
 	}
-	info, err := stored.Stat()
+	info, err := os.Stat(storedPath)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not check artifact storage capacity")
 		return
@@ -415,14 +423,8 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if changed != 1 {
+		os.Remove(finalPath)
 		writeError(w, http.StatusConflict, "build lease is no longer owned")
-		return
-	}
-	if err := os.Rename(storedPath, finalPath); err != nil {
-		if _, updateErr := capacityTx.ExecContext(r.Context(), `UPDATE git_build_jobs SET status = 'failed', result_message = 'Artifact publication failed.', artifact_path = NULL, artifact_size = NULL, artifact_expires_at = NULL, commit_sha = NULL, artifact_digest = NULL, finished_at = UTC_TIMESTAMP(6), lease_expires_at = NULL WHERE id = ? AND status = 'running' AND attempts = ?`, jobID, attempt); updateErr == nil {
-			capacityTx.Commit()
-		}
-		writeError(w, http.StatusInternalServerError, "could not publish artifact")
 		return
 	}
 	if err := capacityTx.Commit(); err != nil {
