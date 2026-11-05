@@ -67,6 +67,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	} {
 		mux.Handle(route.pattern, auth.Authenticate(h.db, route.handler))
 	}
+	mux.HandleFunc("POST /internal/build-worker/claim", h.claimGitBuild)
 }
 
 var entityIDPattern = regexp.MustCompile(`^[0-9a-f]{6}$`)

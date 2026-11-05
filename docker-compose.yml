@@ -76,6 +76,7 @@ services:
       TRAEFIK_PANEL_API_TARGET: http://backend:8080
       TRAEFIK_PANEL_WEB_TARGET: http://frontend:80
       KYMBER_SERVER_TOKEN_FILE: /run/kymber-secrets/server-token
+      KYMBER_BUILD_WORKER_TOKEN: ${KYMBER_BUILD_WORKER_TOKEN:-}
       DB_HOST: mariadb
       DB_PORT: "3306"
       DB_NAME: ${DB_NAME:-kymber}

@@ -1,6 +1,10 @@
 package services
 
 import (
+	"crypto/subtle"
+	"database/sql"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"os"
@@ -31,6 +35,14 @@ type gitBuildJob struct {
 	FinishedAt     string `json:"finished_at,omitempty"`
 }
 
+type gitBuildClaim struct {
+	ID            string `json:"id"`
+	RepositoryURL string `json:"repository_url"`
+	Ref           string `json:"ref"`
+	ServiceID     string `json:"service_id"`
+	Attempt       int    `json:"attempt"`
+}
+
 var gitRefPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$`)
 var gitHubOwnerPattern = regexp.MustCompile(`^[A-Za-z0-9-]{1,39}$`)
 var gitHubRepositoryPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,100}$`)
@@ -54,6 +66,56 @@ func validGitRef(ref string) bool {
 		}
 	}
 	return true
+}
+
+func (h *Handler) claimGitBuild(w http.ResponseWriter, r *http.Request) {
+	token := os.Getenv("KYMBER_BUILD_WORKER_TOKEN")
+	authorization := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if token == "" || len(token) != len(authorization) || subtle.ConstantTimeCompare([]byte(token), []byte(authorization)) != 1 {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not claim build job")
+		return
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(r.Context(), `UPDATE git_build_jobs
+		SET status = 'failed', result_message = 'Build worker lease expired too many times.', finished_at = UTC_TIMESTAMP(6), lease_expires_at = NULL
+		WHERE status = 'running' AND lease_expires_at < UTC_TIMESTAMP(6) AND attempts >= 5`)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not recover expired build jobs")
+		return
+	}
+	var job gitBuildClaim
+	err = tx.QueryRowContext(r.Context(), `SELECT id, repository_url, git_ref, service_id, attempts
+		FROM git_build_jobs
+		WHERE status = 'queued' OR (status = 'running' AND lease_expires_at < UTC_TIMESTAMP(6) AND attempts < 5)
+		ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED`).Scan(&job.ID, &job.RepositoryURL, &job.Ref, &job.ServiceID, &job.Attempt)
+	if errors.Is(err, sql.ErrNoRows) {
+		if err := tx.Commit(); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not recover expired build jobs")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read build queue")
+		return
+	}
+	job.Attempt++
+	if _, err := tx.ExecContext(r.Context(), `UPDATE git_build_jobs SET status = 'running', attempts = ?, lease_expires_at = UTC_TIMESTAMP(6) + INTERVAL 15 MINUTE, started_at = COALESCE(started_at, UTC_TIMESTAMP(6)), result_message = NULL WHERE id = ?`, job.Attempt, job.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not claim build job")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not claim build job")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(job)
 }
 
 func (h *Handler) createGitBuild(w http.ResponseWriter, r *http.Request) {
