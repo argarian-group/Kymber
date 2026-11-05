@@ -802,6 +802,7 @@ export const ptBR = {
   "Search tasks": "Buscar tarefas",
   "search text is required": "o texto de busca é obrigatório",
   "Secure onboarding keeps the API on localhost until it restarts. Restart it to accept other connections.": "A configuração segura mantém a API restrita ao localhost até ela reiniciar. Reinicie para aceitar outras conexões.",
+  "Self-hosted mail server": "Servidor de email auto-hospedado",
   "Server": "Servidor",
   "server changed during SSH setup": "o servidor mudou durante a configuração do SSH",
   "server does not support SSH logs": "o servidor não suporta logs por SSH",

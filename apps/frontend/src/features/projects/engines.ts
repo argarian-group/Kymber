@@ -35,6 +35,7 @@ export const engines: Record<string, { label: string; description: string }> = {
   "calibre-web": { label: "Calibre-Web", description: t("E-book library and reader") },
   transmission: { label: "Transmission", description: t("BitTorrent client") },
   glances: { label: "Glances", description: t("System monitoring dashboard") },
+  stalwart: { label: "Stalwart", description: t("Self-hosted mail server") },
   kavita: { label: "Kavita", description: t("Self-hosted manga and ebook reader") },
   mosquitto: { label: "Eclipse Mosquitto", description: t("MQTT message broker") },
   influxdb: { label: "InfluxDB", description: t("Time-series database") },

@@ -38,6 +38,7 @@ type Template struct {
 	Image          string     `json:"image"`
 	DefaultVersion string     `json:"default_version"`
 	Port           int        `json:"port"`
+	Ports          []int      `json:"ports,omitempty"`
 	DataPath       string     `json:"data_path"`
 	HealthCmd      string     `json:"-"`
 	Fields         []Field    `json:"fields"`

@@ -170,9 +170,29 @@ func (h *Handler) createService(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not generate application id")
 		return
 	}
-	_, err = h.db.ExecContext(r.Context(), `INSERT INTO database_services (id, workspace_id, project_id, engine, name, image_version, image, port, data_path, logo_url, category, environment_id, database_name, database_user, encrypted_config, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, workspaceID, projectID, input.Engine, input.Name, input.ImageVersion, customImage, input.Port, input.DataPath, logoURL, category, input.EnvironmentID, databaseName, databaseUser, config, user.ID)
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create service")
+		return
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(r.Context(), `INSERT INTO database_services (id, workspace_id, project_id, engine, name, image_version, image, port, data_path, logo_url, category, environment_id, database_name, database_user, encrypted_config, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, workspaceID, projectID, input.Engine, input.Name, input.ImageVersion, customImage, input.Port, input.DataPath, logoURL, category, input.EnvironmentID, databaseName, databaseUser, config, user.ID)
 	if err != nil {
 		writeError(w, http.StatusConflict, "could not create service; its name may already be used")
+		return
+	}
+	for _, port := range template.Ports {
+		portID, err := database.NewShortID()
+		if err == nil {
+			_, err = tx.ExecContext(r.Context(), "INSERT INTO service_ports (id, service_id, host_port, container_port, protocol, bind_address) VALUES (?, ?, ?, ?, 'tcp', '0.0.0.0')", portID, id, port, port)
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not create service ports")
+			return
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create service")
 		return
 	}
 	service := databaseService{ID: id, WorkspaceID: workspaceID, ProjectID: projectID, Engine: input.Engine, Image: template.Image, ImageVersion: input.ImageVersion, Name: input.Name, DatabaseName: databaseName, DatabaseUser: databaseUser, Status: "draft", InternalHost: template.InternalHost(id), Port: template.Port, DataPath: template.DataPath, LogoURL: logoURL, Category: category, EnvironmentID: input.EnvironmentID, EnvironmentName: environmentName, ConnectionURL: template.ConnectionURL(id, input.Environment), Environment: input.Environment}

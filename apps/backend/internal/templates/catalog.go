@@ -50,6 +50,9 @@ func DockerArgs(engine string, _ Config) ([]string, bool) {
 		return []string{"--smp", "1", "--memory", "1G", "--developer-mode", "1"}, true
 	case "yugabyte":
 		return []string{"bin/yugabyted", "start", "--daemon=false", "--base_dir=/home/yugabyte/yb_data"}, true
+	case "stalwart":
+		// The image keeps its config in /etc/stalwart, a second volume Kymber does not mount.
+		return []string{"--config", "/var/lib/stalwart/config.json"}, true
 	case "cloudflared":
 		return []string{"sh", "-c", `exec cloudflared tunnel --no-autoupdate run --token "$TUNNEL_TOKEN"`}, true
 	default:

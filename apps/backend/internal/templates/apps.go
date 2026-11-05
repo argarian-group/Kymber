@@ -16,6 +16,11 @@ func applicationPresets() []Template {
 		{Engine: "calibre-web", Category: "application", Image: "docker.io/linuxserver/calibre-web", DefaultVersion: "latest", Port: 8083, DataPath: "/config"},
 		{Engine: "transmission", Category: "application", Image: "docker.io/linuxserver/transmission", DefaultVersion: "latest", Port: 9091, DataPath: "/config"},
 		{Engine: "glances", Category: "application", Image: "docker.io/nicolargo/glances", DefaultVersion: "latest", Port: 61208, DataPath: "/glances/conf"},
+		{
+			Engine: "stalwart", Category: "application", Image: "docker.io/stalwartlabs/stalwart", DefaultVersion: "latest", Port: 8080, DataPath: "/var/lib/stalwart",
+			Ports:  []int{25, 465, 587, 993},
+			Fields: []Field{{Name: "STALWART_HOSTNAME", Label: "Mail server hostname", Type: "text", Required: true, Max: 253, Pattern: `^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`}},
+		},
 		{Engine: "kavita", Category: "application", Image: "docker.io/linuxserver/kavita", DefaultVersion: "latest", Port: 5000, DataPath: "/config"},
 	}
 }
