@@ -105,7 +105,7 @@ Root registers servers under **Servers**. Local setup follows Coolify's host-ins
 
 For a remote server, provide its SSH host key during registration and install the displayed public key in the remote user's `~/.ssh/authorized_keys`. Deployments and service actions then run directly over SSH; the agent is not used for deployments.
 
-An app remains assigned to the server selected at its first deploy. The old heartbeat agent is optional and only reports presence; it has no task-claim or Docker-socket access.
+An app remains assigned to the server selected at its first deploy. The optional server agent now claims queued service actions with a 30-minute lease and reports bounded results; expired tasks are retried up to five claims. The agent needs access to that server's Docker daemon to execute tasks. The Compose profile intentionally does not mount the host Docker socket. SSH deployments continue to run directly over SSH. Git builds and untrusted build workers are not implemented.
 
 To publish a web app or the panel over HTTPS, set `TRAEFIK_ACME_EMAIL` and a random `TRAEFIK_CONFIG_TOKEN` in `.env`, point the public DNS record to this machine, and allow inbound ports 80 and 443. In the app's **Connection** section, set a domain and save it, then deploy the app. Traefik obtains and renews HTTPS certificates automatically. Public app domains currently support HTTP application services on the local server; remote servers and database services are not exposed.
 
