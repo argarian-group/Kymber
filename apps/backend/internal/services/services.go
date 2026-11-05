@@ -48,6 +48,8 @@ type databaseService struct {
 	ContainersError string             `json:"containers_error,omitempty"`
 }
 
+var errServiceActionInProgress = errors.New("service action already in progress")
+
 type composeContainer struct {
 	Name          string   `json:"name"`
 	ContainerName string   `json:"container_name"`
@@ -575,8 +577,12 @@ func (h *Handler) queueServiceAction(r *http.Request, serverID, serviceID string
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(r.Context(), "UPDATE database_services SET status = 'queued', image_version = CASE WHEN ? = '' THEN image_version ELSE ? END WHERE id = ?", imageVersion, imageVersion, serviceID); err != nil {
+	result, err := tx.ExecContext(r.Context(), "UPDATE database_services SET status = 'queued', image_version = CASE WHEN ? = '' THEN image_version ELSE ? END WHERE id = ? AND status NOT IN ('deploying', 'queued')", imageVersion, imageVersion, serviceID)
+	if err != nil {
 		return err
+	}
+	if changed, _ := result.RowsAffected(); changed == 0 {
+		return errServiceActionInProgress
 	}
 	taskID, err := database.NewShortID()
 	if err != nil {

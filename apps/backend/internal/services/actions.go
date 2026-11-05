@@ -204,10 +204,6 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		status := "deploying"
-		if action == "stop" {
-			status = "stopped"
-		}
 		deploymentID := ""
 		if action == "deploy" {
 			var err error
@@ -230,9 +226,16 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusInternalServerError, "could not record deployment")
 				return
 			}
-		} else if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = ?, last_error = NULL WHERE id = ?", status, serviceID); err != nil {
-			writeError(w, http.StatusInternalServerError, "could not update service status")
-			return
+		} else {
+			result, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'deploying', last_error = NULL WHERE id = ? AND status NOT IN ('deploying', 'queued')", serviceID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "could not update service status")
+				return
+			}
+			if changed, _ := result.RowsAffected(); changed == 0 {
+				writeError(w, http.StatusConflict, "wait for the current action to finish")
+				return
+			}
 		}
 		if action == "deploy" {
 			service, err := h.readServiceByID(r, serviceID)
@@ -272,6 +275,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if err := h.executeComposeSSH(r, serverID, service, action); err != nil {
+				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", err.Error(), serviceID)
 				writeError(w, http.StatusBadGateway, "Compose action failed: "+err.Error())
 				return
 			}
@@ -295,6 +299,10 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.queueServiceAction(r, serverID, serviceID, action, imageVersion); err != nil {
+		if errors.Is(err, errServiceActionInProgress) {
+			writeError(w, http.StatusConflict, "wait for the current action to finish")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "could not queue service action")
 		return
 	}
@@ -442,11 +450,7 @@ func (h *Handler) executeServiceSSH(r *http.Request, serverID, serviceID, action
 	if err != nil {
 		return err
 	}
-	status := "deploying"
-	if action == "stop" {
-		status = "stopped"
-	}
-	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = ?, last_error = NULL WHERE id = ?", status, serviceID); err != nil {
+	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'deploying', last_error = NULL WHERE id = ?", serviceID); err != nil {
 		return err
 	}
 	storages, err := h.readStorages(r.Context(), serviceID, false)
@@ -465,7 +469,7 @@ func (h *Handler) executeServiceSSH(r *http.Request, serverID, serviceID, action
 		_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ?", err.Error(), serviceID)
 		return err
 	}
-	status = "running"
+	status := "running"
 	switch action {
 	case "stop":
 		status = "stopped"
