@@ -54,7 +54,11 @@ if ! command -v systemctl >/dev/null 2>&1; then
 fi
 
 printf '\nKymber — instalação\nDiretório: %s\n\n' "$install_dir"
-read -r -p 'Deseja continuar com a instalação/atualização? [s/N] ' answer
+if [[ -t 0 ]]; then
+	read -r -p 'Deseja continuar com a instalação/atualização? [s/N] ' answer
+else
+	answer=${KYMBER_INSTALL_CONFIRM:-}
+fi
 if [[ ! "$answer" =~ ^[sS]([iI][mM])?$ ]]; then
 	printf 'Instalação cancelada.\n'
 	exit 0
