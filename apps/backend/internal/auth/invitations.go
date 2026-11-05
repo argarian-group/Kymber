@@ -80,7 +80,7 @@ func (h *Handler) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 			writeUserError(w, err)
 			return
 		}
-		if err := createWorkspace(r, tx, user.ID); err != nil {
+		if err := createWorkspace(r, tx, user.ID, credentials.Username); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not create personal workspace")
 			return
 		}

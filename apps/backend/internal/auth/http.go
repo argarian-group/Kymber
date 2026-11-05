@@ -88,12 +88,12 @@ func createUser(r *http.Request, tx *sql.Tx, username, email, passwordHash strin
 	return id, nil
 }
 
-func createWorkspace(r *http.Request, tx *sql.Tx, userID uint64) error {
+func createWorkspace(r *http.Request, tx *sql.Tx, userID uint64, username string) error {
 	workspaceID, err := database.NewShortID()
 	if err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(r.Context(), "INSERT INTO workspaces (id, name, created_by) VALUES (?, 'Personal', ?)", workspaceID, userID); err != nil {
+	if _, err := tx.ExecContext(r.Context(), "INSERT INTO workspaces (id, name, created_by) VALUES (?, ?, ?)", workspaceID, username+" Personal", userID); err != nil {
 		return err
 	}
 	_, err = tx.ExecContext(r.Context(), "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, 'owner')", workspaceID, userID)

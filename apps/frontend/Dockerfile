@@ -13,10 +13,9 @@ COPY assets/ ./assets/
 WORKDIR /workspace/apps/frontend
 RUN pnpm build
 
-FROM busybox:1.37.0
+FROM nginx:alpine
 
-COPY --from=build /workspace/apps/frontend/dist/ /www/
+COPY --from=build /workspace/apps/frontend/dist/ /usr/share/nginx/html/
+COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
-
-CMD ["httpd", "-f", "-p", "80", "-h", "/www"]

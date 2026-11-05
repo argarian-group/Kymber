@@ -51,7 +51,7 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		writeUserError(w, err)
 		return
 	}
-	if err := createWorkspace(r, tx, userID); err != nil {
+	if err := createWorkspace(r, tx, userID, input.Username); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not create workspace")
 		return
 	}

@@ -125,13 +125,8 @@ services:
       - traefik.http.routers.kymber-frontend.rule=PathPrefix(`/`) && !Path(`/api`) && !PathPrefix(`/api/`) && !Path(`/health`)
       - traefik.http.routers.kymber-frontend.entrypoints=web
       - traefik.http.routers.kymber-frontend.priority=1
-      - traefik.http.routers.kymber-frontend.middlewares=kymber-spa
       - traefik.http.services.kymber-frontend.loadbalancer.server.port=80
       - traefik.docker.network=kymber
-      - traefik.http.middlewares.kymber-spa.errors.status=404
-      - traefik.http.middlewares.kymber-spa.errors.statusRewrites.404=200
-      - traefik.http.middlewares.kymber-spa.errors.service=kymber-frontend
-      - traefik.http.middlewares.kymber-spa.errors.query=/index.html
     depends_on:
       - backend
       - traefik
