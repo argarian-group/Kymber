@@ -191,7 +191,7 @@ check_ports() {
 		for id in $(docker ps -q); do
 			if docker inspect --format '{{json .NetworkSettings.Ports}}' "$id" | jq -e --arg port "$port" '[.[]? // [] | .[]? | select(.HostPort == $port)] | length > 0' >/dev/null; then
 				container_name=$(docker inspect --format '{{.Name}}' "$id")
-				if [[ -n "$project_name" ]] && grep -Fxq "$id" <<<"$compose_ids"; then
+				if [[ -n "$project_name" ]] && grep -Fxq "${id:0:12}" <<<"$compose_ids"; then
 					continue
 				fi
 				printf 'Port %s is already published by container %s\n' "$port" "$container_name"
