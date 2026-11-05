@@ -159,6 +159,7 @@ assets/                  # Logo, banner and background
 - [x] Connect accounts, workspaces and projects to the API
 - [x] Database apps deployed to local and remote servers
 - [x] Deployment history and output for image-based apps
+- [ ] Isolated build worker and bounded artifact transfer ([security boundary](BUILD_WORKER.md))
 - [ ] Git-based application builds and deploy history
 - [x] Tasks in the API
 - [ ] Collaboration and progress tracking
