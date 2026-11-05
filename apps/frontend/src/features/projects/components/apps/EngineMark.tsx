@@ -41,7 +41,7 @@ function dockerHubLogo(image?: string) {
   return logo;
 }
 
-export function EngineMark({ engine, logo, image, size = "md" }: { engine: string; logo?: string; image?: string; size?: "md" | "lg" }) {
+export function EngineMark({ engine, logo, image, compose = false, size = "md" }: { engine: string; logo?: string; image?: string; compose?: boolean; size?: "md" | "lg" }) {
   const [failedLogo, setFailedLogo] = useState<string | null>(null);
   const [imageLogo, setImageLogo] = useState<string>();
   const hubLogo = logo?.includes("/repo-logos/library/redis/") ? redis : logo;
@@ -53,6 +53,8 @@ export function EngineMark({ engine, logo, image, size = "md" }: { engine: strin
   }, [image, logo]);
   const src = hubLogo && hubLogo !== failedLogo ? hubLogo : imageLogo && imageLogo !== failedLogo ? imageLogo : brands[engine];
   const box = size === "lg" ? "size-14" : "size-10";
+
+  if (compose) return <span className={`flex flex-none items-center justify-center overflow-hidden rounded-panel bg-white ${size === "lg" ? "p-2.5" : "p-1.5"} ${box}`} aria-hidden="true"><img className="size-full object-contain" src={docker} alt="" /></span>;
 
   if (!src) {
     return (

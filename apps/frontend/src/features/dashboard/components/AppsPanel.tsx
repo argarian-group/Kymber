@@ -21,7 +21,7 @@ export function AppsPanel({ apps }: { apps: OverviewApp[] }) {
           {sorted.slice(0, visibleApps).map(({ service, project }) => (
             <li key={service.id}>
               <Link className="row-link grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2 md:px-6" to={`/projects/${project.id}/apps/${service.id}`}>
-                <EngineMark engine={service.engine} logo={service.logo_url} image={service.image} />
+                <EngineMark engine={service.engine} logo={service.logo_url} image={service.image} compose={service.compose} />
                 <span className="min-w-0">
                   <span className="block truncate font-medium">{service.name}</span>
                   <span className="block truncate text-meta text-ink-soft">{project.name}</span>
