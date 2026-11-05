@@ -1,4 +1,4 @@
-import { ChevronRight, GitBranch, Search } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { EngineMark } from "@/features/projects/components/apps/EngineMark";
@@ -52,15 +52,6 @@ export function TemplateGallery({ templates }: { templates: DatabaseTemplate[] }
             </span>
             <ChevronRight className="flex-none text-ink-faint" aria-hidden="true" size={16} />
           </Link>
-          <div className="flex items-center gap-3 rounded-panel bg-raised p-4 opacity-55" aria-disabled="true">
-            <span className="flex size-10 flex-none items-center justify-center rounded-panel bg-surface text-ink-soft" aria-hidden="true">
-              <GitBranch size={20} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-display text-base font-semibold">{t("Deploy from public GitHub")}</span>
-              <span className="block truncate text-meta text-ink-soft">{t("GitHub builds remain disabled while security validation is pending")}</span>
-            </span>
-          </div>
         </div>
       )}
       {appCategories.filter(({ id }) => filtered.some((template) => template.category === id)).map(({ id, label }) => (
