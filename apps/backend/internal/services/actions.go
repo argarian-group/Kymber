@@ -212,7 +212,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusInternalServerError, "could not create deployment")
 				return
 			}
-			result, updateErr := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'deploying', last_error = NULL WHERE id = ? AND status NOT IN ('deploying', 'queued')", serviceID)
+			result, updateErr := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'deploying', image_version = ?, last_error = NULL WHERE id = ? AND status NOT IN ('deploying', 'queued')", imageVersion, serviceID)
 			if updateErr != nil {
 				writeError(w, http.StatusInternalServerError, "could not update service status")
 				return
