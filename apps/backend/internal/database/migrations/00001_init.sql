@@ -36,7 +36,7 @@ CREATE TABLE projects (
 CREATE TABLE workspace_members (
     workspace_id CHAR(6) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     user_id BIGINT UNSIGNED NOT NULL,
-    role VARCHAR(16) NOT NULL,
+    role VARCHAR(32) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (workspace_id, user_id),
     CONSTRAINT fk_workspace_members_workspace FOREIGN KEY (workspace_id)
@@ -71,7 +71,7 @@ CREATE TABLE workspace_invitations (
     token_hash BINARY(32) NOT NULL,
     workspace_id CHAR(6) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     email VARCHAR(254) NOT NULL,
-    role VARCHAR(16) NOT NULL,
+    role VARCHAR(32) NOT NULL,
     invited_by BIGINT UNSIGNED NOT NULL,
     expires_at DATETIME(6) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -123,6 +123,8 @@ CREATE TABLE database_services (
     database_name VARCHAR(64) NOT NULL DEFAULT '',
     database_user VARCHAR(32) NOT NULL DEFAULT '',
     encrypted_config MEDIUMBLOB NOT NULL,
+    compose_file MEDIUMBLOB NULL,
+    compose_project VARCHAR(63) NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'draft',
     container_id VARCHAR(128) NULL,
     last_error TEXT NULL,
@@ -141,6 +143,16 @@ CREATE TABLE database_services (
         REFERENCES servers (id) ON DELETE RESTRICT,
     CONSTRAINT fk_database_services_creator FOREIGN KEY (created_by)
         REFERENCES users (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE workspace_roles (
+    workspace_id CHAR(6) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    name VARCHAR(32) NOT NULL,
+    permissions VARCHAR(512) NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (workspace_id, name),
+    CONSTRAINT fk_workspace_roles_workspace FOREIGN KEY (workspace_id)
+        REFERENCES workspaces (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE service_storages (
@@ -331,6 +343,7 @@ DROP TABLE server_tasks;
 DROP TABLE service_ports;
 DROP TABLE service_storages;
 DROP TABLE database_services;
+DROP TABLE workspace_roles;
 DROP TABLE project_environments;
 DROP TABLE servers;
 DROP TABLE workspace_invitations;
