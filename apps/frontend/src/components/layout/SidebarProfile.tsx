@@ -1,12 +1,26 @@
 import { ChevronsUpDown } from "lucide-react";
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 import { useCurrentUser } from "@/features/auth/AuthContext";
 import { LogoutButton } from "./LogoutButton";
 import { t } from "@/lib/i18n";
 
+async function gravatarUrl(email: string) {
+  const normalizedEmail = new TextEncoder().encode(email.trim().toLowerCase());
+  const digest = await crypto.subtle.digest("SHA-256", normalizedEmail);
+  const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `https://www.gravatar.com/avatar/${hash}?d=404&s=56`;
+}
+
 export function SidebarProfile({ compact = false }: { compact?: boolean }) {
   const user = useCurrentUser();
   const menuId = useId();
+  const [avatarUrl, setAvatarUrl] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    gravatarUrl(user.email).then((url) => active && setAvatarUrl(url));
+    return () => { active = false; };
+  }, [user.email]);
 
   return (
     <div className={`flex-none ${compact ? "p-2" : "p-3"}`}>
@@ -17,10 +31,18 @@ export function SidebarProfile({ compact = false }: { compact?: boolean }) {
         popoverTarget={menuId}
         aria-haspopup="dialog"
       >
-        <span
-          className="flex size-7 flex-none items-center justify-center rounded-full bg-seafoam text-xs font-semibold text-on-accent"
-          aria-hidden="true"
-        >
+        <img
+          className="size-7 flex-none rounded-full bg-seafoam object-cover"
+          src={avatarUrl}
+          alt=""
+          width="28"
+          height="28"
+          onError={(event) => {
+            event.currentTarget.hidden = true;
+            event.currentTarget.nextElementSibling?.removeAttribute("hidden");
+          }}
+        />
+        <span hidden className="flex size-7 flex-none items-center justify-center rounded-full bg-seafoam text-xs font-semibold text-on-accent" aria-hidden="true">
           {user.username[0].toUpperCase()}
         </span>
         <span className={compact ? "sr-only" : "min-w-0 flex-1"}>
