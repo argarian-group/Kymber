@@ -93,6 +93,8 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 					service.ContainersError = err.Error()
 				}
 			}
+		} else if service.Image == "docker.io/kymber/build-artifacts" {
+			service.Port = 0
 		} else if template, ok := templates.Get(service.Engine); ok {
 			template = template.ForService(service.Image, service.Port, service.DataPath)
 			service.Image, service.Port, service.DataPath = template.Image, 0, template.DataPath
@@ -275,6 +277,8 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 		ImageVersion string           `json:"image_version"`
 		Environment  templates.Config `json:"environment"`
 		ComposeFile  string           `json:"compose_file"`
+		Port         *int             `json:"port"`
+		DataPath     *string          `json:"data_path"`
 	}
 	if !decodeJSON(w, r, &input) {
 		return
@@ -335,12 +339,25 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "only draft services can be configured")
 		return
 	}
+	if service.Image == "docker.io/kymber/build-artifacts" && input.Port != nil && (*input.Port < 0 || *input.Port > 65535) {
+		writeError(w, http.StatusBadRequest, "port must be between 0 and 65535")
+		return
+	}
+	if service.Image == "docker.io/kymber/build-artifacts" && input.DataPath != nil && !templates.ValidDataPath(*input.DataPath) {
+		writeError(w, http.StatusBadRequest, "invalid data path")
+		return
+	}
 	if input.Name != "" {
 		service.Name = strings.ToLower(strings.TrimSpace(input.Name))
 	}
 	template := serviceTemplate(service)
 	if input.ImageVersion != "" {
-		if _, err := template.ImageRef(input.ImageVersion); err != nil {
+		if service.Image == "docker.io/kymber/build-artifacts" {
+			if input.ImageVersion != service.ImageVersion {
+				writeError(w, http.StatusBadRequest, "GitHub image versions are selected by their build job")
+				return
+			}
+		} else if _, err := template.ImageRef(input.ImageVersion); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid image version")
 			return
 		}
@@ -361,7 +378,13 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "service encryption is not configured")
 		return
 	}
-	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET name = ?, image_version = ?, database_name = ?, database_user = ?, encrypted_config = ? WHERE id = ? AND status = 'draft'", service.Name, service.ImageVersion, service.DatabaseName, service.DatabaseUser, config, serviceID); err != nil {
+	if input.Port != nil && service.Image == "docker.io/kymber/build-artifacts" {
+		service.Port = *input.Port
+	}
+	if input.DataPath != nil && service.Image == "docker.io/kymber/build-artifacts" {
+		service.DataPath = *input.DataPath
+	}
+	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET name = ?, image_version = ?, port = ?, data_path = ?, database_name = ?, database_user = ?, encrypted_config = ? WHERE id = ? AND status = 'draft'", service.Name, service.ImageVersion, service.Port, service.DataPath, service.DatabaseName, service.DatabaseUser, config, serviceID); err != nil {
 		writeError(w, http.StatusConflict, "could not update service configuration")
 		return
 	}
@@ -451,6 +474,22 @@ func (h *Handler) readService(r *http.Request, workspaceID, projectID string, se
 			service.Containers, err = h.readComposeContainers(r, service)
 			if err != nil {
 				service.ContainersError = err.Error()
+			}
+		}
+		return service, nil
+	}
+	if service.Image == "docker.io/kymber/build-artifacts" {
+		service.InternalHost = "kymber-service-" + serviceID
+		if service.DataPath != "" && !templates.ValidDataPath(service.DataPath) {
+			return service, errors.New("invalid stored data path")
+		}
+		if includeSecret {
+			plain, err := secrets.Decrypt(encrypted)
+			if err != nil {
+				return service, err
+			}
+			if err := json.Unmarshal(plain, &service.Environment); err != nil {
+				return service, err
 			}
 		}
 		return service, nil

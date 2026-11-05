@@ -31,6 +31,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		handler http.HandlerFunc
 	}{
 		{"GET /api/database-templates", h.listDatabaseTemplates},
+		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/git-build-drafts", h.createGitBuildDraft},
 		{"GET /api/docker-hub/search", h.searchDockerHub},
 		{"GET /api/docker-hub/image", h.dockerImageDetails},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services", h.listServices},
@@ -42,6 +43,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/image-artifact", h.deployImageArtifact},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-builds", h.createGitBuild},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-builds", h.listGitBuilds},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/git-builds/branches", h.listGitHubBranches},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/containers/{container}/{action}", h.composeContainerAction},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/cancel-deploy", h.cancelServiceDeploy},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/logs", h.serviceLogs},

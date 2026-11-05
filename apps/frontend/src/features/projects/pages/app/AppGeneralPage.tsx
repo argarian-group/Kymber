@@ -14,6 +14,19 @@ import { useAction } from "@/lib/useAction";
 import { t } from "@/lib/i18n";
 import { ComposeContainersPage } from "@/features/projects/pages/app/ComposeContainersPage";
 
+function GitBuildSelector({ path, serviceId, value, onChange }: { path: string; serviceId: string; value: string; onChange: (value: string) => void }) {
+  const [jobs, setJobs] = useState<{ id: string; status: string; repository_url: string; ref: string; artifact_expires_at?: string }[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    api<{ id: string; status: string; repository_url: string; ref: string; artifact_expires_at?: string }[]>(`${path}/${serviceId}/git-builds`)
+      .then((items) => { if (active) { const available = items.filter((item) => item.status === "succeeded" && item.artifact_expires_at && Date.parse(item.artifact_expires_at) > Date.now()); setJobs(available); if (available.length && !value) onChange(available[0].id); } })
+      .catch((cause) => { if (active) { setError(cause instanceof Error ? cause.message : t("Could not check GitHub build status")); setJobs([]); } });
+    return () => { active = false; };
+  }, [path, serviceId]);
+  return <label className="block"><span className="mb-1 block text-meta font-medium">{t("Successful GitHub build")}</span><select className="field" required value={value} onChange={(event) => onChange(event.target.value)}><option value="">{t("Select a build")}</option>{jobs.map((job) => <option value={job.id} key={job.id}>{job.repository_url} · {job.ref}</option>)}</select>{error && <FormError message={error} />}</label>;
+}
+
 export function AppGeneralPage() {
   const { service, path, canWrite, onChanged, deployOutput } = useAppOutlet();
   const [name, setName] = useState(service.name);
@@ -22,10 +35,15 @@ export function AppGeneralPage() {
   const [deploying, setDeploying] = useState<string | null>(null);
   const [editingCompose, setEditingCompose] = useState(false);
   const [composeDraft, setComposeDraft] = useState(service.compose_file ?? "");
+  const [port, setPort] = useState(service.port ? String(service.port) : "");
+  const [hostPort, setHostPort] = useState(service.port ? String(service.port) : "");
+  const [dataPath, setDataPath] = useState(service.data_path ?? "");
+  const [githubBuildId, setGithubBuildId] = useState("");
   const { pending, error, run } = useAction();
   const draft = service.status === "draft";
   const busy = isServiceBusy(service.status);
-  const changed = name !== service.name || version !== service.image_version;
+  const gitBuild = service.image === "docker.io/kymber/build-artifacts";
+  const changed = name !== service.name || (gitBuild ? draft ? Number(port || 0) !== service.port || dataPath !== (service.data_path ?? "") : githubBuildId !== service.image_version : version !== service.image_version);
 
   useEffect(() => setVersion(service.image_version), [service.image_version]);
 
@@ -34,12 +52,14 @@ export function AppGeneralPage() {
     setSaved(null);
     await run(async () => {
       if (draft) {
-        await api(`${path}/${service.id}`, { method: "PUT", body: { name, image_version: version } });
+        await api(`${path}/${service.id}`, { method: "PUT", body: { name, image_version: version, ...(gitBuild ? { port: Number(port || 0), data_path: dataPath } : {}) } });
+        if (gitBuild && Number(hostPort) > 0) await api(`${path}/${service.id}/ports`, { method: "POST", body: { host_port: Number(hostPort), container_port: Number(port), protocol: "tcp", bind: "127.0.0.1" } });
         setSaved(t("Saved."));
       } else {
-        setDeploying(version);
-        await api(`${path}/${service.id}/deploy`, { method: "POST", body: { image_version: version } });
-        setSaved(t("Deploying {version}.", { version }));
+        const deployVersion = gitBuild ? githubBuildId : version;
+        setDeploying(deployVersion);
+        await api(`${path}/${service.id}/deploy`, { method: "POST", body: { image_version: deployVersion } });
+        setSaved(t("Deploying {version}.", { version: deployVersion }));
       }
       onChanged();
     });
@@ -72,12 +92,18 @@ export function AppGeneralPage() {
         <form onSubmit={submit}>
           <div className="grid items-start gap-4 p-4 sm:grid-cols-2">
             <Field label={t("App name")} required maxLength={63} pattern="[a-z][a-z0-9\-]{1,62}" title={t("Lowercase letters, numbers and hyphens, starting with a letter")} disabled={!canWrite || !draft} value={name} onChange={(event) => setName(event.target.value)} />
-            <Field label={t("Image version")} required maxLength={128} disabled={!canWrite || busy} value={version} onChange={(event) => setVersion(event.target.value)} />
+            {!gitBuild && <Field label={t("Image version")} required maxLength={128} disabled={!canWrite || busy} value={version} onChange={(event) => setVersion(event.target.value)} />}
+      {gitBuild && <>
+              <Field label={t("Application port")} type="number" min={0} max={65535} hint={t("Container port; configure it before build to publish a host port.")} value={port} onChange={(event) => setPort(event.target.value)} />
+              {draft && <Field label={t("Host port (optional)")} type="number" min={1} max={65535} hint={t("Leave blank to keep the port private.")} value={hostPort} onChange={(event) => setHostPort(event.target.value)} />}
+              {draft && <Field label={t("Data path")} maxLength={255} pattern="/.+" title={t("An absolute path inside the container")} hint={t("Optional. Use this if the container stores persistent data.")} value={dataPath} onChange={(event) => setDataPath(event.target.value)} />}
+              {gitBuild && !draft && <GitBuildSelector path={path} serviceId={service.id} value={githubBuildId} onChange={setGithubBuildId} />}
+            </>}
           </div>
           {canWrite && (
             <FormFooter error={error} saved={saved}>
-              <button className="btn btn-primary" type="submit" disabled={pending || busy || !changed}>
-                {pending ? t("Saving…") : draft ? t("Save") : t("Deploy this version")}
+              <button className="btn btn-primary" type="submit" disabled={pending || busy || !changed || (gitBuild && !draft && !githubBuildId)}>
+                {pending ? t("Saving…") : draft ? t("Save") : gitBuild ? t("Deploy selected GitHub build") : t("Deploy this version")}
               </button>
             </FormFooter>
           )}

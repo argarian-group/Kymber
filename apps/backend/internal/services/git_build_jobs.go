@@ -22,11 +22,69 @@ import (
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
 	"kymber/backend/internal/permissions"
+	"kymber/backend/internal/secrets"
 )
 
 type gitBuildRequest struct {
-	RepositoryURL string `json:"repository_url"`
-	Ref           string `json:"ref"`
+	RepositoryURL    string `json:"repository_url"`
+	Ref              string `json:"ref"`
+	BuildPack        string `json:"build_pack"`
+	InstallCommand   string `json:"install_command"`
+	BuildCommand     string `json:"build_command"`
+	StartCommand     string `json:"start_command"`
+	PublishDirectory string `json:"publish_directory"`
+}
+
+func (h *Handler) createGitBuildDraft(w http.ResponseWriter, r *http.Request) {
+	if !gitBuildsEnabled() {
+		writeError(w, http.StatusNotFound, "Git builds are disabled")
+		return
+	}
+	user, _ := auth.UserFromContext(r)
+	workspaceID, ok := pathID(w, r, "workspaceID")
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.AppsManage) {
+		return
+	}
+	projectID, ok := pathID(w, r, "projectID")
+	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
+		return
+	}
+	var input struct {
+		Name          string `json:"name"`
+		EnvironmentID string `json:"environment_id"`
+	}
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	input.Name = strings.ToLower(strings.TrimSpace(input.Name))
+	if !serviceNamePattern.MatchString(input.Name) {
+		writeError(w, http.StatusBadRequest, "valid app name is required")
+		return
+	}
+	id, err := database.NewShortID()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create app")
+		return
+	}
+	image := "docker.io/kymber/build-artifacts"
+	var environmentName string
+	if input.EnvironmentID != "" {
+		if err := h.db.QueryRowContext(r.Context(), "SELECT name FROM project_environments WHERE id = ? AND project_id = ?", input.EnvironmentID, projectID).Scan(&environmentName); err != nil {
+			writeError(w, http.StatusBadRequest, "environment not found")
+			return
+		}
+	}
+	config, err := secrets.Encrypt([]byte("{}"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "service encryption is not configured")
+		return
+	}
+	_, err = h.db.ExecContext(r.Context(), `INSERT INTO database_services (id, workspace_id, project_id, engine, name, image_version, image, port, data_path, category, environment_id, database_name, database_user, encrypted_config, created_by) VALUES (?, ?, ?, 'docker', ?, 'draft', ?, 0, '', 'application', ?, '', '', ?, ?)`, id, workspaceID, projectID, input.Name, image, input.EnvironmentID, config, user.ID)
+	if err != nil {
+		writeError(w, http.StatusConflict, "could not create draft app; its name may already be used")
+		return
+	}
+	writeJSON(w, http.StatusCreated, databaseService{ID: id, WorkspaceID: workspaceID, ProjectID: projectID, Engine: "docker", Name: input.Name, Image: image, ImageVersion: "draft", Status: "draft", Category: "application", EnvironmentID: input.EnvironmentID, EnvironmentName: environmentName})
 }
 
 type gitBuildJob struct {
@@ -44,11 +102,71 @@ type gitBuildJob struct {
 	ArtifactExpiresAt string `json:"artifact_expires_at,omitempty"`
 }
 
+type gitHubRef struct {
+	Name   string `json:"name"`
+	Commit struct {
+		SHA string `json:"sha"`
+	} `json:"commit"`
+}
+
+func (h *Handler) listGitHubBranches(w http.ResponseWriter, r *http.Request) {
+	if !gitBuildsEnabled() {
+		writeError(w, http.StatusNotFound, "Git builds are disabled")
+		return
+	}
+	user, _ := auth.UserFromContext(r)
+	workspaceID, ok := pathID(w, r, "workspaceID")
+	if !ok || !h.authorize(w, r, user, workspaceID, permissions.AppsManage) {
+		return
+	}
+	projectID, ok := pathID(w, r, "projectID")
+	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
+		return
+	}
+	repositoryURL := r.URL.Query().Get("repository_url")
+	if !validPublicGitHubURL(repositoryURL) {
+		writeError(w, http.StatusBadRequest, "a public GitHub HTTPS repository is required")
+		return
+	}
+	repositoryPath := strings.TrimSuffix(strings.TrimPrefix(repositoryURL, "https://github.com/"), ".git")
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, "https://api.github.com/repos/"+repositoryPath+"/branches?per_page=100", nil)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "could not request GitHub branches")
+		return
+	}
+	request.Header.Set("Accept", "application/vnd.github+json")
+	request.Header.Set("User-Agent", "Kymber-build-controller")
+	response, err := (&http.Client{Timeout: 10 * time.Second}).Do(request)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "could not reach GitHub")
+		return
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		if response.StatusCode == http.StatusNotFound {
+			writeError(w, http.StatusBadRequest, "GitHub repository was not found or is private")
+			return
+		}
+		writeError(w, http.StatusBadGateway, fmt.Sprintf("GitHub returned HTTP %d while listing branches", response.StatusCode))
+		return
+	}
+	var branches []gitHubRef
+	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&branches); err != nil {
+		writeError(w, http.StatusBadGateway, "GitHub returned an invalid branches response")
+		return
+	}
+	if len(branches) > 100 {
+		branches = branches[:100]
+	}
+	writeJSON(w, http.StatusOK, map[string][]gitHubRef{"branches": branches})
+}
+
 type gitBuildClaim struct {
 	ID            string `json:"id"`
 	RepositoryURL string `json:"repository_url"`
 	Ref           string `json:"ref"`
 	ServiceID     string `json:"service_id"`
+	ServerID      string `json:"server_id"`
 	Attempt       int    `json:"attempt"`
 }
 
@@ -68,6 +186,16 @@ func validPublicGitHubURL(raw string) bool {
 	}
 	parts := strings.Split(strings.TrimSuffix(u.Path, ".git"), "/")
 	return len(parts) == 3 && parts[0] == "" && gitHubOwnerPattern.MatchString(parts[1]) && gitHubRepositoryPattern.MatchString(parts[2])
+}
+
+func validateGitBuildConfiguration(config gitBuildRequest) error {
+	if config.BuildPack == "" {
+		config.BuildPack = "dockerfile"
+	}
+	if config.BuildPack != "dockerfile" || config.InstallCommand != "" || config.BuildCommand != "" || config.StartCommand != "" || config.PublishDirectory != "" {
+		return errors.New("only Dockerfile builds from the repository root are supported")
+	}
+	return nil
 }
 
 func validGitRef(ref string) bool {
@@ -111,10 +239,22 @@ func (h *Handler) claimGitBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var job gitBuildClaim
-	err = tx.QueryRowContext(r.Context(), `SELECT id, repository_url, git_ref, service_id, attempts
-		FROM git_build_jobs
-		WHERE status = 'queued' OR (status = 'running' AND lease_expires_at < UTC_TIMESTAMP(6) AND attempts < 5)
-		ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED`).Scan(&job.ID, &job.RepositoryURL, &job.Ref, &job.ServiceID, &job.Attempt)
+	job.ServerID = r.Header.Get("X-Build-Server-ID")
+	if !entityIDPattern.MatchString(job.ServerID) {
+		writeError(w, http.StatusBadRequest, "valid build server ID is required")
+		return
+	}
+	var connectionType string
+	if err := tx.QueryRowContext(r.Context(), "SELECT connection_type FROM servers WHERE id = ?", job.ServerID).Scan(&connectionType); err != nil || connectionType != "local" {
+		_ = tx.Rollback()
+		writeError(w, http.StatusBadRequest, "build controller must run on the selected local deployment host")
+		return
+	}
+	err = tx.QueryRowContext(r.Context(), `SELECT b.id, b.repository_url, b.git_ref, b.service_id, s.server_id, b.attempts
+		FROM git_build_jobs b JOIN database_services s ON s.id = b.service_id
+		WHERE (b.status = 'queued' OR (b.status = 'running' AND b.lease_expires_at < UTC_TIMESTAMP(6) AND b.attempts < 5))
+		AND s.status IN ('queued', 'failed', 'draft') AND s.server_id = ?
+		ORDER BY b.created_at LIMIT 1 FOR UPDATE SKIP LOCKED`, job.ServerID).Scan(&job.ID, &job.RepositoryURL, &job.Ref, &job.ServiceID, &job.ServerID, &job.Attempt)
 	if errors.Is(err, sql.ErrNoRows) {
 		if err := tx.Commit(); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not recover expired build jobs")
@@ -569,12 +709,27 @@ func (h *Handler) createGitBuild(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "Git builds require a Docker application")
 		return
 	}
+	if service.Status != "draft" && service.Status != "failed" {
+		writeError(w, http.StatusConflict, "Git builds can only be queued for draft or failed apps")
+		return
+	}
 	var input gitBuildRequest
 	if !decodeJSON(w, r, &input) {
 		return
 	}
+	if input.BuildPack == "" {
+		input.BuildPack = "dockerfile"
+	}
 	if !validPublicGitHubURL(input.RepositoryURL) || !validGitRef(input.Ref) {
 		writeError(w, http.StatusBadRequest, "a public GitHub HTTPS repository and valid ref are required")
+		return
+	}
+	if service.Image != "docker.io/kymber/build-artifacts" && service.Status != "draft" {
+		writeError(w, http.StatusConflict, "only draft apps can be converted to GitHub builds")
+		return
+	}
+	if err := validateGitBuildConfiguration(input); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	id, err := database.NewShortID()
@@ -589,7 +744,7 @@ func (h *Handler) createGitBuild(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	serviceResult, err := tx.ExecContext(r.Context(), `UPDATE database_services SET image='docker.io/kymber/build-artifacts', image_version=?, status='queued', last_error=NULL
-		WHERE id=? AND status NOT IN ('queued', 'deploying')`, id, serviceID)
+		WHERE id=? AND status NOT IN ('queued', 'deploying') AND (image='docker.io/kymber/build-artifacts' OR status='draft')`, id, serviceID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not prepare application for build")
 		return

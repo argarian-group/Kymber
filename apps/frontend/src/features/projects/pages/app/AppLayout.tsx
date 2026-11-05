@@ -1,6 +1,6 @@
-import { Activity, ArrowLeft, Clock3, FolderOpen, HardDrive, KeyRound, Plug, ScrollText, Settings2, SquareTerminal, TriangleAlert } from "lucide-react";
+import { Activity, ArrowLeft, Clock3, FolderOpen, GitBranch, HardDrive, KeyRound, Plug, ScrollText, Settings2, SquareTerminal, TriangleAlert } from "lucide-react";
 import { useState } from "react";
-import { Link, NavLink, Outlet, useParams } from "react-router";
+import { Link, NavLink, Navigate, Outlet, useLocation, useParams } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadError } from "@/components/ui/LoadError";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -25,6 +25,7 @@ function appTemplate(template: DatabaseTemplate | null, detail: Service | null):
 
 export function AppLayout() {
   const { appId } = useParams();
+  const location = useLocation();
   const { can } = useProjects();
   const canWrite = can("apps.manage");
   const canTerminal = can("terminal.use");
@@ -85,21 +86,23 @@ export function AppLayout() {
         { label: t("Storage"), to: "storage", end: false, icon: HardDrive },
         ...(canWrite ? [{ label: t("Danger zone"), to: "danger", end: false, icon: TriangleAlert }] : []),
       ]
-    : [
+      : [
         { label: t("General"), to: "", end: true, icon: Settings2 },
+        ...(canWrite && service.image !== "docker.io/kymber/build-artifacts" ? [{ label: t("Source"), to: "source", end: false, icon: GitBranch }] : []),
         { label: t("Logs"), to: "logs", end: false, icon: ScrollText },
         { label: t("Deployments"), to: "deployments", end: false, icon: Clock3 },
-        { label: t("Metrics"), to: "metrics", end: false, icon: Activity },
+        ...(service.image === "docker.io/kymber/build-artifacts" ? [] : [{ label: t("Metrics"), to: "metrics", end: false, icon: Activity }]),
         ...(canWrite
           ? [
               { label: t("Environment"), to: "environment", end: false, icon: KeyRound },
               { label: t("Connection"), to: "connection", end: false, icon: Plug },
               { label: t("Files"), to: "files", end: false, icon: FolderOpen },
-              { label: t("Terminal"), to: "terminal", end: false, icon: SquareTerminal },
+              ...(service.image === "docker.io/kymber/build-artifacts" ? [] : [
+                ...(canTerminal ? [{ label: t("Terminal"), to: "terminal", end: false, icon: SquareTerminal }] : []),
+              ]),
             ]
           : []),
-        ...(canTerminal ? [{ label: t("Terminal"), to: "terminal", end: false, icon: SquareTerminal }] : []),
-        { label: t("Storage"), to: "storage", end: false, icon: HardDrive },
+        ...(service.image === "docker.io/kymber/build-artifacts" ? [] : [{ label: t("Storage"), to: "storage", end: false, icon: HardDrive }]),
         ...(canWrite ? [{ label: t("Danger zone"), to: "danger", end: false, icon: TriangleAlert }] : []),
       ];
   const context: AppOutlet = {
@@ -113,6 +116,10 @@ export function AppLayout() {
     onChanged,
     deployOutput,
   };
+  if (location.pathname.endsWith("/source")) {
+    if (service.image !== "docker.io/kymber/build-artifacts") return <Navigate to=".." replace />;
+    return <Outlet context={context} />;
+  }
   const portConflict = service.last_error?.match(/failed to bind host port .*?:(\d+)\/(?:tcp|udp): address already in use/i);
   const orphanContainers = service.last_error?.match(/Found orphan containers \(([^)]+)\) for this project/i);
 
@@ -129,7 +136,7 @@ export function AppLayout() {
           <div className="min-w-0 flex-1 basis-48">
             <h2 className="font-display text-xl leading-tight font-semibold wrap-break-word">{service.name}</h2>
             <p className="mt-1 font-mono text-xs wrap-break-word text-ink-soft">
-              {service.compose ? t("Docker Compose stack") : `${service.image}:${service.image_version}`}
+              {service.compose ? t("Docker Compose stack") : service.image === "docker.io/kymber/build-artifacts" ? t("Built from GitHub") : `${service.image}:${service.image_version}`}
             </p>
             <div className="mt-2">
               <ServiceStatus status={service.status} />

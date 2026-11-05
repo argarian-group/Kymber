@@ -2,11 +2,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { EnvironmentField } from "@/features/projects/components/apps/EnvironmentField";
 import type { Service } from "@/features/projects/services";
 import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
 
 type GitBuildJob = { id: string; status: string; result_message?: string; repository_url?: string; ref?: string; artifact_expires_at?: string };
+type GitHubBranch = { name: string; commit: { sha: string } };
 
 function validRepositoryURL(value: string) {
   try {
@@ -21,16 +23,51 @@ function validGitRef(value: string) {
   return /^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/.test(value) && !value.includes("..") && !value.includes("//") && !value.includes("@{") && value.split("/").every((part) => part && !part.startsWith(".") && !part.endsWith(".") && !part.endsWith(".lock"));
 }
 
-export function GitHubBuildForm({ path, gitBuildsEnabled }: { path: string; gitBuildsEnabled: boolean }) {
+export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingService }: { path: string; gitBuildsEnabled: boolean; service?: Service }) {
+  const workspaceId = path.split("/")[2];
   const [repositoryURL, setRepositoryURL] = useState("");
-  const [ref, setRef] = useState("main");
+  const [ref, setRef] = useState("");
+  const [branches, setBranches] = useState<GitHubBranch[]>([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [branchRequest, setBranchRequest] = useState(0);
+  const [branchesError, setBranchesError] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [port, setPort] = useState(8080);
-  const [service, setService] = useState<Service | null>(null);
+  const [environmentId, setEnvironmentId] = useState("");
+  const [createdService, setCreatedService] = useState<Service | null>(null);
   const [job, setJob] = useState<GitBuildJob | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const service = existingService ?? createdService;
+
+  useEffect(() => {
+    if (!validRepositoryURL(repositoryURL)) {
+      setBranches([]);
+      return;
+    }
+    let active = true;
+    setBranchesLoading(true);
+    const query = new URLSearchParams({ repository_url: repositoryURL });
+    api<{ branches: GitHubBranch[] }>(`${path.replace(/\/services$/, "")}/git-builds/branches?${query}`)
+      .then(({ branches: found }) => {
+        if (!active) return;
+        setBranchesError(null);
+        setBranches(found);
+        setRef((current) => found.some(({ name }) => name === current) ? current : found[0]?.name ?? "");
+      })
+      .catch((cause) => {
+        if (active) {
+          setBranches([]);
+          setBranchesError(cause instanceof Error ? cause.message : t("Could not load GitHub branches"));
+        }
+      })
+      .finally(() => { if (active) setBranchesLoading(false); });
+    return () => { active = false; };
+  }, [repositoryURL, path, branchRequest]);
+
+  useEffect(() => {
+    if (existingService) setCreatedService(existingService);
+  }, [existingService]);
 
   useEffect(() => {
     if (!service || !job || job.status === "succeeded" || job.status === "failed") return;
@@ -57,27 +94,42 @@ export function GitHubBuildForm({ path, gitBuildsEnabled }: { path: string; gitB
     };
   }, [job?.id, job?.status, path, service]);
 
-  async function submit(event: FormEvent) {
+  async function createDraft(event: FormEvent) {
     event.preventDefault();
-    if (!gitBuildsEnabled || pending || !validRepositoryURL(repositoryURL) || !validGitRef(ref)) {
-      if (!validRepositoryURL(repositoryURL)) setError(t("Enter a valid public GitHub repository URL"));
-      else if (!validGitRef(ref)) setError(t("Git ref must not contain spaces or invalid characters"));
+    if (!gitBuildsEnabled || pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      const target = await api<Service>(`${path.replace(/\/services$/, "")}/git-build-drafts`, {
+        method: "POST",
+        body: { name, environment_id: environmentId },
+      });
+      setCreatedService(target);
+      navigate(`/projects/${workspaceId}/apps/${target.id}/source`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t("Could not create app draft"));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function startBuild(event: FormEvent) {
+    event.preventDefault();
+    if (!gitBuildsEnabled || pending || !service) return;
+    if (!validRepositoryURL(repositoryURL)) {
+      setError(t("Enter a valid public GitHub repository URL"));
+      return;
+    }
+    if (!validGitRef(ref) || !branches.some(({ name }) => name === ref)) {
+      setError(t("Select a valid GitHub branch"));
       return;
     }
     setPending(true);
     setError(null);
     try {
-      let target = service;
-      if (!target) {
-        target = await api<Service>(path, {
-          method: "POST",
-          body: { engine: "docker", name, repository: "library/alpine", port, data_path: "", category: "application" },
-        });
-        setService(target);
-      }
-      const queued = await api<{ id: string; status: string }>(`${path}/${target.id}/git-builds`, {
+      const queued = await api<{ id: string; status: string }>(`${path}/${service.id}/git-builds`, {
         method: "POST",
-        body: { repository_url: repositoryURL, ref },
+        body: { repository_url: repositoryURL, ref, build_pack: "dockerfile" },
       });
       setJob({ ...queued, repository_url: repositoryURL, ref });
     } catch (cause) {
@@ -88,33 +140,25 @@ export function GitHubBuildForm({ path, gitBuildsEnabled }: { path: string; gitB
   }
 
   if (!gitBuildsEnabled) return <p className="mx-auto w-full max-w-xl rounded-panel bg-raised p-4 text-meta text-ink-soft">{t("GitHub builds are disabled in this environment")}</p>;
-  if (job && job.status === "succeeded") {
-    return (
-      <div className="mx-auto grid w-full max-w-xl gap-4 rounded-panel bg-raised p-5">
-        <h2 className="section-title">{t("Build completed")}</h2>
-        <p className="text-meta text-ink-soft">{repositoryURL} · {ref}</p>
-        <button className="btn btn-primary justify-self-end" type="button" onClick={() => navigate(`../apps/${service?.id}`)}>{t("Open app to deploy")}</button>
-        <FormError message={error} />
-      </div>
-    );
-  }
-
   return (
-    <form className="mx-auto grid w-full max-w-xl gap-5" onSubmit={submit} aria-label={t("Deploy from public GitHub")}>
-      <div className="rounded-panel bg-raised p-4 text-meta text-ink-soft">{t("Build an app from a public GitHub repository. After the build succeeds, choose Deploy to select a server and start it.")}</div>
-      <Field label={t("Public GitHub repository URL")} type="url" required maxLength={512} placeholder="https://github.com/owner/repository" value={repositoryURL} onChange={(event) => setRepositoryURL(event.target.value)} />
-      <Field label={t("Branch, tag, or commit ref")} required maxLength={128} value={ref} onChange={(event) => setRef(event.target.value)} />
-      {!service && <Field label={t("App name")} required maxLength={63} pattern="[a-z][a-z0-9-]{1,62}" title={t("Lowercase letters, numbers and hyphens, starting with a letter")} value={name} onChange={(event) => setName(event.target.value)} />}
-      <Field label={t("Application port")} type="number" min={0} max={65535} required value={port} onChange={(event) => setPort(Number(event.target.value))} hint={t("Set the container port to publish; use 0 for no published port.")} />
-      <FormError message={error} />
-      {job && (job.status === "running" || job.status === "queued") ? <p className="text-meta text-ink-soft" aria-live="polite">{t("Building from GitHub…")}</p> : null}
-      {job?.status === "failed" && <p className="text-meta text-ember" role="alert">{job.result_message || t("Could not queue GitHub build")}</p>}
-      <div className="flex justify-end gap-2">
-        <Link className="btn" to="../apps">{t("Cancel")}</Link>
-        <button className="btn btn-primary" type="submit" disabled={pending || port < 0 || port > 65535 || (job?.status === "queued" || job?.status === "running")}>
-          {pending ? t("Queueing build…") : job?.status === "failed" ? t("Retry build") : t("Create app and build")}
-        </button>
-      </div>
-    </form>
+    <div className="mx-auto grid w-full max-w-xl gap-5">
+      <div className="rounded-panel bg-raised p-4 text-meta text-ink-soft">{service ? t("Select a branch and start its Dockerfile build. Configure environment variables and port on the app draft.") : t("Create the app draft first, then configure its GitHub repository and branch.")}</div>
+      {!service ? <>
+        <form className="grid gap-5" onSubmit={createDraft} aria-label={t("Create draft")}>
+          <Field label={t("App name")} required maxLength={63} pattern="[a-z][a-z0-9-]{1,62}" title={t("Lowercase letters, numbers and hyphens, starting with a letter")} value={name} onChange={(event) => setName(event.target.value)} />
+          <EnvironmentField value={environmentId} onChange={setEnvironmentId} />
+          <FormError message={error} />
+          <div className="flex justify-end gap-2"><Link className="btn" to="../apps">{t("Cancel")}</Link><button className="btn btn-primary" type="submit" disabled={pending}>{pending ? t("Creating…") : t("Create draft")}</button></div>
+        </form>
+      </> : <>
+        <Field label={t("Public GitHub repository URL")} type="url" required maxLength={512} placeholder="https://github.com/owner/repository" value={repositoryURL} onChange={(event) => { setRepositoryURL(event.target.value); setBranches([]); setJob(null); setError(null); }} />
+        <label className="block"><span className="mb-1 block text-meta font-medium">{t("Branch")}</span><select className="field" required disabled={branchesLoading || branches.length === 0} value={ref} onChange={(event) => setRef(event.target.value)}><option value="">{branchesLoading ? t("Loading branches…") : t("Select a branch")}</option>{branches.map(({ name }) => <option key={name} value={name}>{name}</option>)}</select></label>
+        {branchesError && <div><FormError message={branchesError} /><button className="text-button text-meta" type="button" disabled={branchesLoading} onClick={() => setBranchRequest((value) => value + 1)}>{t("Retry loading branches")}</button></div>}
+        <FormError message={error} />
+        {job && (job.status === "running" || job.status === "queued") && <p className="text-meta text-ink-soft" aria-live="polite">{t("Building from GitHub…")}</p>}
+        {job?.status === "failed" && <p className="text-meta text-ember" role="alert">{job.result_message || t("Could not queue GitHub build")}</p>}
+        <form onSubmit={startBuild} className="flex justify-end gap-2"><button className="btn btn-primary" type="submit" disabled={pending || !ref || !branches.some(({ name }) => name === ref) || job?.status === "queued" || job?.status === "running"}>{pending ? t("Queueing build…") : job?.status === "failed" ? t("Retry build") : t("Deploy")}</button></form>
+      </>}
+    </div>
   );
 }

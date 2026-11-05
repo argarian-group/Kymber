@@ -71,7 +71,13 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 			if imageVersion == "" {
 				imageVersion = service.ImageVersion
 			}
-			if _, err := template.ImageRef(imageVersion); err != nil {
+			if service.Image == "docker.io/kymber/build-artifacts" {
+				var valid bool
+				if err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM git_build_jobs WHERE id = ? AND service_id = ? AND status = 'succeeded' AND artifact_expires_at > UTC_TIMESTAMP(6))", imageVersion, serviceID).Scan(&valid); err != nil || !valid {
+					writeError(w, http.StatusConflict, "no unexpired successful GitHub build is available")
+					return
+				}
+			} else if _, err := template.ImageRef(imageVersion); err != nil {
 				writeError(w, http.StatusBadRequest, "invalid image version")
 				return
 			}
@@ -83,7 +89,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "service not found")
 		return
 	}
-	if requestedServer != "" && nullableServerID.Valid && requestedServer != nullableServerID.String {
+	if action == "deploy" && requestedServer != "" && nullableServerID.Valid && requestedServer != nullableServerID.String {
 		writeError(w, http.StatusConflict, "app already runs on another server")
 		return
 	}
@@ -95,8 +101,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			nullableServerID = localServer
-		}
-		if requestedServer != "" && !isCompose {
+		} else if requestedServer != "" {
 			if !h.requireServerOnline(w, r, requestedServer) {
 				return
 			}
@@ -468,6 +473,9 @@ func (h *Handler) executeServiceSSH(r *http.Request, serverID, serviceID, action
 	if err != nil {
 		return err
 	}
+	if service.Image == "docker.io/kymber/build-artifacts" {
+		return errors.New("GitHub build apps can only be deployed from a successful build")
+	}
 	if action != "deploy" {
 		imageVersion = service.ImageVersion
 	}
@@ -514,7 +522,15 @@ func (h *Handler) startServiceDeploySSH(r *http.Request, serverID, serviceID, im
 		return err
 	}
 	template := serviceTemplate(service)
-	image, err := template.ImageRef(imageVersion)
+	var image string
+	if service.Image == "docker.io/kymber/build-artifacts" {
+		if !entityIDPattern.MatchString(imageVersion) {
+			return errors.New("invalid GitHub build artifact ID")
+		}
+		image = service.Image + ":" + imageVersion
+	} else {
+		image, err = template.ImageRef(imageVersion)
+	}
 	if err != nil {
 		return err
 	}
@@ -559,6 +575,9 @@ func (h *Handler) readServiceByID(r *http.Request, id string) (databaseService, 
 		return service, err
 	}
 	if service.Compose {
+		return service, nil
+	}
+	if service.Image == "docker.io/kymber/build-artifacts" {
 		return service, nil
 	}
 	plain, err := secrets.Decrypt(encrypted)

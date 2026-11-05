@@ -177,26 +177,6 @@ services:
     depends_on:
       - backend
 
-  buildkitd:
-    image: moby/buildkit:v0.27.1-rootless
-    profiles: [build-worker]
-    restart: "no"
-    network_mode: none
-    mem_limit: 4g
-    cpus: 2.0
-    pids_limit: 512
-    tmpfs:
-      - /home/user/.local/share/buildkit:rw,exec,nodev,nosuid,size=2g,uid=1000,gid=1000,mode=0700
-    security_opt:
-      - seccomp=unconfined
-      - apparmor=unconfined
-      - systempaths=unconfined
-    healthcheck:
-      test: ["CMD", "buildctl", "debug", "workers"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
 volumes:
   mariadb_data:
   kymber_secrets:

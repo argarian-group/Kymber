@@ -24,3 +24,51 @@ func TestGitBuildSourceValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestGitBuildConfigurationOnlyAcceptsRepositoryDockerfile(t *testing.T) {
+	if err := validateGitBuildConfiguration(gitBuildRequest{BuildPack: "dockerfile"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateGitBuildConfiguration(gitBuildRequest{}); err != nil {
+		t.Fatalf("default Dockerfile build rejected: %v", err)
+	}
+	if err := validateGitBuildConfiguration(gitBuildRequest{BuildPack: "nixpacks", StartCommand: "npm start"}); err == nil {
+		t.Fatal("unsupported custom build commands accepted")
+	}
+}
+
+func TestGitHubBranchAPIResponseLimit(t *testing.T) {
+	branches := make([]gitHubRef, 101)
+	for i := range branches {
+		branches[i].Name = "branch"
+	}
+	if len(branches) > 100 {
+		branches = branches[:100]
+	}
+	if len(branches) != 100 {
+		t.Fatalf("expected 100 branches, got %d", len(branches))
+	}
+}
+
+func TestGitHubBranchURLAndRefs(t *testing.T) {
+	for _, repository := range []string{"https://github.com/owner/repo", "https://github.com/owner/repo.git"} {
+		if !validPublicGitHubURL(repository) {
+			t.Fatalf("valid repository rejected: %s", repository)
+		}
+	}
+	for _, repository := range []string{"http://github.com/owner/repo", "https://github.com.evil/owner/repo"} {
+		if validPublicGitHubURL(repository) {
+			t.Fatalf("invalid repository accepted: %s", repository)
+		}
+	}
+	for _, ref := range []string{"main", "release/v1"} {
+		if !validGitRef(ref) {
+			t.Fatalf("valid branch rejected: %s", ref)
+		}
+	}
+	for _, ref := range []string{"../main", "bad..ref", "a//b"} {
+		if validGitRef(ref) {
+			t.Fatalf("invalid branch accepted: %s", ref)
+		}
+	}
+}

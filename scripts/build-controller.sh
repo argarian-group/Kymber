@@ -4,14 +4,14 @@ umask 077
 
 : "${KYMBER_API_URL:?Set KYMBER_API_URL}"
 : "${KYMBER_BUILD_WORKER_TOKEN:?Set KYMBER_BUILD_WORKER_TOKEN}"
-: "${KYMBER_BUILD_RUNNER:?Set KYMBER_BUILD_RUNNER to scripts/build-oci-isolated.sh}"
+: "${KYMBER_BUILD_RUNNER:=scripts/build-oci-isolated.sh}"
 : "${KYMBER_BUILD_WORK_DIR:=/tmp/kymber-build-controller}"
-
 if [ "${1:-}" = --run-job ]; then
 	shift
 	url=$1
 	ref=$2
 	dir=$3
+	server=$4
 	case "$ref" in
 		''|-*|*[!A-Za-z0-9._/-]*|*..*|*//*|*@\{*) exit 2 ;;
 	esac
@@ -27,7 +27,7 @@ if [ "${1:-}" = --run-job ]; then
 	git -C "$dir/source" -c core.hooksPath=/dev/null checkout --detach --force "$commit" || exit 1
 	rm -rf "$dir/source/.git"
 	printf '%s' "$commit" > "$dir/commit"
-	exec "$KYMBER_BUILD_RUNNER" "$dir/source" "$dir/artifact.oci.tar"
+	exec "$KYMBER_BUILD_RUNNER" "$dir/source" "$dir/artifact.oci.tar" "$server"
 fi
 
 case "$KYMBER_API_URL" in
@@ -36,6 +36,7 @@ case "$KYMBER_API_URL" in
 esac
 
 mkdir -p "$KYMBER_BUILD_WORK_DIR"
+: "${KYMBER_BUILD_SERVER_ID:?Set KYMBER_BUILD_SERVER_ID}"
 api=${KYMBER_API_URL%/}
 headers="Authorization: Bearer $KYMBER_BUILD_WORKER_TOKEN"
 
@@ -67,7 +68,7 @@ trap 'exit 143' TERM
 while :; do
 	dir=$(mktemp -d "$KYMBER_BUILD_WORK_DIR/job-XXXXXX")
 	response=$dir/job.json
-	status=$(curl --connect-timeout 10 --max-time 30 --silent --show-error -o "$response" -w '%{http_code}' -X POST "$api/internal/build-worker/claim" -H "$headers") || { rm -rf "$dir"; sleep 5; continue; }
+	status=$(curl --connect-timeout 10 --max-time 30 --silent --show-error -o "$response" -w '%{http_code}' -X POST "$api/internal/build-worker/claim" -H "$headers" -H "X-Build-Server-ID: $KYMBER_BUILD_SERVER_ID") || { rm -rf "$dir"; sleep 5; continue; }
 	if [ "$status" = 204 ]; then
 		rm -rf "$dir"
 		sleep 5
@@ -84,12 +85,18 @@ while :; do
 	attempt=$(jq -er '.attempt | select(type == "number" and . >= 1 and . <= 5)' "$response")
 	url=$(jq -er '.repository_url | select(type == "string")' "$response")
 	ref=$(jq -er '.ref | select(type == "string")' "$response")
+	server=$(jq -er '.server_id | select(type == "string" and test("^[0-9a-f]{6}$"))' "$response")
+	if [ "$server" != "$KYMBER_BUILD_SERVER_ID" ]; then
+		rm -rf "$dir"
+		sleep 5
+		continue
+	fi
 	if ! printf '%s' "$url" | grep -Eq '^https://github\.com/[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}(\.git)?$'; then
 		report_failure "$job" "$attempt" 'Controller rejected repository URL.'
 		rm -rf "$dir"
 		continue
 	fi
-	setsid timeout --signal=TERM --kill-after=10s 2h "$0" --run-job "$url" "$ref" "$dir" >"$dir/build.log" 2>&1 &
+	setsid timeout --signal=TERM --kill-after=10s 2h "$0" --run-job "$url" "$ref" "$dir" "$server" >"$dir/build.log" 2>&1 &
 	build_pid=$!
 	active_pid=$build_pid
 	active_dir=$dir
@@ -112,7 +119,7 @@ while :; do
 	fi
 	if [ "$failed" -ne 0 ]; then
 		tail -c 2048 "$dir/build.log" >&2 || true
-		report_failure "$job" "$attempt" 'Git checkout or isolated build failed.'
+		report_failure "$job" "$attempt" 'Git checkout or host build failed.'
 	else
 		setsid curl --connect-timeout 10 --max-time 1800 --fail --silent --show-error -X POST "$api/internal/build-worker/jobs/$job/artifact" \
 			-H "$headers" -H "X-Build-Attempt: $attempt" -H "X-Git-Commit: $(cat "$dir/commit")" \

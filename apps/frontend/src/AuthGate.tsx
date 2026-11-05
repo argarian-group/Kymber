@@ -13,6 +13,7 @@ import { AppDeploymentsPage } from "@/features/projects/pages/app/AppDeployments
 import { AppEnvironmentPage } from "@/features/projects/pages/app/AppEnvironmentPage";
 import { AppFilesPage } from "@/features/projects/pages/app/AppFilesPage";
 import { AppGeneralPage } from "@/features/projects/pages/app/AppGeneralPage";
+import { GitHubBuildPage } from "@/features/projects/pages/app/GitHubBuildPage";
 import { AppLayout } from "@/features/projects/pages/app/AppLayout";
 import { AppLogsPage } from "@/features/projects/pages/app/AppLogsPage";
 import { AppMetricsPage } from "@/features/projects/pages/app/AppMetricsPage";
@@ -68,6 +69,7 @@ export function AuthGate() {
                     <Route path="apps/new" element={<ProjectNewAppPage />} />
                     <Route path="apps/:appId" element={<AppLayout />}>
                       <Route index element={<AppGeneralPage />} />
+                      <Route path="source" element={<GitHubBuildPage />} />
                       <Route path="environment" element={<AppEnvironmentPage />} />
                       <Route path="connection" element={<AppConnectionPage />} />
                       <Route path="files" element={<AppFilesPage />} />

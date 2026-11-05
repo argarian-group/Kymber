@@ -41,6 +41,7 @@ export function ServiceActions({ service, path, workspaceId, deployOutput, onCha
   const [showDeployment, setShowDeployment] = useState(false);
   const choosing = !service.server_id && !busy;
   const target = serverId || servers[0]?.id;
+  const gitBuild = service.image === "docker.io/kymber/build-artifacts";
 
   useLoadEffect(
     () => (choosing ? api<{ servers: DeployTarget[] }>(`/workspaces/${workspaceId}/servers`) : Promise.resolve({ servers: [] })),
@@ -73,7 +74,7 @@ export function ServiceActions({ service, path, workspaceId, deployOutput, onCha
             </select>
           </label>
         )}
-        {(service.compose ? composeAvailable[service.status] : available[service.status])?.map(({ action, label, primary }) => (
+        {(gitBuild ? service.status === "draft" || service.status === "failed" ? [{ action: "deploy" as const, label: t("Deploy"), primary: true }] : [] : service.compose ? composeAvailable[service.status] : available[service.status])?.map(({ action, label, primary }) => (
           <button className={`btn ${primary ? "btn-primary" : ""}`} type="button" disabled={pending || busy} onClick={() => act(action)} key={action}>
             {pending && action === "restart" ? t("Restarting…") : label}
           </button>
