@@ -18,7 +18,7 @@ fi
 
 run_step() {
 	local label=$1
-	local pid frame=0
+	local pid frame=0 result
 	shift
 	step_number=$((step_number + 1))
 	printf '  [%d/%d] %s ' "$step_number" "$total_steps" "$label"
@@ -26,18 +26,23 @@ run_step() {
 	pid=$!
 	if [[ -t 1 ]]; then
 		while kill -0 "$pid" 2>/dev/null; do
-			printf '\r  [%d/%d] %s %s' "$step_number" "$total_steps" "$label" "${spinner[frame]}"
+			printf '\r\033[K  [%d/%d] %s %s' "$step_number" "$total_steps" "$label" "${spinner[frame]}"
 			frame=$(((frame + 1) % ${#spinner[@]}))
 			sleep 0.12
 		done
 	fi
 	if wait "$pid"; then
-		printf '\r'
-		printf ' %sconcluído%s\n' "$green" "$reset"
+		result=0
 	else
-		local result=$?
-		printf '\r'
-		printf ' %serro%s\n\n' "$red" "$reset"
+		result=$?
+	fi
+	if [[ -t 1 ]]; then
+		printf '\r\033[K'
+	fi
+	if ((result == 0)); then
+		printf '  [%d/%d] %s %s✓%s\n' "$step_number" "$total_steps" "$label" "$green" "$reset"
+	else
+		printf '  [%d/%d] %s %s✗ falhou%s\n\n' "$step_number" "$total_steps" "$label" "$red" "$reset"
 		printf '\nLog completo: %s\n' "$logfile" >&2
 		exit "$result"
 	fi
@@ -231,6 +236,12 @@ case "$os_id" in
 		;;
 esac
 
+if [[ -d "$install_dir/.git" ]]; then
+	printf '\nO Kymber será reiniciado para aplicar a atualização.\n\n'
+else
+	printf '\nO Kymber será instalado e iniciado.\n\n'
+fi
+run_step "Instalando Docker, Compose, Buildx e OpenSSH" "$install_function"
 run_step "Ativando Docker e SSH" start_services
 run_step "Baixando o Kymber" prepare_checkout
 cd "$install_dir"
@@ -238,8 +249,6 @@ run_step "Gerando configuração segura" prepare_configuration
 run_step "Verificando portas HTTP/HTTPS" check_ports
 run_step "Configurando SSH local" env -u SUDO_UID -u SUDO_GID ./scripts/setup-local-ssh.sh
 run_step "Construindo e iniciando os containers" docker compose up -d --build --wait --wait-timeout 180
-printf '\nContainers:\n'
-docker compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}'
 printf '\nAcesse o Kymber pelos endereços detectados:\n'
 print_addresses
 printf '\nInstalação: %s\nBuilds Git: ativados\n' "$install_dir"
