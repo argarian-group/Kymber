@@ -5,6 +5,7 @@ repo="https://github.com/argarian-group/Kymber.git"
 install_dir="${KYMBER_INSTALL_DIR:-/opt/kymber}"
 logfile=$(mktemp /tmp/kymber-install.XXXXXX)
 step_number=0
+total_steps=7
 spinner=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
 green=''
 red=''
@@ -20,24 +21,23 @@ run_step() {
 	local pid frame=0
 	shift
 	step_number=$((step_number + 1))
-	printf '[%d] %s ' "$step_number" "$label"
+	printf '  [%d/%d] %s ' "$step_number" "$total_steps" "$label"
 	"$@" >>"$logfile" 2>&1 &
 	pid=$!
 	if [[ -t 1 ]]; then
 		while kill -0 "$pid" 2>/dev/null; do
-			printf '\r[%d] %s %s' "$step_number" "$label" "${spinner[frame]}"
+			printf '\r  [%d/%d] %s %s' "$step_number" "$total_steps" "$label" "${spinner[frame]}"
 			frame=$(((frame + 1) % ${#spinner[@]}))
 			sleep 0.12
 		done
 	fi
 	if wait "$pid"; then
 		printf '\r'
-		printf '%s✔ concluído%s\n' "$green" "$reset"
+		printf ' %sconcluído%s\n' "$green" "$reset"
 	else
 		local result=$?
 		printf '\r'
-		printf '%s✘ falhou%s\n\n' "$red" "$reset"
-		tail -n 30 "$logfile" >&2
+		printf ' %serro%s\n\n' "$red" "$reset"
 		printf '\nLog completo: %s\n' "$logfile" >&2
 		exit "$result"
 	fi
@@ -51,6 +51,13 @@ fi
 if ! command -v systemctl >/dev/null 2>&1; then
 	printf '%s\n' "systemd is required" >&2
 	exit 1
+fi
+
+printf '\nKymber — instalação\nDiretório: %s\n\n' "$install_dir"
+read -r -p 'Deseja continuar com a instalação/atualização? [s/N] ' answer
+if [[ ! "$answer" =~ ^[sS]([iI][mM])?$ ]]; then
+	printf 'Instalação cancelada.\n'
+	exit 0
 fi
 
 install_debian() {
@@ -166,29 +173,29 @@ print_addresses() {
 }
 
 check_ports() {
-	local own_ids port id container_name listening
+	local port id container_name listening compose_ids
 	local ports=($(compose_port HTTP_PORT 80) $(compose_port APP_PORT 3000) $(compose_port HTTPS_PORT 443))
-	own_ids=$(docker compose ps -q)
+	compose_ids=$(docker compose ps -q)
 	for port in "${ports[@]}"; do
 		if [[ ! "$port" =~ ^[0-9]{1,5}$ ]] || ((port < 1 || port > 65535)); then
 			printf 'Invalid host port in .env: %s\n' "$port"
 			return 1
 		fi
+		for id in $(docker ps -q); do
+			if docker inspect --format '{{json .NetworkSettings.Ports}}' "$id" | jq -e --arg port "$port" '[.[]? // [] | .[]? | select(.HostPort == $port)] | length > 0' >/dev/null; then
+				container_name=$(docker inspect --format '{{.Name}}' "$id")
+				if grep -Fxq "$id" <<<"$compose_ids"; then
+					continue
+				fi
+				printf 'Port %s is already published by container %s\n' "$port" "$container_name"
+				return 1
+			fi
+		done
 		listening=$(ss -H -ltn "sport = :$port")
 		if [[ -n "$listening" ]]; then
 			printf 'Port %s is already listening on the host:\n%s\n' "$port" "$listening"
 			return 1
 		fi
-		for id in $(docker ps -q); do
-			if grep -Fxq "$id" <<<"$own_ids"; then
-				continue
-			fi
-			if docker inspect --format '{{json .NetworkSettings.Ports}}' "$id" | jq -e --arg port "$port" '[.[]? // [] | .[]? | select(.HostPort == $port)] | length > 0' >/dev/null; then
-				container_name=$(docker inspect --format '{{.Name}}' "$id")
-				printf 'Port %s is already published by container %s\n' "$port" "$container_name"
-				return 1
-			fi
-		done
 	done
 }
 
@@ -196,15 +203,15 @@ os_id=$( . /etc/os-release; printf '%s' "$ID")
 case "$os_id" in
 	debian|ubuntu)
 		ssh_service=ssh
-		run_step "Instalando Docker, Compose, Buildx e OpenSSH" install_debian
+		install_function=install_debian
 		;;
 	arch)
 		ssh_service=sshd
-		run_step "Instalando Docker, Compose, Buildx e OpenSSH" install_arch
+		install_function=install_arch
 		;;
 	fedora|rhel|centos|rocky|almalinux|ol)
 		ssh_service=sshd
-		run_step "Instalando Docker, Compose, Buildx e OpenSSH" install_redhat
+		install_function=install_redhat
 		;;
 	*)
 		printf '%s\n' "Supported systems: Debian, Ubuntu, Arch Linux, Fedora, RHEL, CentOS Stream, Rocky Linux, AlmaLinux, and Oracle Linux" >&2
