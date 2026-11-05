@@ -4,7 +4,7 @@ Git builds stay disabled until the worker boundary passes the acceptance checks 
 
 ## Worker contract
 
-- Run one ephemeral rootless BuildKit daemon per job; never mount the host Docker socket or join the API, data, or proxy networks.
+- The eventual job runner must start one ephemeral rootless BuildKit daemon per job; never mount the host Docker socket or join the API, data, or proxy networks.
 - Give the daemon only a read-only source bundle, an empty output directory, and a bounded cache. Do not pass application secrets, server credentials, API tokens, or registry credentials into build steps.
 - Keep build-step egress disabled. Do not add a general internet route to make dependency downloads work; first provide a separately controlled, allow-listed mirror/proxy and verify it cannot reach private, link-local, host, or control-plane addresses.
 - Do not fetch Git URLs from the API process. A future source fetcher must reject local/private destinations, redirects into them, and oversized archives before it hands a source bundle to the worker.
@@ -15,6 +15,6 @@ Git builds stay disabled until the worker boundary passes the acceptance checks 
 
 Before enabling a Git deployment endpoint, run an integration job proving that the build cannot connect to the API, MariaDB, Docker socket, host gateway, metadata/link-local addresses, or arbitrary internet destinations; that allowed mirror access is restricted to the documented hostnames; that cancellation kills the worker; and that output overflow, malformed OCI archives, digest mismatch, and worker restart all fail closed. Verify the final image digest on the target server before deployment.
 
-The current Compose topology has no BuildKit service, egress proxy, artifact broker, or host-side network policy. The local Docker CLI also has no Buildx plugin. Therefore this contract is not yet implemented, and Git builds must remain unavailable rather than run with a weaker network boundary.
+Compose now has an opt-in `build-worker` profile with a pinned rootless BuildKit daemon using Docker `network_mode: none`. This gives its `network.host` build steps only the worker's isolated network namespace, with no API, database, host, or internet route, and mounts no Docker socket, secrets, or API volume. Build state is limited to a 2 GiB tmpfs; the container is capped at 4 GiB RAM, 2 CPUs and 512 processes. A local `FROM scratch` build completed and exported OCI, and the backend validator accepted its archive. The profile remains a preflight daemon: it is not per-job and is not connected to job submission, SSH delivery, or image import. The egress proxy, source handoff, artifact broker and host-side policy are still absent. Git builds must remain unavailable rather than weaken the network boundary. Rootless execution is not a VM boundary; the configured unconfined seccomp/AppArmor settings make kernel isolation a remaining risk.
 
 The backend now has an unconnected OCI archive validator at `apps/backend/internal/artifacts/oci.go`. It spools at most 1 GiB, rejects unsafe paths and special files, verifies every blob's SHA-256 and checks index/manifest references. It has not yet been connected to an export endpoint or SSH transfer. The target currently uses Docker, so an OCI-to-Docker import step (or a separately validated registry transport) is still required before deployment.
