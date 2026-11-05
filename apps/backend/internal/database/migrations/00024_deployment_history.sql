@@ -4,7 +4,7 @@ CREATE TABLE service_deployments (
     service_id CHAR(6) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     action VARCHAR(16) NOT NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'deploying',
-    output MEDIUMTEXT NOT NULL DEFAULT '',
+    output MEDIUMTEXT NOT NULL,
     last_error TEXT NULL,
     started_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     finished_at DATETIME(6) NULL,

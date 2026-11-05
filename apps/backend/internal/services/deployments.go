@@ -1,0 +1,56 @@
+package services
+
+import (
+	"net/http"
+	"time"
+
+	"kymber/backend/internal/auth"
+)
+
+type deploymentRecord struct {
+	ID         string     `json:"id"`
+	Action     string     `json:"action"`
+	Status     string     `json:"status"`
+	LastError  string     `json:"last_error"`
+	StartedAt  time.Time  `json:"started_at"`
+	FinishedAt *time.Time `json:"finished_at"`
+}
+
+func (h *Handler) listDeployments(w http.ResponseWriter, r *http.Request) {
+	user, _ := auth.UserFromContext(r)
+	workspaceID, ok := pathID(w, r, "workspaceID")
+	if !ok || !h.authorize(w, r, user, workspaceID, "") {
+		return
+	}
+	projectID, ok := pathID(w, r, "projectID")
+	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
+		return
+	}
+	serviceID, ok := pathID(w, r, "serviceID")
+	if !ok {
+		return
+	}
+	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.action, d.status, COALESCE(d.last_error, ''), d.started_at, d.finished_at
+		FROM service_deployments d JOIN database_services s ON s.id = d.service_id
+		WHERE d.service_id = ? AND s.workspace_id = ? AND s.project_id = ?
+		ORDER BY d.started_at DESC LIMIT 50`, serviceID, workspaceID, projectID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not list deployments")
+		return
+	}
+	defer rows.Close()
+	deployments := make([]deploymentRecord, 0)
+	for rows.Next() {
+		var deployment deploymentRecord
+		if err := rows.Scan(&deployment.ID, &deployment.Action, &deployment.Status, &deployment.LastError, &deployment.StartedAt, &deployment.FinishedAt); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not read deployments")
+			return
+		}
+		deployments = append(deployments, deployment)
+	}
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read deployments")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deployments": deployments})
+}

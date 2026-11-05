@@ -9,6 +9,7 @@ import { OnboardingPage } from "@/features/auth/pages/OnboardingPage";
 import { ProjectsProvider } from "@/features/projects/ProjectsContext";
 import { AppConnectionPage } from "@/features/projects/pages/app/AppConnectionPage";
 import { AppDangerPage } from "@/features/projects/pages/app/AppDangerPage";
+import { AppDeploymentsPage } from "@/features/projects/pages/app/AppDeploymentsPage";
 import { AppEnvironmentPage } from "@/features/projects/pages/app/AppEnvironmentPage";
 import { AppFilesPage } from "@/features/projects/pages/app/AppFilesPage";
 import { AppGeneralPage } from "@/features/projects/pages/app/AppGeneralPage";
@@ -72,6 +73,7 @@ export function AuthGate() {
                       <Route path="files" element={<AppFilesPage />} />
                       <Route path="terminal" element={<AppTerminalPage />} />
                       <Route path="logs" element={<AppLogsPage />} />
+                      <Route path="deployments" element={<AppDeploymentsPage />} />
                       <Route path="metrics" element={<AppMetricsPage />} />
                       <Route path="storage" element={<AppStoragePage />} />
                       <Route path="danger" element={<AppDangerPage />} />

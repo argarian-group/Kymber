@@ -1,4 +1,4 @@
-import { Activity, ArrowLeft, FolderOpen, HardDrive, KeyRound, Plug, ScrollText, Settings2, SquareTerminal, TriangleAlert } from "lucide-react";
+import { Activity, ArrowLeft, Clock3, FolderOpen, HardDrive, KeyRound, Plug, ScrollText, Settings2, SquareTerminal, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, Outlet, useParams } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -73,6 +73,7 @@ export function AppLayout() {
     ? [
         { label: t("General"), to: "", end: true, icon: Settings2 },
         { label: t("Logs"), to: "logs", end: false, icon: ScrollText },
+        { label: t("Deployments"), to: "deployments", end: false, icon: Clock3 },
         ...(canWrite
           ? [
               { label: t("Environment"), to: "environment", end: false, icon: KeyRound },
@@ -87,6 +88,7 @@ export function AppLayout() {
     : [
         { label: t("General"), to: "", end: true, icon: Settings2 },
         { label: t("Logs"), to: "logs", end: false, icon: ScrollText },
+        { label: t("Deployments"), to: "deployments", end: false, icon: Clock3 },
         { label: t("Metrics"), to: "metrics", end: false, icon: Activity },
         ...(canWrite
           ? [

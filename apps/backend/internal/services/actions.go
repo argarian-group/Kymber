@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"kymber/backend/internal/auth"
+	"kymber/backend/internal/database"
 	"kymber/backend/internal/permissions"
 	"kymber/backend/internal/secrets"
 	"kymber/backend/internal/templates"
@@ -34,6 +35,17 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 	if action != "deploy" && action != "start" && action != "stop" && action != "restart" && action != "remove_container" && action != "remove_container_image" {
 		writeError(w, http.StatusBadRequest, "unsupported service action")
 		return
+	}
+	if action != "deploy" {
+		var status string
+		if err := h.db.QueryRowContext(r.Context(), "SELECT status FROM database_services WHERE id = ? AND workspace_id = ? AND project_id = ?", serviceID, workspaceID, projectID).Scan(&status); err != nil {
+			writeError(w, http.StatusNotFound, "service not found")
+			return
+		}
+		if status == "deploying" || status == "queued" {
+			writeError(w, http.StatusConflict, "wait for the current action to finish")
+			return
+		}
 	}
 	imageVersion, requestedServer := "", ""
 	if action == "deploy" && r.ContentLength != 0 {
@@ -196,7 +208,29 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 		if action == "stop" {
 			status = "stopped"
 		}
-		if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = ?, last_error = NULL WHERE id = ?", status, serviceID); err != nil {
+		deploymentID := ""
+		if action == "deploy" {
+			var err error
+			deploymentID, err = database.NewShortID()
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "could not create deployment")
+				return
+			}
+			result, updateErr := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'deploying', last_error = NULL WHERE id = ? AND status NOT IN ('deploying', 'queued')", serviceID)
+			if updateErr != nil {
+				writeError(w, http.StatusInternalServerError, "could not update service status")
+				return
+			}
+			if changed, _ := result.RowsAffected(); changed == 0 {
+				writeError(w, http.StatusConflict, "wait for the current action to finish")
+				return
+			}
+			if _, err := h.db.ExecContext(r.Context(), "INSERT INTO service_deployments (id, service_id, action, status, output) VALUES (?, ?, ?, 'deploying', '')", deploymentID, serviceID, action); err != nil {
+				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", "Could not record deployment.", serviceID)
+				writeError(w, http.StatusInternalServerError, "could not record deployment")
+				return
+			}
+		} else if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = ?, last_error = NULL WHERE id = ?", status, serviceID); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not update service status")
 			return
 		}
@@ -204,20 +238,20 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 			service, err := h.readServiceByID(r, serviceID)
 			if err == nil && service.Compose {
 				if err := h.startComposeDeploySSH(r, serverID, serviceID, action); err != nil {
-					_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ?", err.Error(), serviceID)
+					h.failDeployment(r.Context(), serviceID, deploymentID, err.Error())
 					writeError(w, http.StatusBadGateway, "Compose deployment failed: "+err.Error())
 					return
 				}
-				go h.watchDeploy(serverID, serviceID, false)
+				go h.watchDeploy(serverID, serviceID, deploymentID, false)
 				w.WriteHeader(http.StatusAccepted)
 				return
 			}
 			if err := h.startServiceDeploySSH(r, serverID, serviceID, imageVersion); err != nil {
-				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ?", err.Error(), serviceID)
+				h.failDeployment(r.Context(), serviceID, deploymentID, err.Error())
 				writeError(w, http.StatusBadGateway, "SSH service deployment failed: "+err.Error())
 				return
 			}
-			go h.watchDeploy(serverID, serviceID, false)
+			go h.watchDeploy(serverID, serviceID, deploymentID, false)
 			w.WriteHeader(http.StatusAccepted)
 			return
 		}
@@ -233,7 +267,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 					writeError(w, http.StatusBadGateway, "Compose action failed: "+err.Error())
 					return
 				}
-				go h.watchDeploy(serverID, serviceID, false)
+				go h.watchDeploy(serverID, serviceID, "", false)
 				w.WriteHeader(http.StatusAccepted)
 				return
 			}
