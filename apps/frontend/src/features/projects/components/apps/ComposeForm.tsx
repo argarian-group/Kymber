@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowDownAZ, ArrowUpAZ, Check, Eye, EyeOff, Plus, Search, Server, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowDownAZ, ArrowUpAZ, Check, Eye, EyeOff, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { Field } from "@/components/ui/Field";
@@ -13,7 +13,6 @@ const initialService: ComposeServiceInput = { name: "web", image: "nginx:alpine"
 const lines = (value: string) => value.split("\n").map((line) => line.trim()).filter(Boolean);
 const yamlString = (value: string) => JSON.stringify(value);
 const listKeys = new Set(["ports", "expose", "environment", "volumes"]);
-const categories = ["General", "Environment variables", "Storage"] as const;
 
 function scalar(value: string) {
   try {
@@ -90,84 +89,20 @@ function composeFile(services: ComposeServiceInput[]) {
   return `services:\n${definitions.join("\n")}\n${namedVolumes.size ? `volumes:\n${[...namedVolumes].map((volume) => `  ${volume}: {}`).join("\n")}\n` : ""}`;
 }
 
-function invalidServices(services: ComposeServiceInput[]) {
-  const names = new Set<string>();
-  return services.length === 0 || services.length > 20 || services.some((service) => {
-    const name = service.name.trim();
-    if (!/^[a-z][a-z0-9_-]{1,62}$/.test(name) || names.has(name) || !/^[A-Za-z0-9][A-Za-z0-9._/:@+-]{0,254}$/.test(service.image.trim())) return true;
-    names.add(name);
-    if (lines(service.ports).some((port) => {
-      const match = port.match(/^(?:(?:0\.0\.0\.0|127\.0\.0\.1):)?(\d{1,5}):(\d{1,5})(?:\/(tcp|udp))?$/);
-      return !match || Number(match[1]) < 1 || Number(match[1]) > 65535 || Number(match[2]) < 1 || Number(match[2]) > 65535;
-    })) return true;
-    if (lines(service.expose).some((port) => !/^\d{1,5}(?:\/(tcp|udp))?$/.test(port) || Number(port.split("/", 1)[0]) > 65535 || Number(port.split("/", 1)[0]) < 1)) return true;
-    if (lines(service.environment).some((variable) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(variable))) return true;
-    if (lines(service.volumes).some((volume) => {
-      const [source, target, extra] = volume.split(":");
-      return !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$/.test(source) || !target?.startsWith("/") || Boolean(extra) || target.split("/").includes("..");
-    })) return true;
-    return false;
-  });
-}
-
 export function ComposeServicesEditor({ initialFile, stackName, onStackNameChange, submitLabel, pending, error, onSave }: { initialFile?: string; stackName?: string; onStackNameChange?: (name: string) => void; submitLabel: string; pending: boolean; error: string | null; onSave: (file: string) => Promise<unknown> }) {
-  const initialServices = initialFile ? parseComposeFile(initialFile) : null;
-  const [services, setServices] = useState(() => initialServices ?? [initialService]);
-  const [activeService, setActiveService] = useState(0);
-  const [activeCategory, setActiveCategory] = useState<(typeof categories)[number]>("General");
-  const rawUnsupported = Boolean(initialFile && !initialServices);
-  const invalid = invalidServices(services);
-  const file = composeFile(services);
+  const [file, setFile] = useState(initialFile ?? "services:\n  web:\n    image: nginx:alpine\n");
   const changed = !initialFile || file.trim() !== initialFile.trim();
-
-  function updateService(index: number, field: keyof ComposeServiceInput, value: string) {
-    setServices((current) => current.map((service, position) => position === index ? { ...service, [field]: value } : service));
-  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void onSave(file);
   }
 
-  if (rawUnsupported) return <div className="grid gap-3 p-4"><p className="text-meta text-ink-soft">{t("This Compose file uses options that cannot be edited with the visual form. The original configuration is preserved.")}</p><details><summary className="focus-ring cursor-pointer text-meta font-medium">{t("Compose preview")}</summary><textarea className="field mt-2 min-h-64 w-full font-mono text-xs" value={initialFile} readOnly aria-label={t("Compose preview")} /></details></div>;
-
   return <form className="grid gap-4 p-4" onSubmit={submit}>
     {onStackNameChange && <Field label={t("Stack name")} value={stackName ?? ""} onChange={(event) => onStackNameChange(event.target.value.toLowerCase().replace(/\s+/g, "-"))} maxLength={63} pattern="[a-z][a-z0-9-]{1,62}" title={t("Lowercase letters, numbers and hyphens, starting with a letter")} required />}
-    <section className="overflow-hidden rounded-panel border border-line-strong bg-raised">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line-strong p-4">
-        <div><h3 className="font-semibold">{t("Services")}</h3><p className="text-meta text-ink-soft">{t("Configure each container in your stack")}</p></div>
-        <button className="btn" type="button" disabled={services.length >= 20} onClick={() => { setServices((current) => [...current, { ...initialService, name: `service-${current.length + 1}`, image: "" }]); setActiveService(services.length); setActiveCategory("General"); }}><Plus aria-hidden="true" size={16} />{t("Add service")}</button>
-      </header>
-      <div className="grid min-h-[390px] md:grid-cols-[210px_minmax(0,1fr)]">
-        <nav className="border-b border-line-strong p-2 md:border-b-0 md:border-r" aria-label={t("Services")}>
-          {services.map((service, index) => <div key={`${index}-${service.name}`} className={`mb-1 flex items-center rounded-control ${activeService === index ? "bg-canvas" : ""}`}>
-            <button className="focus-ring flex min-w-0 flex-1 items-center gap-2 rounded-control p-3 text-left" type="button" onClick={() => { setActiveService(index); setActiveCategory("General"); }} aria-current={activeService === index ? "page" : undefined}>
-              <Server size={16} className="shrink-0 text-ink-soft" aria-hidden="true"/><span className="min-w-0 flex-1 truncate text-meta font-medium">{service.name || t("New service")}</span>
-              <span className="text-xs text-ink-soft">{service.image ? "●" : "○"}</span>
-            </button>
-            {services.length > 1 && <button className="focus-ring rounded-control p-2 text-ink-soft hover:text-danger" type="button" aria-label={`${t("Remove service")}: ${service.name}`} onClick={() => { setServices((current) => current.filter((_, position) => position !== index)); setActiveService((current) => Math.max(0, current > index ? current - 1 : Math.min(current, services.length - 2))); }}><Trash2 aria-hidden="true" size={15} /></button>}
-          </div>)}
-        </nav>
-        <div className="min-w-0 p-4 sm:p-6">
-          {services[activeService] && <>
-            <header className="mb-5"><h3 className="text-lg font-semibold">{services[activeService].name || t("New service")}</h3><p className="text-meta text-ink-soft">{t("Container configuration")}</p></header>
-            <div className="mb-5 flex flex-wrap gap-1 border-b border-line-strong" role="tablist" aria-label={t("Service options")}>
-              {categories.map((category) => <button key={category} role="tab" aria-selected={activeCategory === category} className={`focus-ring border-b-2 px-3 py-2 text-meta ${activeCategory === category ? "border-accent text-ink" : "border-transparent text-ink-soft hover:text-ink"}`} type="button" onClick={() => setActiveCategory(category)}>{t(category)}</button>)}
-            </div>
-            <section role="tabpanel" className="grid max-w-2xl gap-4" aria-label={t(activeCategory)}>
-              {activeCategory === "General" && <><Field label={t("Service name")} hint={t("Used as the container and network hostname.")} value={services[activeService].name} onChange={(event) => updateService(activeService, "name", event.target.value.toLowerCase().replace(/\s+/g, "-"))} maxLength={63} required /><Field label={t("Image")} hint={t("Docker image and tag to run.")} value={services[activeService].image} onChange={(event) => updateService(activeService, "image", event.target.value)} placeholder="nginx:alpine" required /><Field label={t("Published ports")} hint={t("One mapping per line: host:container/protocol. Optional bind: 127.0.0.1:host:container/tcp.")} value={services[activeService].ports} onChange={(event) => updateService(activeService, "ports", event.target.value)} /><Field label={t("Exposed ports")} hint={t("Container ports available to other services, one per line.")} value={services[activeService].expose} onChange={(event) => updateService(activeService, "expose", event.target.value)} /></>}
-              {activeCategory === "Environment variables" && <label className="grid gap-1 text-meta text-ink-soft">{t("Environment variables")}<span>{t("One KEY=value pair per line.")}</span><textarea className="field min-h-48 font-mono text-xs" value={services[activeService].environment} onChange={(event) => updateService(activeService, "environment", event.target.value)} placeholder={'NODE_ENV=production\nPORT=3000'} /></label>}
-              {activeCategory === "Storage" && <label className="grid gap-1 text-meta text-ink-soft">{t("Named volumes")}<span>{t("Persist container data across deployments. One volume per line.")}</span><textarea className="field min-h-40 font-mono text-xs" value={services[activeService].volumes} onChange={(event) => updateService(activeService, "volumes", event.target.value)} placeholder="data:/var/lib/app" /></label>}
-            </section>
-          </>}
-        </div>
-      </div>
-    </section>
-    {invalid && <p className="text-meta text-danger" role="alert">{t("Check service names, images, ports, variables and named volumes.")}</p>}
-    <details><summary className="focus-ring cursor-pointer text-meta font-medium">{t("Compose preview")}</summary><textarea className="field mt-2 min-h-64 w-full font-mono text-xs" value={file} readOnly aria-label={t("Compose preview")} /></details>
-    <p className="text-meta text-ink-soft">{t("Existing images only; build directives and host mounts are not supported.")}</p>
+    <label className="grid gap-2 text-meta font-medium text-ink">Docker Compose<textarea className="field min-h-96 w-full font-mono text-xs" value={file} onChange={(event) => setFile(event.target.value)} aria-label="Docker Compose" spellCheck={false} required /></label>
     <FormError message={error} />
-    <button className="btn btn-primary w-fit" type="submit" disabled={pending || invalid || !changed}>{pending ? t("Saving…") : submitLabel}</button>
+    <button className="btn btn-primary w-fit" type="submit" disabled={pending || !changed}>{pending ? t("Saving…") : submitLabel}</button>
   </form>;
 }
 
