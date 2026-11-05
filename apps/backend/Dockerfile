@@ -6,7 +6,6 @@ COPY apps/backend/go.mod apps/backend/go.sum ./
 RUN go mod download
 
 COPY apps/backend/ ./
-RUN go run ./cmd/template-registry
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
 

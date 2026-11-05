@@ -141,7 +141,6 @@ apps/
 │   ├── cmd/
 │   │   ├── api/         # API entry point
 │   │   ├── server/      # Server that runs apps in Docker
-│   │   └── template-registry/  # Generates the template catalog
 │   └── internal/
 │       ├── agent/       # API used by servers
 │       ├── auth/        # Accounts, sessions, onboarding and invitations
