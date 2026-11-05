@@ -32,7 +32,7 @@ func validateCredentials(input *credentials) error {
 }
 
 func normalizeUsername(username string) string {
-	return strings.ToLower(strings.TrimSpace(username))
+	return strings.TrimSpace(username)
 }
 
 func validUsername(username string) bool {
@@ -40,7 +40,7 @@ func validUsername(username string) bool {
 		return false
 	}
 	for i, char := range []byte(username) {
-		valid := char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || i > 0 && (char == '_' || char == '-')
+		valid := char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' || i > 0 && (char == '_' || char == '-')
 		if !valid {
 			return false
 		}
