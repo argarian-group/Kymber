@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { Modal } from "@/components/ui/Modal";
@@ -26,6 +26,8 @@ export function AppGeneralPage() {
   const draft = service.status === "draft";
   const busy = isServiceBusy(service.status);
   const changed = name !== service.name || version !== service.image_version;
+
+  useEffect(() => setVersion(service.image_version), [service.image_version]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();

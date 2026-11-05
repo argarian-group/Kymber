@@ -5,11 +5,13 @@ import { AppSection } from "@/features/projects/components/apps/AppSection";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { api } from "@/lib/api";
 import { language, t } from "@/lib/i18n";
+import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
 
 type Deployment = {
   id: string;
   action: string;
+  image_version: string;
   status: string;
   last_error: string;
   started_at: string;
@@ -28,11 +30,12 @@ function deploymentTitle(deployment: Deployment) {
 }
 
 export function AppDeploymentsPage() {
-  const { service, path } = useAppOutlet();
+  const { service, path, canWrite, onChanged } = useAppOutlet();
   const [deployments, setDeployments] = useState<Deployment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<{ id: string; output: string } | null>(null);
   const [revision, setRevision] = useState(0);
+  const { pending, error: actionError, run } = useAction();
 
   useLoadEffect(
     () => api<{ deployments: Deployment[] }>(`${path}/${service.id}/deployments`).then(({ deployments }) => deployments),
@@ -50,6 +53,7 @@ export function AppDeploymentsPage() {
   return (
     <AppSection title={t("Deployments")} description={t("History of deploy attempts for this app.")}>
       <FormError message={error} />
+      <FormError message={actionError} />
       {deployments?.length === 0 && <EmptyState title={t("No deployments yet")} description={t("Deploy this app to start its history.")} />}
       <div className="grid gap-3">
         {deployments?.map((deployment) => (
@@ -60,9 +64,16 @@ export function AppDeploymentsPage() {
                 <time className="text-meta text-ink-soft" dateTime={deployment.started_at}>
                   {new Date(deployment.started_at).toLocaleString(language)}
                 </time>
+                {!service.compose && deployment.image_version && <p className="mt-1 font-mono text-xs text-ink-soft">{service.image}:{deployment.image_version}</p>}
                 {deployment.last_error && <p className="mt-2 text-meta wrap-break-word text-ember">{deployment.last_error}</p>}
               </div>
-              <button className="btn" type="button" aria-expanded={selected?.id === deployment.id} aria-controls={selected?.id === deployment.id ? `deployment-output-${deployment.id}` : undefined} onClick={async () => {
+              <div className="flex flex-wrap gap-2">
+                {canWrite && !service.compose && deployment.status === "succeeded" && deployment.image_version !== service.image_version && <button className="btn" type="button" disabled={pending} onClick={() => void run(async () => {
+                  await api(`${path}/${service.id}/deploy`, { method: "POST", body: { image_version: deployment.image_version } });
+                  onChanged();
+                  setRevision((value) => value + 1);
+                })}>{t("Deploy version {version}", { version: deployment.image_version })}</button>}
+                <button className="btn" type="button" aria-expanded={selected?.id === deployment.id} aria-controls={selected?.id === deployment.id ? `deployment-output-${deployment.id}` : undefined} onClick={async () => {
                 if (selected?.id === deployment.id) {
                   setSelected(null);
                   return;
@@ -73,7 +84,8 @@ export function AppDeploymentsPage() {
                 } catch {
                   setError(t("Deployment logs could not be loaded."));
                 }
-              }}>{selected?.id === deployment.id ? t("Hide logs") : t("View logs")}</button>
+                }}>{selected?.id === deployment.id ? t("Hide logs") : t("View logs")}</button>
+              </div>
             </article>
             {selected?.id === deployment.id && <pre id={`deployment-output-${deployment.id}`} className="max-h-96 overflow-auto rounded-control bg-canvas p-4 font-mono text-xs whitespace-pre-wrap wrap-break-word text-ink-soft">{selected.output || (deployment.status === "deploying" ? t("Deployment is still running.") : t("No output recorded."))}</pre>}
           </div>
