@@ -273,11 +273,11 @@ func (h *Handler) composeSSHCommand(ctx context.Context, service databaseService
 			return "", fmt.Errorf("could not find a primary Compose service")
 		}
 		var override strings.Builder
-		override.WriteString("services:\n  " + strconv.Quote(primaryService) + ":\n")
+		fmt.Fprintf(&override, "services:\n  %s:\n", strconv.Quote(primaryService))
 		if len(ports) > 0 {
 			override.WriteString("    ports:\n")
 			for _, port := range ports {
-				override.WriteString("      - " + strconv.Quote(fmt.Sprintf("%s:%d:%d/%s", port.Bind, port.HostPort, port.ContainerPort, port.Protocol)) + "\n")
+				fmt.Fprintf(&override, "      - %s\n", strconv.Quote(fmt.Sprintf("%s:%d:%d/%s", port.Bind, port.HostPort, port.ContainerPort, port.Protocol)))
 			}
 		}
 		if service.Domain != "" {
@@ -298,7 +298,7 @@ func (h *Handler) composeSSHCommand(ctx context.Context, service databaseService
 			}
 			override.WriteString("    labels:\n")
 			for _, label := range labels {
-				override.WriteString("      - " + strconv.Quote(label) + "\n")
+				fmt.Fprintf(&override, "      - %s\n", strconv.Quote(label))
 			}
 		}
 		write += " && printf %s " + shellQuote(base64.StdEncoding.EncodeToString([]byte(override.String()))) + " | base64 -d > " + shellQuote(portsPath)
