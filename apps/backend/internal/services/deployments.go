@@ -16,6 +16,11 @@ type deploymentRecord struct {
 	FinishedAt *time.Time `json:"finished_at"`
 }
 
+type deploymentDetail struct {
+	deploymentRecord
+	Output string `json:"output"`
+}
+
 func (h *Handler) listDeployments(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
 	workspaceID, ok := pathID(w, r, "workspaceID")
@@ -53,4 +58,34 @@ func (h *Handler) listDeployments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"deployments": deployments})
+}
+
+func (h *Handler) getDeployment(w http.ResponseWriter, r *http.Request) {
+	user, _ := auth.UserFromContext(r)
+	workspaceID, ok := pathID(w, r, "workspaceID")
+	if !ok || !h.authorize(w, r, user, workspaceID, "") {
+		return
+	}
+	projectID, ok := pathID(w, r, "projectID")
+	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
+		return
+	}
+	serviceID, ok := pathID(w, r, "serviceID")
+	if !ok {
+		return
+	}
+	deploymentID, ok := pathID(w, r, "deploymentID")
+	if !ok {
+		return
+	}
+	var deployment deploymentDetail
+	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.action, d.status, COALESCE(d.last_error, ''), d.started_at, d.finished_at, d.output
+		FROM service_deployments d JOIN database_services s ON s.id = d.service_id
+		WHERE d.id = ? AND d.service_id = ? AND s.workspace_id = ? AND s.project_id = ?`, deploymentID, serviceID, workspaceID, projectID).
+		Scan(&deployment.ID, &deployment.Action, &deployment.Status, &deployment.LastError, &deployment.StartedAt, &deployment.FinishedAt, &deployment.Output)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "deployment not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, deployment)
 }

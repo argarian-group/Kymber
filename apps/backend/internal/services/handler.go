@@ -42,6 +42,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/cancel-deploy", h.cancelServiceDeploy},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/logs", h.serviceLogs},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/deployments", h.listDeployments},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/deployments/{deploymentID}", h.getDeployment},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/ports", h.listPorts},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/metrics", h.serviceMetrics},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/ports", h.createPort},
