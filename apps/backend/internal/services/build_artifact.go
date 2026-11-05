@@ -33,10 +33,11 @@ func (h *Handler) importOCIImage(ctx context.Context, serverID, deploymentID str
 	if err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(string(platformOutput)) != dockerPlatform(expected.OS, expected.Architecture) {
+	platformParts := strings.Split(strings.TrimSpace(string(platformOutput)), "/")
+	if len(platformParts) != 2 || dockerPlatform(platformParts[0], platformParts[1]) != dockerPlatform(expected.OS, expected.Architecture) {
 		return "", fmt.Errorf("build image platform %s/%s does not match server platform %s", expected.OS, expected.Architecture, strings.TrimSpace(string(platformOutput)))
 	}
-	command := "set -eu; docker image load --quiet; docker image inspect --format '{{json .}}' " + shellQuote(tag)
+	command := "set -eu; docker image load --quiet >/dev/null; docker image inspect --format '{{json .}}' " + shellQuote(tag)
 	output, err := h.executeSSHStream(ctx, serverID, command, dockerArchive)
 	if err != nil {
 		return "", err
