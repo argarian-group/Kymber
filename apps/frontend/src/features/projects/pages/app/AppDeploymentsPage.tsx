@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FormError } from "@/components/ui/FormError";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
@@ -21,13 +21,20 @@ export function AppDeploymentsPage() {
   const [deployments, setDeployments] = useState<Deployment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<{ id: string; output: string } | null>(null);
+  const [revision, setRevision] = useState(0);
 
   useLoadEffect(
     () => api<{ deployments: Deployment[] }>(`${path}/${service.id}/deployments`).then(({ deployments }) => deployments),
     setDeployments,
     setError,
-    [path, service.id],
+    [path, service.id, revision],
   );
+
+  useEffect(() => {
+    if (!deployments?.some(({ status }) => status === "deploying")) return;
+    const timer = window.setInterval(() => setRevision((value) => value + 1), 3000);
+    return () => window.clearInterval(timer);
+  }, [deployments]);
 
   return (
     <AppSection title={t("Deployments")} description={t("History of deploy attempts for this app.")}>
@@ -44,7 +51,7 @@ export function AppDeploymentsPage() {
                 </time>
                 {deployment.last_error && <p className="mt-2 text-meta wrap-break-word text-ember">{deployment.last_error}</p>}
               </div>
-              <button className="btn" type="button" onClick={async () => {
+              <button className="btn" type="button" aria-expanded={selected?.id === deployment.id} aria-controls={selected?.id === deployment.id ? `deployment-output-${deployment.id}` : undefined} onClick={async () => {
                 if (selected?.id === deployment.id) {
                   setSelected(null);
                   return;
@@ -57,7 +64,7 @@ export function AppDeploymentsPage() {
                 }
               }}>{selected?.id === deployment.id ? t("Hide logs") : t("View logs")}</button>
             </article>
-            {selected?.id === deployment.id && <pre className="max-h-96 overflow-auto rounded-control bg-canvas p-4 font-mono text-xs whitespace-pre-wrap wrap-break-word text-ink-soft">{selected.output || t("No output recorded.")}</pre>}
+            {selected?.id === deployment.id && <pre id={`deployment-output-${deployment.id}`} className="max-h-96 overflow-auto rounded-control bg-canvas p-4 font-mono text-xs whitespace-pre-wrap wrap-break-word text-ink-soft">{selected.output || (deployment.status === "deploying" ? t("Deployment is still running.") : t("No output recorded."))}</pre>}
           </div>
         ))}
       </div>
