@@ -90,6 +90,10 @@ func (h *Handler) finishDeploy(ctx context.Context, serviceID string, succeeded 
 			logger.Warn("could not update applied service ports: service=%s error=%v", serviceID, err)
 			return false
 		}
+		if _, err := tx.ExecContext(ctx, "UPDATE database_services SET applied_domain = domain WHERE id = ?", serviceID); err != nil {
+			logger.Warn("could not update applied service domain: service=%s error=%v", serviceID, err)
+			return false
+		}
 	}
 	if deploymentID != "" {
 		_, err = tx.ExecContext(ctx, "UPDATE service_deployments SET status = ?, output = ?, last_error = ?, finished_at = UTC_TIMESTAMP(6) WHERE id = ? AND status = 'deploying'", status, output, lastError, deploymentID)

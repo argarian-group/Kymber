@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { CopyField } from "@/components/ui/CopyField";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { LoadError } from "@/components/ui/LoadError";
 import { SelectField } from "@/components/ui/SelectField";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
+import { DeploymentDialog } from "@/features/projects/components/apps/DeploymentDialog";
 import { isServiceBusy } from "@/features/projects/services";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { api } from "@/lib/api";
@@ -58,21 +59,20 @@ function composePorts(file: string, containers: NonNullable<ReturnType<typeof us
   return ports;
 }
 
-function AddPortForm({ url, defaultContainerPort, defaultBind, onAdded, onCancel }: { url: string; defaultContainerPort: string; defaultBind: string; onAdded: () => void; onCancel: () => void }) {
+function AddPortForm({ url, defaultContainerPort, defaultBind, onAdded, onCancel }: { url: string; defaultContainerPort: string; defaultBind: string; onAdded: (deploy: boolean) => void; onCancel: () => void }) {
   const [hostPort, setHostPort] = useState("");
   const [containerPort, setContainerPort] = useState(defaultContainerPort);
   const [protocol, setProtocol] = useState("tcp");
   const [bind, setBind] = useState(defaultBind);
   const { pending, error, run } = useAction();
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function submit(deploy: boolean) {
     const added = await run(() => api(url, { method: "POST", body: { host_port: Number(hostPort), container_port: Number(containerPort), protocol, bind } }));
-    if (added) onAdded();
+    if (added) onAdded(deploy);
   }
 
   return (
-    <form className="grid gap-4 border-t border-line p-4" onSubmit={submit} aria-label={t("Publish a port")}>
+    <form className="grid gap-4 border-t border-line p-4" onSubmit={(event) => { event.preventDefault(); void submit(false); }} aria-label={t("Publish a port")}>
       <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Field label={t("Server port")} required autoFocus type="number" min={1} max={65535} placeholder="8080" hint={t("Opened on the server.")} value={hostPort} onChange={(event) => setHostPort(event.target.value)} />
         <Field label={t("Container port")} required type="number" min={1} max={65535} placeholder="80" hint={t("Where the app listens.")} value={containerPort} onChange={(event) => setContainerPort(event.target.value)} />
@@ -88,8 +88,11 @@ function AddPortForm({ url, defaultContainerPort, defaultBind, onAdded, onCancel
       {bind === "0.0.0.0" && <p className="text-meta text-ember">{t("Anyone who can reach the server can connect, and Docker can bypass firewalls such as ufw.")}</p>}
       <FormError message={error} />
       <div className="flex flex-wrap gap-2">
-        <button className="btn btn-primary" type="submit" disabled={pending}>
-          {pending ? t("Adding…") : t("Publish port")}
+        <button className="btn" type="button" disabled={pending} onClick={() => void submit(false)}>
+          {pending ? t("Saving…") : t("Publish port")}
+        </button>
+        <button className="btn btn-primary" type="button" disabled={pending} onClick={() => void submit(true)}>
+          {pending ? t("Saving and deploying…") : t("Publish and deploy")}
         </button>
         <button className="btn" type="button" disabled={pending} onClick={onCancel}>
           {t("Cancel")}
@@ -170,17 +173,30 @@ function ComposePortRow({ port, address, file, path, serviceId, locked, canWrite
 }
 
 export function PublishedPorts() {
-  const { service, detail, path, canWrite, onChanged } = useAppOutlet();
+  const { service, detail, path, canWrite, onChanged, deployOutput } = useAppOutlet();
   const [ports, setPorts] = useState<ServicePort[] | null>(null);
   const [host, setHost] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [adding, setAdding] = useState(false);
   const [changed, setChanged] = useState(false);
+  const [deploymentRequested, setDeploymentRequested] = useState(false);
+  const [deploymentObserved, setDeploymentObserved] = useState(false);
+  const [deploying, setDeploying] = useState(false);
+  const deployAction = useAction();
   const url = `${path}/${service.id}/ports`;
   const locked = isServiceBusy(service.status);
   const composeFile = detail?.compose_file || service.compose_file || "";
   const composePortRows = service.compose ? composePorts(composeFile, detail?.containers) : [];
+
+  useEffect(() => {
+    if (deploymentRequested && isServiceBusy(service.status)) setDeploymentObserved(true);
+    if (deploymentRequested && deploymentObserved && service.status === "running") {
+      setChanged(false);
+      setDeploymentRequested(false);
+      setDeploymentObserved(false);
+    }
+  }, [deploymentRequested, deploymentObserved, service.status]);
 
   useLoadEffect(
     () => api<{ ports: ServicePort[]; host: string }>(url),
@@ -194,8 +210,22 @@ export function PublishedPorts() {
   );
 
   function refresh() {
-    setChanged(true);
     setAttempt((value) => value + 1);
+  }
+
+  function markChanged() {
+    setChanged(true);
+    refresh();
+  }
+
+  async function deploy() {
+    setDeploying(true);
+    const started = await deployAction.run(() => api(`${path}/${service.id}/deploy`, { method: "POST", body: {} }));
+    if (started) {
+      setDeploymentRequested(true);
+      setDeploymentObserved(false);
+      onChanged();
+    }
   }
 
   if (loadError && !ports) return <LoadError title={t("Could not load ports")} message={loadError} onRetry={() => setAttempt((value) => value + 1)} />;
@@ -203,15 +233,18 @@ export function PublishedPorts() {
   const pendingDeploy = changed || ports?.some(({ applied }) => !applied) || composePortRows.some(({ applied }) => !applied);
 
   return (
+    <>
     <AppSection title={t("Published ports")} description={t("Reach this app from outside the server's internal network. Changes apply on the next deploy.")}>
       {pendingDeploy && (
-        <p className="border-b border-line p-4 text-meta text-seafoam" role="status">
-          {t("Deploy the app to apply these changes.")}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-4" role="status">
+          <p className="text-meta text-seafoam">{t("Deploy the app to apply these changes.")}</p>
+          {!adding && <button className="btn btn-primary" type="button" disabled={deployAction.pending || locked} onClick={() => void deploy()}>{deployAction.pending ? t("Deploying…") : t("Deploy")}</button>}
+        </div>
       )}
-      {ports?.length === 0 && composePortRows.length === 0 && <p className="p-4 text-meta text-ink-soft">{t("No published ports, so this app cannot be reached from outside the server.")}</p>}
+      <FormError message={deployAction.error} />
+      {ports?.length === 0 && composePortRows.length === 0 && !service.domain && <p className="p-4 text-meta text-ink-soft">{t("No published ports. Configure a public domain to expose this app through Traefik.")}</p>}
       <ul>
-        {ports?.filter((port) => !composePortRows.some((composePort) => composePort.host_port === port.host_port && composePort.container_port === port.container_port && composePort.protocol === port.protocol && composePort.bind === port.bind)).map((port) => <PortRow port={port} address={host || window.location.hostname} url={url} locked={locked} canWrite={canWrite} onChanged={refresh} key={port.id} />)}
+        {ports?.filter((port) => !composePortRows.some((composePort) => composePort.host_port === port.host_port && composePort.container_port === port.container_port && composePort.protocol === port.protocol && composePort.bind === port.bind)).map((port) => <PortRow port={port} address={host || window.location.hostname} url={url} locked={locked} canWrite={canWrite} onChanged={markChanged} key={port.id} />)}
         {composePortRows.map((port) => <ComposePortRow port={port} address={host || window.location.hostname} file={composeFile} path={path} serviceId={service.id} locked={locked} canWrite={canWrite} onChanged={onChanged} key={port.id} />)}
       </ul>
       {canWrite &&
@@ -221,9 +254,10 @@ export function PublishedPorts() {
             defaultContainerPort={detail?.port ? String(detail.port) : ""}
             defaultBind={service.category === "database" ? "127.0.0.1" : "0.0.0.0"}
             onCancel={() => setAdding(false)}
-            onAdded={() => {
+            onAdded={(deployAfterSave) => {
               setAdding(false);
               refresh();
+              if (deployAfterSave) void deploy();
             }}
           />
         ) : (
@@ -233,6 +267,11 @@ export function PublishedPorts() {
             </button>
           </div>
         ))}
-    </AppSection>
+      </AppSection>
+      {deploying && <DeploymentDialog service={service} version={service.image_version} pending={deployAction.pending} error={deployAction.error} output={deployOutput} onForceStop={() => deployAction.run(async () => {
+        await api(`${path}/${service.id}/cancel-deploy`, { method: "POST" });
+        onChanged();
+      })} onClose={() => setDeploying(false)} />}
+    </>
   );
 }

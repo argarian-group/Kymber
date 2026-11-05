@@ -22,6 +22,7 @@ export type Service = {
   internal_host?: string;
   port?: number;
   domain?: string;
+  domain_pending?: boolean;
   data_path?: string;
   logo_url?: string;
   category: AppCategory;

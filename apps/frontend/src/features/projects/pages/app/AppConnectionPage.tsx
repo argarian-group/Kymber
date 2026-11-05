@@ -5,6 +5,7 @@ import { Field } from "@/components/ui/Field";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
 import { FormFooter } from "@/features/settings/components/FormFooter";
+import { DeploymentDialog } from "@/features/projects/components/apps/DeploymentDialog";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { PublishedPorts } from "@/features/projects/components/apps/PublishedPorts";
@@ -12,9 +13,10 @@ import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { t } from "@/lib/i18n";
 
 export function AppConnectionPage() {
-  const { detail, canWrite, path, onChanged } = useAppOutlet();
+  const { detail, canWrite, path, onChanged, deployOutput } = useAppOutlet();
   const [domain, setDomain] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
+  const [deploying, setDeploying] = useState(false);
   const { pending, error, run } = useAction();
 
   useEffect(() => setDomain(detail?.domain ?? ""), [detail?.id, detail?.domain]);
@@ -23,27 +25,41 @@ export function AppConnectionPage() {
   if (!detail) return <PageSkeleton />;
   const service = detail;
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function saveDomain(deploy = false) {
     setSaved(null);
     await run(async () => {
-      await api(`${path}/${service.id}/domain`, { method: "PUT", body: { domain } });
-      setSaved(t("Domain saved. Deploy the app to apply the routing change."));
+      if (domain !== (service.domain ?? "")) {
+        await api(`${path}/${service.id}/domain`, { method: "PUT", body: { domain } });
+        setSaved(t("Domain saved."));
+      }
+      if (deploy) {
+        setDeploying(true);
+        await api(`${path}/${service.id}/deploy`, { method: "POST", body: {} });
+      }
       onChanged();
     });
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    void saveDomain();
   }
 
   return (
     <div className="grid gap-5">
       {service.category === "application" && (
-        <AppSection title={t("Public domain")} description={t("Optional. Requires DNS pointed to this machine and the local Traefik proxy. Leave unset to use the server's IPv4 address and published port.")}>
+        <AppSection title={t("Public domain")} description={t("Optional. Point DNS to this machine. Traefik reaches the app over Docker networking, so no host port needs to be published.")}>
+          {service.domain_pending && <p className="border-b border-line p-4 text-meta text-seafoam" role="status">{t("Deploy the app to apply this domain change.")}</p>}
           <form onSubmit={submit}>
             <div className="grid gap-4 p-4">
               <Field label={t("Domain")} placeholder="app.example.com" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={domain} onChange={(event) => setDomain(event.target.value)} hint={t("Optional. Leave empty to remove the domain.")} />
               {service.domain && <a className="text-meta text-seafoam underline" href={`https://${service.domain}`} target="_blank" rel="noreferrer">https://{service.domain}</a>}
             </div>
             <FormFooter error={error} saved={saved}>
-              <button className="btn btn-primary" type="submit" disabled={pending || domain === (service.domain ?? "")}>{t("Save domain")}</button>
+              {domain !== (service.domain ?? "") ? <>
+                <button className="btn" type="button" disabled={pending} onClick={() => void saveDomain()}>{pending ? t("Saving…") : t("Save domain")}</button>
+                <button className="btn btn-primary" type="button" disabled={pending} onClick={() => void saveDomain(true)}>{pending ? t("Saving and deploying…") : t("Save and deploy")}</button>
+              </> : service.domain_pending ? <button className="btn btn-primary" type="button" disabled={pending} onClick={() => void saveDomain(true)}>{pending ? t("Deploying…") : t("Deploy")}</button> : null}
             </FormFooter>
           </form>
         </AppSection>
@@ -56,6 +72,10 @@ export function AppConnectionPage() {
         </div>
       </AppSection>
       <PublishedPorts />
+      {deploying && <DeploymentDialog service={service} version={service.image_version} pending={pending} error={error} output={deployOutput} onForceStop={() => run(async () => {
+        await api(`${path}/${service.id}/cancel-deploy`, { method: "POST" });
+        onChanged();
+      })} onClose={() => setDeploying(false)} />}
     </div>
   );
 }

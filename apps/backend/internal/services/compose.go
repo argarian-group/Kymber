@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -266,22 +267,52 @@ func (h *Handler) composeSSHCommand(ctx context.Context, service databaseService
 	}
 	portsPath := "/tmp/kymber-compose-" + service.ID + "-ports.yaml"
 	write := "mkdir -p " + shellQuote(filepath.Dir(path)) + " && printf %s " + shellQuote(base64.StdEncoding.EncodeToString([]byte(file))) + " | base64 -d > " + shellQuote(path)
-	if len(ports) > 0 {
+	if len(ports) > 0 || service.Domain != "" {
 		primaryService := composePrimaryService(file)
 		if primaryService == "" {
-			return "", fmt.Errorf("could not find a Compose service to publish ports")
+			return "", fmt.Errorf("could not find a primary Compose service")
 		}
-		var mappings []string
-		for _, port := range ports {
-			mappings = append(mappings, fmt.Sprintf("      - %q", fmt.Sprintf("%s:%d:%d/%s", port.Bind, port.HostPort, port.ContainerPort, port.Protocol)))
+		var override strings.Builder
+		override.WriteString("services:\n  " + strconv.Quote(primaryService) + ":\n")
+		if len(ports) > 0 {
+			override.WriteString("    ports:\n")
+			for _, port := range ports {
+				override.WriteString("      - " + strconv.Quote(fmt.Sprintf("%s:%d:%d/%s", port.Bind, port.HostPort, port.ContainerPort, port.Protocol)) + "\n")
+			}
 		}
-		override := fmt.Sprintf("services:\n  %s:\n    ports:\n%s\n", primaryService, strings.Join(mappings, "\n"))
-		write += " && printf %s " + shellQuote(base64.StdEncoding.EncodeToString([]byte(override))) + " | base64 -d > " + shellQuote(portsPath)
+		if service.Domain != "" {
+			name := "kymber-" + service.ID
+			rule := "Host(`" + service.Domain + "`)"
+			labels := []string{
+				"traefik.enable=true",
+				"traefik.docker.network=kymber",
+				"traefik.http.routers." + name + "-http.rule=" + rule,
+				"traefik.http.routers." + name + "-http.entrypoints=web",
+				"traefik.http.routers." + name + "-http.middlewares=" + name + "-https",
+				"traefik.http.routers." + name + "-http.service=" + name,
+				"traefik.http.middlewares." + name + "-https.redirectscheme.scheme=https",
+				"traefik.http.routers." + name + ".rule=" + rule,
+				"traefik.http.routers." + name + ".entrypoints=websecure",
+				"traefik.http.routers." + name + ".tls.certresolver=letsencrypt",
+				"traefik.http.routers." + name + ".service=" + name,
+			}
+			override.WriteString("    labels:\n")
+			for _, label := range labels {
+				override.WriteString("      - " + strconv.Quote(label) + "\n")
+			}
+		}
+		write += " && printf %s " + shellQuote(base64.StdEncoding.EncodeToString([]byte(override.String()))) + " | base64 -d > " + shellQuote(portsPath)
 		compose += " -f " + shellQuote(portsPath)
 	}
 	switch action {
 	case "deploy", "start", "restart":
-		return write + " && " + compose + " config --quiet && " + compose + " up -d --remove-orphans", nil
+		command := write + " && " + compose + " config --quiet && " + compose + " up -d --remove-orphans"
+		if service.Domain != "" {
+			primaryService := composePrimaryService(file)
+			command = "docker network inspect kymber >/dev/null 2>&1 || { echo 'Traefik network kymber is missing; start the Kymber proxy first' >&2; exit 1; }; " + command
+			command += " && for c in $(" + compose + " ps -q " + shellQuote(primaryService) + "); do docker network connect kymber \"$c\" 2>/dev/null || docker inspect \"$c\" --format '{{json .NetworkSettings.Networks}}' | grep -q '\"kymber\"' || exit 1; done"
+		}
+		return command, nil
 	case "stop":
 		return "docker ps -q --filter label=com.docker.compose.project=" + shellQuote(project) + " | xargs -r docker stop", nil
 	case "delete":
