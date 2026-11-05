@@ -57,7 +57,7 @@ printf '\nKymber — instalação\nDiretório: %s\n\n' "$install_dir"
 if [[ -t 0 ]]; then
 	read -r -p 'Deseja continuar com a instalação/atualização? [s/N] ' answer
 else
-	answer=${KYMBER_INSTALL_CONFIRM:-}
+	answer=${KYMBER_INSTALL_CONFIRM:-s}
 fi
 if [[ ! "$answer" =~ ^[sS]([iI][mM])?$ ]]; then
 	printf 'Instalação cancelada.\n'
