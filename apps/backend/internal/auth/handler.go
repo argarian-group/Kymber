@@ -36,6 +36,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/logout", h.logout)
 	mux.HandleFunc("GET /api/auth/me", h.me)
 	mux.HandleFunc("PUT /api/account/profile", h.updateProfile)
+	mux.HandleFunc("GET /api/account/avatar", h.getAvatar)
 	mux.HandleFunc("PUT /api/account/password", h.updatePassword)
 	mux.HandleFunc("GET /api/settings/registration", h.getRegistration)
 	mux.HandleFunc("PUT /api/settings/registration", h.setRegistration)

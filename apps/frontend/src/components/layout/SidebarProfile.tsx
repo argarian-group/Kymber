@@ -1,16 +1,9 @@
 import { ChevronsUpDown } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { useCurrentUser } from "@/features/auth/AuthContext";
+import { api } from "@/lib/api";
 import { LogoutButton } from "./LogoutButton";
 import { t } from "@/lib/i18n";
-
-async function gravatarUrl(email: string) {
-  const normalizedEmail = new TextEncoder().encode(email.trim().toLowerCase());
-  const digest = await globalThis.crypto?.subtle?.digest("SHA-256", normalizedEmail);
-  if (!digest) throw new Error("Secure hashing is unavailable");
-  const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-  return `https://www.gravatar.com/avatar/${hash}?d=404&s=56`;
-}
 
 export function SidebarProfile({ compact = false }: { compact?: boolean }) {
   const user = useCurrentUser();
@@ -20,8 +13,8 @@ export function SidebarProfile({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     let active = true;
-    gravatarUrl(user.email)
-      .then((url) => active && setAvatarUrl(url))
+    api<{ avatar_url: string }>("/account/avatar")
+      .then(({ avatar_url }) => active && setAvatarUrl(avatar_url))
       .catch(() => active && setAvatarFailed(true));
     return () => { active = false; };
   }, [user.email]);

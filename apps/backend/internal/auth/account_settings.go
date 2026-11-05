@@ -3,6 +3,7 @@ package auth
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"net/http"
 
@@ -24,6 +25,15 @@ func (h *Handler) checkCurrentPassword(w http.ResponseWriter, r *http.Request, u
 		return false
 	}
 	return true
+}
+
+func (h *Handler) getAvatar(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(w, r)
+	if !ok {
+		return
+	}
+	hash := sha256.Sum256([]byte(normalizeEmail(user.Email)))
+	writeJSON(w, http.StatusOK, map[string]string{"avatar_url": "https://www.gravatar.com/avatar/" + hex.EncodeToString(hash[:]) + "?d=404&s=56"})
 }
 
 func (h *Handler) updateProfile(w http.ResponseWriter, r *http.Request) {
