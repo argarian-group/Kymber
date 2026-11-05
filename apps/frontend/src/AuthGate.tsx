@@ -95,6 +95,7 @@ export function AuthGate() {
                   <Route path="settings/appearance" element={<SettingsPage section="appearance" />} />
                   <Route path="settings/workspace" element={<SettingsPage section="workspace" />} />
                   <Route path="settings/system" element={<SettingsPage section="system" />} />
+                  <Route path="settings/users" element={<SettingsPage section="users" />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Suspense>

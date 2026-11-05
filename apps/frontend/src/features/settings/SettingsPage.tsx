@@ -11,16 +11,17 @@ const descriptions: Partial<Record<string, string>> = {
   account: t("Your profile and password."),
   workspace: t("Name and lifecycle of your workspaces."),
   system: t("Options for everyone on this server."),
+  users: t("Manage accounts on this server."),
 };
 
-export function SettingsPage({ section }: { section: "account" | "appearance" | "workspace" | "system" }) {
+export function SettingsPage({ section }: { section: "account" | "appearance" | "workspace" | "system" | "users" }) {
   const user = useCurrentUser();
-  if (section === "system" && !user.is_root) return <Navigate to="/settings" replace />;
+  if ((section === "system" || section === "users") && !user.is_root) return <Navigate to="/settings" replace />;
   const tabs = [
     { label: t("Account"), to: "/settings" },
     { label: t("Appearance"), to: "/settings/appearance" },
     { label: t("Workspace"), to: "/settings/workspace" },
-    ...(user.is_root ? [{ label: t("System"), to: "/settings/system" }] : []),
+    ...(user.is_root ? [{ label: t("System"), to: "/settings/system" }, { label: t("Users"), to: "/settings/users" }] : []),
   ];
 
   return (
@@ -44,6 +45,7 @@ export function SettingsPage({ section }: { section: "account" | "appearance" | 
       {section === "appearance" && <AppearanceSettings />}
       {section === "workspace" && <WorkspaceSettings />}
       {section === "system" && <SystemSettings />}
+      {section === "users" && <SystemSettings usersOnly />}
       <p className="px-4 pt-2 pb-8 text-xs text-ink-soft md:px-6">
         {t("Kymber is free software under the AGPL-3.0 license.")}{" "}
         <a className="text-button" href="https://github.com/argarian-group/Kymber" target="_blank" rel="noreferrer">
