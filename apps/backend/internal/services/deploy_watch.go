@@ -38,7 +38,7 @@ func parseDeployProgress(raw string) deployProgress {
 }
 
 // finishDeploy records a deploy's result once. Only the deploy that just finished applied the storages and ports, so later reads must not mark new ones.
-func (h *Handler) finishDeploy(ctx context.Context, serviceID string, succeeded bool, output string, deploymentIDs ...string) {
+func (h *Handler) finishDeploy(ctx context.Context, serviceID string, succeeded bool, output string, deploymentIDs ...string) bool {
 	deploymentID := ""
 	if len(deploymentIDs) > 0 {
 		deploymentID = deploymentIDs[0]
@@ -53,36 +53,42 @@ func (h *Handler) finishDeploy(ctx context.Context, serviceID string, succeeded 
 	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Warn("could not finish deployment: service=%s error=%v", serviceID, err)
-		return
+		return false
 	}
 	defer tx.Rollback()
 	if !succeeded {
 		result, err := tx.ExecContext(ctx, "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", output, serviceID)
 		if err != nil {
 			logger.Warn("could not update failed deployment service: service=%s error=%v", serviceID, err)
-			return
+			return false
 		}
 		changed, err := result.RowsAffected()
-		if err != nil || changed == 0 {
-			return
+		if err != nil {
+			return false
+		}
+		if changed == 0 {
+			return true
 		}
 	} else {
 		result, err := tx.ExecContext(ctx, "UPDATE database_services SET status = 'running', last_error = NULL WHERE id = ? AND status = 'deploying'", serviceID)
 		if err != nil {
 			logger.Warn("could not update successful deployment service: service=%s error=%v", serviceID, err)
-			return
+			return false
 		}
 		changed, err := result.RowsAffected()
-		if err != nil || changed == 0 {
-			return
+		if err != nil {
+			return false
+		}
+		if changed == 0 {
+			return true
 		}
 		if _, err := tx.ExecContext(ctx, "UPDATE service_storages SET applied = TRUE WHERE service_id = ?", serviceID); err != nil {
 			logger.Warn("could not update applied service storage: service=%s error=%v", serviceID, err)
-			return
+			return false
 		}
 		if _, err := tx.ExecContext(ctx, "UPDATE service_ports SET applied = TRUE WHERE service_id = ?", serviceID); err != nil {
 			logger.Warn("could not update applied service ports: service=%s error=%v", serviceID, err)
-			return
+			return false
 		}
 	}
 	if deploymentID != "" {
@@ -92,11 +98,13 @@ func (h *Handler) finishDeploy(ctx context.Context, serviceID string, succeeded 
 	}
 	if err != nil {
 		logger.Warn("could not record deployment result: service=%s error=%v", serviceID, err)
-		return
+		return false
 	}
 	if err := tx.Commit(); err != nil {
 		logger.Warn("could not commit deployment result: service=%s error=%v", serviceID, err)
+		return false
 	}
+	return true
 }
 
 func (h *Handler) failDeployment(ctx context.Context, serviceID, deploymentID, message string) {
@@ -141,12 +149,14 @@ func (h *Handler) watchDeploy(serverID, serviceID, deploymentID string, resumed 
 		if output, err := h.executeSSH(ctx, serverID, deployProgressCommand(serviceID)); err == nil {
 			progress := parseDeployProgress(string(output))
 			if progress.done {
-				h.finishDeploy(ctx, serviceID, progress.succeeded, progress.log, deploymentID)
-				return
+				if h.finishDeploy(ctx, serviceID, progress.succeeded, progress.log, deploymentID) {
+					return
+				}
 			}
 			if resumed && !progress.logExists {
-				h.finishDeploy(ctx, serviceID, false, "The action was interrupted when Kymber restarted. Run it again.", deploymentID)
-				return
+				if h.finishDeploy(ctx, serviceID, false, "The action was interrupted when Kymber restarted. Run it again.", deploymentID) {
+					return
+				}
 			}
 		}
 		time.Sleep(deployWatchInterval)

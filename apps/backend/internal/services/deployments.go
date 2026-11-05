@@ -1,6 +1,8 @@
 package services
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
 	"time"
 
@@ -58,6 +60,21 @@ func (h *Handler) listDeployments(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not read deployments")
 		return
 	}
+	if err := rows.Close(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not close deployments")
+		return
+	}
+	if len(deployments) == 0 {
+		var exists bool
+		if err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM database_services WHERE id = ? AND workspace_id = ? AND project_id = ?)", serviceID, workspaceID, projectID).Scan(&exists); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not check service")
+			return
+		}
+		if !exists {
+			writeError(w, http.StatusNotFound, "service not found")
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"deployments": deployments})
 }
 
@@ -85,7 +102,11 @@ func (h *Handler) getDeployment(w http.ResponseWriter, r *http.Request) {
 		WHERE d.id = ? AND d.service_id = ? AND s.workspace_id = ? AND s.project_id = ?`, deploymentID, serviceID, workspaceID, projectID).
 		Scan(&deployment.ID, &deployment.Action, &deployment.ImageVersion, &deployment.Status, &deployment.LastError, &deployment.StartedAt, &deployment.FinishedAt, &deployment.Output)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "deployment not found")
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "deployment not found")
+		} else {
+			writeError(w, http.StatusInternalServerError, "could not read deployment")
+		}
 		return
 	}
 	writeJSON(w, http.StatusOK, deployment)
