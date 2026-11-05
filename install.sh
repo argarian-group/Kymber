@@ -21,7 +21,9 @@ run_step() {
 	local pid frame=0 result
 	shift
 	step_number=$((step_number + 1))
-	printf '  [%d/%d] %s ' "$step_number" "$total_steps" "$label"
+	if [[ -t 1 ]]; then
+		printf '  [%d/%d] %s ' "$step_number" "$total_steps" "$label"
+	fi
 	"$@" >>"$logfile" 2>&1 &
 	pid=$!
 	if [[ -t 1 ]]; then
