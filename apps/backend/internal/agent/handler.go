@@ -101,7 +101,7 @@ func (h *Handler) claimTask(w http.ResponseWriter, r *http.Request) {
 	var encrypted []byte
 	err = tx.QueryRowContext(r.Context(), `SELECT q.id, q.service_id, q.action, d.workspace_id, d.engine, d.name, d.image_version, d.image, d.port, d.data_path, COALESCE(d.environment_id, ''), d.database_name, d.database_user, d.encrypted_config
 		FROM server_tasks q JOIN database_services d ON d.id = q.service_id
-		WHERE q.server_id = ? AND q.status = 'queued'
+		WHERE q.server_id = ? AND q.status = 'queued' AND d.category <> 'application' AND d.compose_file IS NULL
 		ORDER BY q.created_at LIMIT 1 FOR UPDATE SKIP LOCKED`, serverID).
 		Scan(&t.ID, &t.ServiceID, &t.Action, &t.WorkspaceID, &t.Engine, &t.Name, &t.ImageVersion, &t.Image, &t.Port, &t.DataPath, &t.Environment, &t.Database, &t.Username, &encrypted)
 	if errors.Is(err, sql.ErrNoRows) {
