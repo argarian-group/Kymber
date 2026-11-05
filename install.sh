@@ -54,8 +54,10 @@ if ! command -v systemctl >/dev/null 2>&1; then
 fi
 
 printf '\nKymber — instalação\nDiretório: %s\n\n' "$install_dir"
-if [[ -t 0 ]]; then
+if [[ -t 0 && -e /dev/tty ]]; then
 	read -r -p 'Deseja continuar com a instalação/atualização? [s/N] ' answer
+elif [[ -e /dev/tty ]]; then
+	answer=s
 else
 	answer=${KYMBER_INSTALL_CONFIRM:-s}
 fi
@@ -177,9 +179,10 @@ print_addresses() {
 }
 
 check_ports() {
-	local port id container_name listening compose_ids
+	local port id container_name listening compose_ids project_name
 	local ports=($(compose_port HTTP_PORT 80) $(compose_port APP_PORT 3000) $(compose_port HTTPS_PORT 443))
-	compose_ids=$(docker compose ps -q)
+	project_name=$(docker compose ls --format json | jq -r --arg dir "$install_dir" '.[] | select(any(.ConfigFiles[]?; startswith($dir + "/"))) | .Name' | head -n 1)
+	compose_ids=$(docker ps -q --filter "label=com.docker.compose.project=$project_name")
 	for port in "${ports[@]}"; do
 		if [[ ! "$port" =~ ^[0-9]{1,5}$ ]] || ((port < 1 || port > 65535)); then
 			printf 'Invalid host port in .env: %s\n' "$port"
@@ -188,7 +191,7 @@ check_ports() {
 		for id in $(docker ps -q); do
 			if docker inspect --format '{{json .NetworkSettings.Ports}}' "$id" | jq -e --arg port "$port" '[.[]? // [] | .[]? | select(.HostPort == $port)] | length > 0' >/dev/null; then
 				container_name=$(docker inspect --format '{{.Name}}' "$id")
-				if grep -Fxq "$id" <<<"$compose_ids"; then
+				if [[ -n "$project_name" ]] && grep -Fxq "$id" <<<"$compose_ids"; then
 					continue
 				fi
 				printf 'Port %s is already published by container %s\n' "$port" "$container_name"
