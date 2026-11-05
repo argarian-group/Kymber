@@ -602,7 +602,11 @@ func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, imag
 	}
 	prepare, storageArgs := storageDeployCommand(s.ID, storages)
 	portCheck, portArgs := portDeployCommand(ports)
-	command := "set -eu; n=" + quote(name) + "; f=$(mktemp); trap 'rm -f \"$f\"' EXIT; " + portCheck + env.String() + prepare + "if docker image inspect " + quote(image) + " >/dev/null 2>&1; then echo 'Image found locally.'; else echo 'Image not found locally; pulling…'; docker pull " + quote(image) + "; fi; docker network inspect " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null 2>&1 || docker network create --label kymber.managed=true " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null; docker rm -f \"$n\" >/dev/null 2>&1 || true; docker run --pull=never -d --name \"$n\" --restart unless-stopped --network " + quote("kymber-workspace-"+s.WorkspaceID) + " --network-alias " + quote(t.InternalHost(s.ID)) + " --label kymber.managed=true --label " + quote("kymber.service="+s.ID)
+	imageLookup := "if docker image inspect " + quote(image) + " >/dev/null 2>&1; then echo 'Image found locally.'; else echo 'Image not found locally; pulling…'; docker pull " + quote(image) + "; fi; "
+	if s.Image == "docker.io/kymber/build-artifacts" {
+		imageLookup = "docker image inspect " + quote(image) + " >/dev/null 2>&1 || { echo 'Imported build artifact is missing locally.' >&2; exit 1; }; "
+	}
+	command := "set -eu; n=" + quote(name) + "; f=$(mktemp); trap 'rm -f \"$f\"' EXIT; " + portCheck + env.String() + prepare + imageLookup + "docker network inspect " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null 2>&1 || docker network create --label kymber.managed=true " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null; docker rm -f \"$n\" >/dev/null 2>&1 || true; docker run --pull=never -d --name \"$n\" --restart unless-stopped --network " + quote("kymber-workspace-"+s.WorkspaceID) + " --network-alias " + quote(t.InternalHost(s.ID)) + " --label kymber.managed=true --label " + quote("kymber.service="+s.ID)
 	if s.Domain != "" {
 		if t.Port < 1 || t.Port > 65535 {
 			return "", fmt.Errorf("public domain requires an HTTP port")

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -18,6 +19,7 @@ const MaxOCIArchiveSize int64 = 1 << 30
 const maxOCIMetadataSize int64 = 4 << 20
 
 var sha256Digest = regexp.MustCompile(`^[0-9a-f]{64}$`)
+var dockerTag = regexp.MustCompile(`^[a-z0-9]+(?:[._-]+[a-z0-9]+)*(?:/[a-z0-9]+(?:[._-]+[a-z0-9]+)*)+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`)
 
 type ociLayout struct {
 	Version string `json:"imageLayoutVersion"`
@@ -36,6 +38,29 @@ type ociManifest struct {
 
 type ociDescriptor struct {
 	Digest string `json:"digest"`
+}
+
+type dockerManifest struct {
+	Config   string   `json:"Config"`
+	RepoTags []string `json:"RepoTags"`
+	Layers   []string `json:"Layers"`
+}
+
+type OCIImage struct {
+	OS           string
+	Architecture string
+	Config       json.RawMessage
+	DiffIDs      []string
+}
+
+type ociImageConfig struct {
+	OS           string          `json:"os"`
+	Architecture string          `json:"architecture"`
+	Config       json.RawMessage `json:"config"`
+	RootFS       struct {
+		Type    string   `json:"type"`
+		DiffIDs []string `json:"diff_ids"`
+	} `json:"rootfs"`
 }
 
 func SpoolOCI(r io.Reader) (*os.File, string, error) {
@@ -66,6 +91,163 @@ func SpoolOCI(r io.Reader) (*os.File, string, error) {
 		return remove(err)
 	}
 	return file, hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+func ConvertOCIToDockerArchive(oci *os.File, tag string) (*os.File, OCIImage, error) {
+	if !dockerTag.MatchString(tag) {
+		return nil, OCIImage{}, errors.New("invalid image tag")
+	}
+	info, err := oci.Stat()
+	if err != nil {
+		return nil, OCIImage{}, err
+	}
+	if info.Size() > MaxOCIArchiveSize {
+		return nil, OCIImage{}, errors.New("OCI archive exceeds 1 GiB")
+	}
+	if err := validateOCI(oci, info.Size()); err != nil {
+		return nil, OCIImage{}, err
+	}
+	indexData, err := readOCIEntry(oci, info.Size(), "index.json", maxOCIMetadataSize)
+	if err != nil {
+		return nil, OCIImage{}, err
+	}
+	var index ociIndex
+	if err := json.Unmarshal(indexData, &index); err != nil || len(index.Manifests) != 1 {
+		return nil, OCIImage{}, errors.New("OCI archive must contain exactly one image manifest")
+	}
+	manifestDigest := strings.TrimPrefix(index.Manifests[0].Digest, "sha256:")
+	manifestData, err := readOCIEntry(oci, info.Size(), "blobs/sha256/"+manifestDigest, maxOCIMetadataSize)
+	if err != nil {
+		return nil, OCIImage{}, err
+	}
+	var image ociManifest
+	if err := json.Unmarshal(manifestData, &image); err != nil {
+		return nil, OCIImage{}, errors.New("invalid OCI image manifest")
+	}
+	configDigest := strings.TrimPrefix(image.Config.Digest, "sha256:")
+	configName := configDigest + ".json"
+	configData, err := readOCIEntry(oci, info.Size(), "blobs/sha256/"+configDigest, maxOCIMetadataSize)
+	if err != nil {
+		return nil, OCIImage{}, err
+	}
+	var config ociImageConfig
+	if err := json.Unmarshal(configData, &config); err != nil || config.OS == "" || config.Architecture == "" || config.RootFS.Type != "layers" || len(config.RootFS.DiffIDs) != len(image.Layers) {
+		return nil, OCIImage{}, errors.New("invalid OCI image configuration")
+	}
+	for _, diffID := range config.RootFS.DiffIDs {
+		if !validDigest(diffID) {
+			return nil, OCIImage{}, errors.New("invalid OCI layer diff ID")
+		}
+	}
+	layers := make([]string, len(image.Layers))
+	for i := range layers {
+		layers[i] = "layer-" + strconv.Itoa(i) + "/layer.tar"
+	}
+	manifestJSON, err := json.Marshal([]dockerManifest{{Config: configName, RepoTags: []string{tag}, Layers: layers}})
+	if err != nil {
+		return nil, OCIImage{}, err
+	}
+	output, err := os.CreateTemp("", "kymber-docker-image-*")
+	if err != nil {
+		return nil, OCIImage{}, err
+	}
+	remove := func(err error) (*os.File, OCIImage, error) {
+		output.Close()
+		os.Remove(output.Name())
+		return nil, OCIImage{}, err
+	}
+	limited := &limitedWriter{writer: output, limit: MaxOCIArchiveSize}
+	tarWriter := tar.NewWriter(limited)
+	writeEntry := func(name string, data []byte) error {
+		if err := tarWriter.WriteHeader(&tar.Header{Name: name, Mode: 0600, Size: int64(len(data)), Typeflag: tar.TypeReg}); err != nil {
+			return err
+		}
+		_, err := tarWriter.Write(data)
+		return err
+	}
+	if err := writeEntry("manifest.json", manifestJSON); err != nil {
+		return remove(err)
+	}
+	if err := writeEntry(configName, configData); err != nil {
+		return remove(err)
+	}
+	for i, layer := range image.Layers {
+		blobName := "blobs/sha256/" + strings.TrimPrefix(layer.Digest, "sha256:")
+		if err := writeOCIEntry(oci, info.Size(), blobName, "layer-"+strconv.Itoa(i)+"/layer.tar", tarWriter); err != nil {
+			return remove(err)
+		}
+	}
+	if err := tarWriter.Close(); err != nil {
+		return remove(err)
+	}
+	if _, err := output.Seek(0, io.SeekStart); err != nil {
+		return remove(err)
+	}
+	return output, OCIImage{OS: config.OS, Architecture: config.Architecture, Config: config.Config, DiffIDs: config.RootFS.DiffIDs}, nil
+}
+
+type limitedWriter struct {
+	writer  io.Writer
+	limit   int64
+	written int64
+}
+
+func (w *limitedWriter) Write(data []byte) (int, error) {
+	if int64(len(data)) > w.limit-w.written {
+		return 0, errors.New("Docker archive exceeds 1 GiB")
+	}
+	n, err := w.writer.Write(data)
+	w.written += int64(n)
+	return n, err
+}
+
+func readOCIEntry(file *os.File, archiveSize int64, name string, limit int64) ([]byte, error) {
+	var data []byte
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+	reader := tar.NewReader(io.LimitReader(file, archiveSize))
+	for {
+		header, err := reader.Next()
+		if err != nil {
+			return nil, errors.New("OCI archive entry not found")
+		}
+		if header.Name != name {
+			continue
+		}
+		if header.Size > limit {
+			return nil, errors.New("OCI entry exceeds size limit")
+		}
+		data, err = io.ReadAll(io.LimitReader(reader, limit+1))
+		if err != nil || int64(len(data)) != header.Size {
+			return nil, errors.New("OCI entry is truncated")
+		}
+		return data, nil
+	}
+}
+
+func writeOCIEntry(file *os.File, archiveSize int64, sourceName, targetName string, writer *tar.Writer) error {
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	reader := tar.NewReader(io.LimitReader(file, archiveSize))
+	for {
+		header, err := reader.Next()
+		if err != nil {
+			return errors.New("OCI layer not found")
+		}
+		if header.Name != sourceName {
+			continue
+		}
+		if err := writer.WriteHeader(&tar.Header{Name: targetName, Mode: 0600, Size: header.Size, Typeflag: tar.TypeReg}); err != nil {
+			return err
+		}
+		written, err := io.CopyN(writer, reader, header.Size)
+		if err != nil || written != header.Size {
+			return errors.New("OCI layer is truncated")
+		}
+		return nil
+	}
 }
 
 func validateOCI(file *os.File, archiveSize int64) error {
