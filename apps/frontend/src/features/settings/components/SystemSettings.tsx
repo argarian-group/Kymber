@@ -128,6 +128,7 @@ export function SystemSettings({ usersOnly = false }: { usersOnly?: boolean }) {
 
 function ManagedUser({ user, onChanged, onDeleted }: { user: User; onChanged: (user: User) => void; onDeleted: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false);
+  const [password, setPassword] = useState("");
   const [username, setUsername] = useState(user.username);
   const [email, setEmail] = useState(user.email);
   const { pending, error, run } = useAction();
@@ -136,18 +137,31 @@ function ManagedUser({ user, onChanged, onDeleted }: { user: User; onChanged: (u
       <span className="min-w-0"><span className="block truncate font-medium">{user.username}</span><span className="block truncate text-meta text-ink-soft">{user.email}</span></span>
       <span className="flex flex-none items-center gap-3 text-meta text-ink-soft">{user.is_root && t("Root account")}<span aria-hidden="true">{expanded ? "−" : "+"}</span></span>
     </button>
-    {expanded && <form className="grid gap-3 border-t border-line p-4 md:grid-cols-[1fr_1fr_auto_auto]" onSubmit={(event) => {
+    {expanded && <div className="grid gap-3 border-t border-line p-4">
+    <form className="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]" onSubmit={(event) => {
       event.preventDefault();
       run(async () => onChanged((await api<{ user: User }>(`/settings/users/${user.id}`, { method: "PUT", body: { username, email } })).user));
     }}>
       <Field label={t("Username")} required minLength={3} maxLength={32} value={username} onChange={(event) => setUsername(event.target.value)} />
       <Field label={t("Email")} type="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
-      <button className="btn" type="submit" disabled={pending}>{t("Save")}</button>
-      <button className="btn btn-danger" type="button" disabled={pending} onClick={() => window.confirm(t("Delete {name}?", { name: user.username })) && run(async () => {
+       <button className="btn h-10" type="submit" disabled={pending}>{t("Save")}</button>
+       <button className="btn btn-danger h-10" type="button" disabled={pending} onClick={() => window.confirm(t("Delete {name}?", { name: user.username })) && run(async () => {
         await api(`/settings/users/${user.id}`, { method: "DELETE" });
         onDeleted(user.id);
       })}>{t("Delete")}</button>
       {error && <FormError message={error} />}
-    </form>}
+    </form>
+    <form className="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_auto]" onSubmit={(event) => {
+      event.preventDefault();
+      run(async () => {
+        await api(`/settings/users/${user.id}/password`, { method: "PUT", body: { password } });
+        setPassword("");
+      });
+    }}>
+      <Field label={t("New password")} type="password" required minLength={8} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} />
+      <button className="btn h-10" type="submit" disabled={pending}>{t("Reset password")}</button>
+      {error && <FormError message={error} />}
+    </form>
+    </div>}
   </li>;
 }

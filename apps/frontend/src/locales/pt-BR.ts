@@ -729,6 +729,7 @@ export const ptBR = {
   "New folder": "Nova pasta",
   "New label": "Nova etiqueta",
   "New password": "Nova senha",
+  "Reset password": "Redefinir senha",
   "New project": "Novo projeto",
   "New to Kymber?": "Novo no Kymber?",
   "New workspace": "Novo workspace",

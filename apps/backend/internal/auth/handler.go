@@ -44,6 +44,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/settings/users", h.createManagedUser)
 	mux.HandleFunc("PUT /api/settings/users/{userID}", h.updateManagedUser)
 	mux.HandleFunc("DELETE /api/settings/users/{userID}", h.deleteManagedUser)
+	mux.HandleFunc("PUT /api/settings/users/{userID}/password", h.resetManagedUserPassword)
 	mux.HandleFunc("GET /api/settings/panel-domain", h.getPanelDomain)
 	mux.HandleFunc("PUT /api/settings/panel-domain", h.setPanelDomain)
 	mux.HandleFunc("GET /api/settings/panel-domain/dns", h.checkPanelDomainDNS)

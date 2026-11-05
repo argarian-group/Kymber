@@ -180,6 +180,55 @@ func (h *Handler) deleteManagedUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) resetManagedUserPassword(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.rootUser(w, r); !ok {
+		return
+	}
+	userID, ok := managedUserID(w, r)
+	if !ok {
+		return
+	}
+	var input struct {
+		Password string `json:"password"`
+	}
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	if err := validatePassword(input.Password); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	passwordHash, err := hashPassword(input.Password)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not hash password")
+		return
+	}
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not reset password")
+		return
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(r.Context(), "UPDATE users SET password_hash = ? WHERE id = ?", passwordHash, userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not reset password")
+		return
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if _, err := tx.ExecContext(r.Context(), "DELETE FROM user_sessions WHERE user_id = ?", userID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not end user sessions")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not reset password")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) rootUser(w http.ResponseWriter, r *http.Request) (User, bool) {
 	user, ok := h.currentUser(w, r)
 	if !ok || !user.IsRoot {
