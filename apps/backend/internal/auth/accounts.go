@@ -64,7 +64,7 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not complete registration")
 		return
 	}
-	setSessionCookie(w, token, expiresAt)
+	setSessionCookie(w, r, token, expiresAt)
 	writeJSON(w, http.StatusCreated, map[string]User{"user": {ID: userID, Username: input.Username, Email: input.Email}})
 }
 
@@ -108,7 +108,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not create session")
 		return
 	}
-	setSessionCookie(w, token, expiresAt)
+	setSessionCookie(w, r, token, expiresAt)
 	writeJSON(w, http.StatusOK, map[string]User{"user": user})
 }
 
@@ -122,7 +122,7 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	clearSessionCookie(w)
+	clearSessionCookie(w, r)
 	w.WriteHeader(http.StatusNoContent)
 }
 

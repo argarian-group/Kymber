@@ -112,7 +112,7 @@ func (h *Handler) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tokenValue != "" {
-		setSessionCookie(w, tokenValue, sessionExpiresAt)
+		setSessionCookie(w, r, tokenValue, sessionExpiresAt)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

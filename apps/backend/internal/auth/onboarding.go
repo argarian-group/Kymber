@@ -68,6 +68,6 @@ func (h *Handler) onboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger.Info("Root user created: %s <%s>", input.Username, input.Email)
-	setSessionCookie(w, token, expiresAt)
+	setSessionCookie(w, r, token, expiresAt)
 	writeJSON(w, http.StatusCreated, map[string]any{"user": User{ID: userID, Username: input.Username, Email: input.Email, IsRoot: true}, "restart_required": h.secureOnboard})
 }

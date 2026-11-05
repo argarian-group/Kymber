@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -26,10 +28,17 @@ func createSession(r *http.Request, tx *sql.Tx, userID uint64) (string, time.Tim
 	return base64.RawURLEncoding.EncodeToString(token), expiresAt, nil
 }
 
-func setSessionCookie(w http.ResponseWriter, token string, expiresAt time.Time) {
-	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: token, Path: "/", Expires: expiresAt, MaxAge: int(time.Until(expiresAt).Seconds()), HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
+func setSessionCookie(w http.ResponseWriter, r *http.Request, token string, expiresAt time.Time) {
+	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: token, Path: "/", Expires: expiresAt, MaxAge: int(time.Until(expiresAt).Seconds()), HttpOnly: true, Secure: secureRequest(r), SameSite: http.SameSiteStrictMode})
 }
 
-func clearSessionCookie(w http.ResponseWriter) {
-	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
+func clearSessionCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: secureRequest(r), SameSite: http.SameSiteStrictMode})
+}
+
+func secureRequest(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	return os.Getenv("KYMBER_TRUST_PROXY") != "true" || !strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "http")
 }
