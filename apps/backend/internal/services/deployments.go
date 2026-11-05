@@ -8,12 +8,13 @@ import (
 )
 
 type deploymentRecord struct {
-	ID         string     `json:"id"`
-	Action     string     `json:"action"`
-	Status     string     `json:"status"`
-	LastError  string     `json:"last_error"`
-	StartedAt  time.Time  `json:"started_at"`
-	FinishedAt *time.Time `json:"finished_at"`
+	ID           string     `json:"id"`
+	Action       string     `json:"action"`
+	ImageVersion string     `json:"image_version"`
+	Status       string     `json:"status"`
+	LastError    string     `json:"last_error"`
+	StartedAt    time.Time  `json:"started_at"`
+	FinishedAt   *time.Time `json:"finished_at"`
 }
 
 type deploymentDetail struct {
@@ -35,7 +36,7 @@ func (h *Handler) listDeployments(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.action, d.status, COALESCE(d.last_error, ''), d.started_at, d.finished_at
+	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.action, d.image_version, d.status, COALESCE(d.last_error, ''), d.started_at, d.finished_at
 		FROM service_deployments d JOIN database_services s ON s.id = d.service_id
 		WHERE d.service_id = ? AND s.workspace_id = ? AND s.project_id = ?
 		ORDER BY d.started_at DESC LIMIT 50`, serviceID, workspaceID, projectID)
@@ -47,7 +48,7 @@ func (h *Handler) listDeployments(w http.ResponseWriter, r *http.Request) {
 	deployments := make([]deploymentRecord, 0)
 	for rows.Next() {
 		var deployment deploymentRecord
-		if err := rows.Scan(&deployment.ID, &deployment.Action, &deployment.Status, &deployment.LastError, &deployment.StartedAt, &deployment.FinishedAt); err != nil {
+		if err := rows.Scan(&deployment.ID, &deployment.Action, &deployment.ImageVersion, &deployment.Status, &deployment.LastError, &deployment.StartedAt, &deployment.FinishedAt); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read deployments")
 			return
 		}
@@ -79,10 +80,10 @@ func (h *Handler) getDeployment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var deployment deploymentDetail
-	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.action, d.status, COALESCE(d.last_error, ''), d.started_at, d.finished_at, d.output
+	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.action, d.image_version, d.status, COALESCE(d.last_error, ''), d.started_at, d.finished_at, d.output
 		FROM service_deployments d JOIN database_services s ON s.id = d.service_id
 		WHERE d.id = ? AND d.service_id = ? AND s.workspace_id = ? AND s.project_id = ?`, deploymentID, serviceID, workspaceID, projectID).
-		Scan(&deployment.ID, &deployment.Action, &deployment.Status, &deployment.LastError, &deployment.StartedAt, &deployment.FinishedAt, &deployment.Output)
+		Scan(&deployment.ID, &deployment.Action, &deployment.ImageVersion, &deployment.Status, &deployment.LastError, &deployment.StartedAt, &deployment.FinishedAt, &deployment.Output)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "deployment not found")
 		return

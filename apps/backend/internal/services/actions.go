@@ -221,7 +221,7 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusConflict, "wait for the current action to finish")
 				return
 			}
-			if _, err := h.db.ExecContext(r.Context(), "INSERT INTO service_deployments (id, service_id, action, status, output) VALUES (?, ?, ?, 'deploying', '')", deploymentID, serviceID, action); err != nil {
+			if _, err := h.db.ExecContext(r.Context(), "INSERT INTO service_deployments (id, service_id, action, image_version, status, output) VALUES (?, ?, ?, ?, 'deploying', '')", deploymentID, serviceID, action, imageVersion); err != nil {
 				_, _ = h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", "Could not record deployment.", serviceID)
 				writeError(w, http.StatusInternalServerError, "could not record deployment")
 				return
