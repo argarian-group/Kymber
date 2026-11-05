@@ -78,6 +78,11 @@ func run() error {
 			time.Sleep(5 * time.Second)
 			continue
 		}
+		var next task
+		if err := request(ctx, client, baseURL, token, "/api/agent/tasks/claim", nil, &next); err == nil && next.ID != "" {
+			body, _ := json.Marshal(fitResult(execute(next)))
+			_ = request(ctx, client, baseURL, token, "/api/agent/tasks/"+next.ID+"/result", body, nil)
+		}
 		time.Sleep(15 * time.Second)
 	}
 }
