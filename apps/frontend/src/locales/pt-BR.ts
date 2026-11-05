@@ -635,6 +635,8 @@ export const ptBR = {
   "Deployment logs could not be loaded.": "Não foi possível carregar os logs do deploy.",
   "No output recorded.": "Nenhuma saída registrada.",
   "Deployment is still running.": "O deploy ainda está em execução.",
+  "Succeeded": "Concluído",
+  "Cancelled": "Cancelado",
   "Logs appear here after the first deploy.": "Os logs aparecem aqui depois do primeiro deploy.",
   "Logs copied": "Logs copiados",
   "Logs could not be loaded.": "Não foi possível carregar os logs.",

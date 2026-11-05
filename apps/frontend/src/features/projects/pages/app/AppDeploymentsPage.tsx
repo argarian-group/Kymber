@@ -16,6 +16,17 @@ type Deployment = {
   finished_at: string | null;
 };
 
+function deploymentTitle(deployment: Deployment) {
+  const action = deployment.action === "deploy" ? t("Deploy") : deployment.action;
+  const status = {
+    deploying: t("Deploying…"),
+    succeeded: t("Succeeded"),
+    failed: t("Failed"),
+    cancelled: t("Cancelled"),
+  }[deployment.status] ?? deployment.status;
+  return t("{action} · {status}", { action, status });
+}
+
 export function AppDeploymentsPage() {
   const { service, path } = useAppOutlet();
   const [deployments, setDeployments] = useState<Deployment[] | null>(null);
@@ -45,7 +56,7 @@ export function AppDeploymentsPage() {
           <div className="grid gap-2" key={deployment.id}>
             <article className="grid gap-2 rounded-control border border-line-subtle p-4 sm:grid-cols-[1fr_auto] sm:items-center">
               <div className="min-w-0">
-                <p className="font-medium">{t("{action} · {status}", { action: deployment.action, status: deployment.status })}</p>
+                <p className="font-medium">{deploymentTitle(deployment)}</p>
                 <time className="text-meta text-ink-soft" dateTime={deployment.started_at}>
                   {new Date(deployment.started_at).toLocaleString(language)}
                 </time>
