@@ -253,7 +253,12 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 		}
 		if action == "deploy" {
 			service, err := h.readServiceByID(r, serviceID)
-			if err == nil && service.Compose {
+			if err != nil {
+				h.failDeployment(r.Context(), serviceID, deploymentID, err.Error())
+				writeError(w, http.StatusInternalServerError, "could not read service")
+				return
+			}
+			if service.Compose {
 				if err := h.startComposeDeploySSH(r, serverID, serviceID, action); err != nil {
 					h.failDeployment(r.Context(), serviceID, deploymentID, err.Error())
 					writeError(w, http.StatusBadGateway, "Compose deployment failed: "+err.Error())
@@ -262,6 +267,13 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 				go h.watchDeploy(serverID, serviceID, deploymentID, false)
 				w.WriteHeader(http.StatusAccepted)
 				return
+			}
+			if service.Image == "docker.io/kymber/build-artifacts" {
+				if err := h.importGitBuildArtifact(r.Context(), serverID, serviceID, imageVersion); err != nil {
+					h.failDeployment(r.Context(), serviceID, deploymentID, err.Error())
+					writeError(w, http.StatusBadGateway, "GitHub build artifact import failed: "+err.Error())
+					return
+				}
 			}
 			if err := h.startServiceDeploySSH(r, serverID, serviceID, imageVersion); err != nil {
 				h.failDeployment(r.Context(), serviceID, deploymentID, err.Error())

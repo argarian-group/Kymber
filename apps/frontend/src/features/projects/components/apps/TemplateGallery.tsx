@@ -1,4 +1,4 @@
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronRight, GitBranch, Search } from "lucide-react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { EngineMark } from "@/features/projects/components/apps/EngineMark";
@@ -21,13 +21,16 @@ function GalleryCard({ engine, image, to, title, description }: { engine: string
   );
 }
 
-export function TemplateGallery({ templates }: { templates: DatabaseTemplate[] }) {
+export function TemplateGallery({ templates, gitBuildsEnabled }: { templates: DatabaseTemplate[]; gitBuildsEnabled: boolean }) {
   const custom = templates.find((template) => template.custom);
   const [params] = useSearchParams();
   const [query, setQuery] = useState("");
   const environment = params.get("environment");
   const suffix = environment ? `&environment=${environment}` : "";
-  const filtered = templates.filter((template) => !template.custom && `${engineLabel(template.engine)} ${engines[template.engine]?.description ?? template.image}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const normalizedQuery = query.trim().toLowerCase();
+  const filtered = templates.filter((template) => !template.custom && `${engineLabel(template.engine)} ${engines[template.engine]?.description ?? template.image}`.toLowerCase().includes(normalizedQuery));
+  const showGitHub = gitBuildsEnabled && "deploy from public github build and deploy an app from a public github repository".includes(normalizedQuery);
+  const showGitHubDisabled = !gitBuildsEnabled && "deploy from public github github builds are disabled in this environment".includes(normalizedQuery);
   return (
     <div className="grid gap-6">
       <label className="relative block">
@@ -52,6 +55,28 @@ export function TemplateGallery({ templates }: { templates: DatabaseTemplate[] }
             </span>
             <ChevronRight className="flex-none text-ink-faint" aria-hidden="true" size={16} />
           </Link>
+          {showGitHub ? (
+            <Link className="row-link flex items-center gap-3 rounded-panel bg-raised p-4" to={`?template=github${suffix}`}>
+              <span className="flex size-10 flex-none items-center justify-center rounded-panel bg-surface text-ink-soft" aria-hidden="true">
+                <GitBranch size={20} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-display text-base font-semibold">{t("Deploy from public GitHub")}</span>
+                <span className="block truncate text-meta text-ink-soft">{t("Build and deploy an app from a public GitHub repository")}</span>
+              </span>
+              <ChevronRight className="flex-none text-ink-faint" aria-hidden="true" size={16} />
+            </Link>
+          ) : showGitHubDisabled ? (
+            <div className="flex items-center gap-3 rounded-panel bg-raised p-4 opacity-55" aria-disabled="true">
+              <span className="flex size-10 flex-none items-center justify-center rounded-panel bg-surface text-ink-soft" aria-hidden="true">
+                <GitBranch size={20} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-display text-base font-semibold">{t("Deploy from public GitHub")}</span>
+                <span className="block truncate text-meta text-ink-soft">{t("GitHub builds are disabled in this environment")}</span>
+              </span>
+            </div>
+          ) : null}
         </div>
       )}
       {appCategories.filter(({ id }) => filtered.some((template) => template.category === id)).map(({ id, label }) => (

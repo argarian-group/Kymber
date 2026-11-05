@@ -6,6 +6,7 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { CreateServiceForm } from "@/features/projects/components/apps/CreateServiceForm";
 import { ComposeForm } from "@/features/projects/components/apps/ComposeForm";
 import { DockerImageForm } from "@/features/projects/components/apps/DockerImageForm";
+import { GitHubBuildForm } from "@/features/projects/components/apps/GitHubBuildForm";
 import { TemplateGallery } from "@/features/projects/components/apps/TemplateGallery";
 import { useProjects } from "@/features/projects/ProjectsContext";
 import { servicesPath, type DatabaseTemplate } from "@/features/projects/services";
@@ -19,14 +20,16 @@ export function ProjectNewAppPage() {
   const canWrite = can("apps.manage");
   const { project, workspace } = useProjectOutlet();
   const [templates, setTemplates] = useState<DatabaseTemplate[] | null>(null);
+  const [gitBuildsEnabled, setGitBuildsEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [params] = useSearchParams();
 
   useLoadEffect(
-    () => api<{ templates: DatabaseTemplate[] }>("/database-templates"),
+    () => api<{ templates: DatabaseTemplate[]; git_builds_enabled?: boolean }>("/database-templates"),
     (response) => {
       setTemplates(response.templates);
+      setGitBuildsEnabled(response.git_builds_enabled === true);
       setError(null);
     },
     setError,
@@ -50,12 +53,14 @@ export function ProjectNewAppPage() {
         <DockerImageForm path={servicesPath(workspace.id, project.id)} />
       ) : template ? (
         <CreateServiceForm template={template} path={servicesPath(workspace.id, project.id)} key={template.engine} />
+      ) : params.get("template") === "github" ? (
+        <GitHubBuildForm path={servicesPath(workspace.id, project.id)} gitBuildsEnabled={gitBuildsEnabled} />
       ) : params.get("template") === "compose" ? (
         <ComposeForm path={composePath} />
       ) : (
         <>
           <h2 className="section-title">{t("Choose what to create")}</h2>
-          <TemplateGallery templates={templates} />
+          <TemplateGallery templates={templates} gitBuildsEnabled={gitBuildsEnabled} />
         </>
       )}
     </div>

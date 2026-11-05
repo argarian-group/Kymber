@@ -48,6 +48,15 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 docker start "$container" >/dev/null
+i=0
+until docker exec "$container" buildctl debug workers >/dev/null 2>&1; do
+	i=$((i + 1))
+	if [ "$i" -ge 30 ]; then
+		docker logs "$container" >&2
+		exit 1
+	fi
+	sleep 1
+done
 if ! docker exec "$container" buildctl build --frontend dockerfile.v0 --local context=/src --local dockerfile=/src --output type=oci,dest=/out/image.tar; then
 	docker logs "$container" >&2
 	exit 1

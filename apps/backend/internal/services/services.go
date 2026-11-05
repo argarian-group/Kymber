@@ -108,7 +108,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listDatabaseTemplates(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string][]templates.Template{"templates": templates.All()})
+	writeJSON(w, http.StatusOK, map[string]any{"templates": templates.All(), "git_builds_enabled": gitBuildsEnabled()})
 }
 
 func (h *Handler) createService(w http.ResponseWriter, r *http.Request) {

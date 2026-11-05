@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"kymber/backend/internal/artifacts"
@@ -58,6 +59,28 @@ func (h *Handler) importOCIImage(ctx context.Context, serverID, deploymentID str
 		return "", errors.New("imported image does not match the validated OCI artifact")
 	}
 	return imported.ID, nil
+}
+
+func (h *Handler) importGitBuildArtifact(ctx context.Context, serverID, serviceID, jobID string) error {
+	var artifactPath string
+	if err := h.db.QueryRowContext(ctx, `SELECT artifact_path FROM git_build_jobs WHERE id = ? AND service_id = ? AND status = 'succeeded'
+		AND artifact_expires_at > UTC_TIMESTAMP(6)`, jobID, serviceID).Scan(&artifactPath); err != nil {
+		return errors.New("no unexpired successful Git build artifact is available")
+	}
+	if filepath.Base(artifactPath) != artifactPath || artifactPath == "." {
+		return errors.New("invalid stored Git build artifact path")
+	}
+	directory := os.Getenv("KYMBER_BUILD_ARTIFACT_DIR")
+	if directory == "" {
+		return errors.New("build artifact storage is not configured")
+	}
+	archive, err := os.Open(filepath.Join(directory, artifactPath))
+	if err != nil {
+		return err
+	}
+	defer archive.Close()
+	_, err = h.importOCIImage(ctx, serverID, jobID, archive)
+	return err
 }
 
 func dockerPlatform(osName, architecture string) string {

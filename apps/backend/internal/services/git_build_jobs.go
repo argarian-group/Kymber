@@ -30,17 +30,18 @@ type gitBuildRequest struct {
 }
 
 type gitBuildJob struct {
-	ID             string `json:"id"`
-	ServiceID      string `json:"service_id"`
-	RepositoryURL  string `json:"repository_url"`
-	Ref            string `json:"ref"`
-	CommitSHA      string `json:"commit_sha,omitempty"`
-	Status         string `json:"status"`
-	ArtifactDigest string `json:"artifact_digest,omitempty"`
-	ResultMessage  string `json:"result_message,omitempty"`
-	CreatedAt      string `json:"created_at"`
-	StartedAt      string `json:"started_at,omitempty"`
-	FinishedAt     string `json:"finished_at,omitempty"`
+	ID                string `json:"id"`
+	ServiceID         string `json:"service_id"`
+	RepositoryURL     string `json:"repository_url"`
+	Ref               string `json:"ref"`
+	CommitSHA         string `json:"commit_sha,omitempty"`
+	Status            string `json:"status"`
+	ArtifactDigest    string `json:"artifact_digest,omitempty"`
+	ResultMessage     string `json:"result_message,omitempty"`
+	CreatedAt         string `json:"created_at"`
+	StartedAt         string `json:"started_at,omitempty"`
+	FinishedAt        string `json:"finished_at,omitempty"`
+	ArtifactExpiresAt string `json:"artifact_expires_at,omitempty"`
 }
 
 type gitBuildClaim struct {
@@ -103,6 +104,12 @@ func (h *Handler) claimGitBuild(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not recover expired build jobs")
 		return
 	}
+	if _, err := tx.ExecContext(r.Context(), `UPDATE database_services s JOIN git_build_jobs b ON b.service_id = s.id
+		SET s.status = 'failed', s.last_error = b.result_message WHERE b.status = 'failed' AND b.attempts >= 5
+		AND s.status = 'queued' AND s.image_version = b.id`); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not mark expired builds failed")
+		return
+	}
 	var job gitBuildClaim
 	err = tx.QueryRowContext(r.Context(), `SELECT id, repository_url, git_ref, service_id, attempts
 		FROM git_build_jobs
@@ -160,7 +167,13 @@ func (h *Handler) heartbeatGitBuild(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	result, err := h.db.ExecContext(r.Context(), `UPDATE git_build_jobs SET lease_expires_at = UTC_TIMESTAMP(6) + INTERVAL 15 MINUTE
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not renew build lease")
+		return
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(r.Context(), `UPDATE git_build_jobs SET lease_expires_at = UTC_TIMESTAMP(6) + INTERVAL 15 MINUTE
 		WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6)`, jobID, attempt)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not renew build lease")
@@ -169,6 +182,10 @@ func (h *Handler) heartbeatGitBuild(w http.ResponseWriter, r *http.Request) {
 	changed, err := result.RowsAffected()
 	if err != nil || changed != 1 {
 		writeError(w, http.StatusConflict, "build lease is no longer owned")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not renew build lease")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -201,7 +218,13 @@ func (h *Handler) failGitBuild(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "failure message must be between 1 and 2048 bytes")
 		return
 	}
-	result, err := h.db.ExecContext(r.Context(), `UPDATE git_build_jobs SET status = 'failed', result_message = ?, finished_at = UTC_TIMESTAMP(6), lease_expires_at = NULL
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not record build failure")
+		return
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(r.Context(), `UPDATE git_build_jobs SET status = 'failed', result_message = ?, finished_at = UTC_TIMESTAMP(6), lease_expires_at = NULL
 		WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6)`, input.Message, jobID, attempt)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not record build failure")
@@ -210,6 +233,15 @@ func (h *Handler) failGitBuild(w http.ResponseWriter, r *http.Request) {
 	changed, err := result.RowsAffected()
 	if err != nil || changed != 1 {
 		writeError(w, http.StatusConflict, "build lease is no longer owned")
+		return
+	}
+	if _, err := tx.ExecContext(r.Context(), `UPDATE database_services SET status = 'failed', last_error = ?
+		WHERE id = (SELECT service_id FROM git_build_jobs WHERE id = ?) AND status = 'queued' AND image_version = ?`, input.Message, jobID, jobID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update failed application")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not record build failure")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -396,6 +428,11 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 		}
 		artifactBytes += size
 	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		writeError(w, http.StatusInternalServerError, "could not check build artifact storage capacity")
+		return
+	}
 	if err := rows.Close(); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not check artifact storage capacity")
 		return
@@ -425,6 +462,19 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 	if changed != 1 {
 		os.Remove(finalPath)
 		writeError(w, http.StatusConflict, "build lease is no longer owned")
+		return
+	}
+	serviceResult, err := capacityTx.ExecContext(r.Context(), `UPDATE database_services SET image = 'docker.io/kymber/build-artifacts', image_version = ?, status = 'draft', last_error = NULL
+		WHERE id = (SELECT service_id FROM git_build_jobs WHERE id = ?) AND image_version = ? AND status = 'queued'`, jobID, jobID, jobID)
+	if err != nil {
+		os.Remove(finalPath)
+		writeError(w, http.StatusInternalServerError, "could not update built application")
+		return
+	}
+	serviceChanged, err := serviceResult.RowsAffected()
+	if err != nil || serviceChanged != 1 {
+		os.Remove(finalPath)
+		writeError(w, http.StatusConflict, "application changed while the build was running")
 		return
 	}
 	if err := capacityTx.Commit(); err != nil {
@@ -458,6 +508,10 @@ func (h *Handler) expireGitBuildArtifacts(ctx context.Context, directory string)
 			return err
 		}
 		expired = append(expired, item)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
 	}
 	if err := rows.Close(); err != nil {
 		return err
@@ -528,7 +582,27 @@ func (h *Handler) createGitBuild(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not create build job")
 		return
 	}
-	if _, err := h.db.ExecContext(r.Context(), "INSERT INTO git_build_jobs (id, service_id, repository_url, git_ref) VALUES (?, ?, ?, ?)", id, serviceID, input.RepositoryURL, input.Ref); err != nil {
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not queue build job")
+		return
+	}
+	defer tx.Rollback()
+	serviceResult, err := tx.ExecContext(r.Context(), `UPDATE database_services SET image='docker.io/kymber/build-artifacts', image_version=?, status='queued', last_error=NULL
+		WHERE id=? AND status NOT IN ('queued', 'deploying')`, id, serviceID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not prepare application for build")
+		return
+	}
+	if changed, err := serviceResult.RowsAffected(); err != nil || changed != 1 {
+		writeError(w, http.StatusConflict, "wait for the current app action to finish")
+		return
+	}
+	if _, err := tx.ExecContext(r.Context(), "INSERT INTO git_build_jobs (id, service_id, repository_url, git_ref) VALUES (?, ?, ?, ?)", id, serviceID, input.RepositoryURL, input.Ref); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not queue build job")
+		return
+	}
+	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not queue build job")
 		return
 	}
@@ -549,7 +623,7 @@ func (h *Handler) listGitBuilds(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), `SELECT b.id, b.service_id, b.repository_url, b.git_ref, COALESCE(b.commit_sha, ''), b.status, COALESCE(b.artifact_digest, ''), COALESCE(b.result_message, ''), b.created_at, b.started_at, b.finished_at
+	rows, err := h.db.QueryContext(r.Context(), `SELECT b.id, b.service_id, b.repository_url, b.git_ref, COALESCE(b.commit_sha, ''), b.status, COALESCE(b.artifact_digest, ''), COALESCE(b.result_message, ''), b.created_at, b.started_at, b.finished_at, b.artifact_expires_at
 		FROM git_build_jobs b JOIN database_services s ON s.id = b.service_id WHERE b.service_id = ? AND s.workspace_id = ? AND s.project_id = ? ORDER BY b.created_at DESC LIMIT 100`, serviceID, workspaceID, projectID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list build jobs")
@@ -559,8 +633,8 @@ func (h *Handler) listGitBuilds(w http.ResponseWriter, r *http.Request) {
 	jobs := make([]gitBuildJob, 0)
 	for rows.Next() {
 		var job gitBuildJob
-		var startedAt, finishedAt *string
-		if err := rows.Scan(&job.ID, &job.ServiceID, &job.RepositoryURL, &job.Ref, &job.CommitSHA, &job.Status, &job.ArtifactDigest, &job.ResultMessage, &job.CreatedAt, &startedAt, &finishedAt); err != nil {
+		var startedAt, finishedAt, artifactExpiresAt *string
+		if err := rows.Scan(&job.ID, &job.ServiceID, &job.RepositoryURL, &job.Ref, &job.CommitSHA, &job.Status, &job.ArtifactDigest, &job.ResultMessage, &job.CreatedAt, &startedAt, &finishedAt, &artifactExpiresAt); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read build jobs")
 			return
 		}
@@ -569,6 +643,9 @@ func (h *Handler) listGitBuilds(w http.ResponseWriter, r *http.Request) {
 		}
 		if finishedAt != nil {
 			job.FinishedAt = *finishedAt
+		}
+		if artifactExpiresAt != nil {
+			job.ArtifactExpiresAt = *artifactExpiresAt
 		}
 		jobs = append(jobs, job)
 	}
