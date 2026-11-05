@@ -627,7 +627,10 @@ func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, imag
 		command += " " + quote(arg)
 	}
 	if s.Domain != "" {
-		command += " && docker network connect kymber \"$n\""
+		command += "; docker network connect kymber \"$n\""
+	}
+	if t.HealthCmd != "" {
+		command += "; i=0; while test \"$i\" -lt 90; do state=$(docker inspect --format '{{.State.Health.Status}}' \"$n\"); if test \"$state\" = healthy; then break; fi; if test \"$state\" = unhealthy; then echo 'Container health check failed.' >&2; exit 1; fi; i=$((i+1)); sleep 2; done; test \"$(docker inspect --format '{{.State.Health.Status}}' \"$n\")\" = healthy || { echo 'Container did not become healthy within 3 minutes.' >&2; exit 1; }"
 	}
 	return command, nil
 }
