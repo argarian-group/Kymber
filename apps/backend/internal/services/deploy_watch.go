@@ -11,6 +11,8 @@ import (
 const (
 	deployWatchInterval = 3 * time.Second
 	deployWatchLimit    = 2 * time.Hour
+	maxDeploymentOutput = 64 << 10
+	maxDeploymentError  = 60 << 10
 )
 
 type deployProgress struct {
@@ -41,37 +43,89 @@ func (h *Handler) finishDeploy(ctx context.Context, serviceID string, succeeded 
 	if len(deploymentIDs) > 0 {
 		deploymentID = deploymentIDs[0]
 	}
-	if len(output) > 65536 {
-		output = output[len(output)-65536:]
-	}
+	output = limitDeploymentOutput(output, maxDeploymentOutput)
 	status := "failed"
-	var lastError any = output
+	var lastError any = limitDeploymentOutput(output, maxDeploymentError)
 	if succeeded {
 		status = "succeeded"
 		lastError = nil
 	}
+	tx, err := h.db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Warn("could not finish deployment: service=%s error=%v", serviceID, err)
+		return
+	}
+	defer tx.Rollback()
 	if !succeeded {
-		_, _ = h.db.ExecContext(ctx, "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", output, serviceID)
-	} else {
-		result, err := h.db.ExecContext(ctx, "UPDATE database_services SET status = 'running', last_error = NULL WHERE id = ? AND status = 'deploying'", serviceID)
+		result, err := tx.ExecContext(ctx, "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", output, serviceID)
 		if err != nil {
+			logger.Warn("could not update failed deployment service: service=%s error=%v", serviceID, err)
 			return
 		}
-		if changed, _ := result.RowsAffected(); changed > 0 {
-			_, _ = h.db.ExecContext(ctx, "UPDATE service_storages SET applied = TRUE WHERE service_id = ?", serviceID)
-			_, _ = h.db.ExecContext(ctx, "UPDATE service_ports SET applied = TRUE WHERE service_id = ?", serviceID)
+		changed, err := result.RowsAffected()
+		if err != nil || changed == 0 {
+			return
+		}
+	} else {
+		result, err := tx.ExecContext(ctx, "UPDATE database_services SET status = 'running', last_error = NULL WHERE id = ? AND status = 'deploying'", serviceID)
+		if err != nil {
+			logger.Warn("could not update successful deployment service: service=%s error=%v", serviceID, err)
+			return
+		}
+		changed, err := result.RowsAffected()
+		if err != nil || changed == 0 {
+			return
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE service_storages SET applied = TRUE WHERE service_id = ?", serviceID); err != nil {
+			logger.Warn("could not update applied service storage: service=%s error=%v", serviceID, err)
+			return
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE service_ports SET applied = TRUE WHERE service_id = ?", serviceID); err != nil {
+			logger.Warn("could not update applied service ports: service=%s error=%v", serviceID, err)
+			return
 		}
 	}
 	if deploymentID != "" {
-		_, _ = h.db.ExecContext(ctx, "UPDATE service_deployments SET status = ?, output = ?, last_error = ?, finished_at = UTC_TIMESTAMP(6) WHERE id = ? AND status = 'deploying'", status, output, lastError, deploymentID)
+		_, err = tx.ExecContext(ctx, "UPDATE service_deployments SET status = ?, output = ?, last_error = ?, finished_at = UTC_TIMESTAMP(6) WHERE id = ? AND status = 'deploying'", status, output, lastError, deploymentID)
 	} else {
-		_, _ = h.db.ExecContext(ctx, "UPDATE service_deployments SET status = ?, output = ?, last_error = ?, finished_at = UTC_TIMESTAMP(6) WHERE service_id = ? AND status = 'deploying' ORDER BY started_at DESC LIMIT 1", status, output, lastError, serviceID)
+		_, err = tx.ExecContext(ctx, "UPDATE service_deployments SET status = ?, output = ?, last_error = ?, finished_at = UTC_TIMESTAMP(6) WHERE service_id = ? AND status = 'deploying' ORDER BY started_at DESC LIMIT 1", status, output, lastError, serviceID)
+	}
+	if err != nil {
+		logger.Warn("could not record deployment result: service=%s error=%v", serviceID, err)
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		logger.Warn("could not commit deployment result: service=%s error=%v", serviceID, err)
 	}
 }
 
 func (h *Handler) failDeployment(ctx context.Context, serviceID, deploymentID, message string) {
-	_, _ = h.db.ExecContext(ctx, "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", message, serviceID)
-	_, _ = h.db.ExecContext(ctx, "UPDATE service_deployments SET status = 'failed', last_error = ?, output = ?, finished_at = UTC_TIMESTAMP(6) WHERE id = ? AND status = 'deploying'", message, message, deploymentID)
+	message = limitDeploymentOutput(message, maxDeploymentError)
+	tx, err := h.db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Warn("could not record deployment failure: service=%s error=%v", serviceID, err)
+		return
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", message, serviceID); err != nil {
+		logger.Warn("could not update failed service: service=%s error=%v", serviceID, err)
+		return
+	}
+	if _, err := tx.ExecContext(ctx, "UPDATE service_deployments SET status = 'failed', last_error = ?, output = ?, finished_at = UTC_TIMESTAMP(6) WHERE id = ? AND status = 'deploying'", message, message, deploymentID); err != nil {
+		logger.Warn("could not update failed deployment record: service=%s error=%v", serviceID, err)
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		logger.Warn("could not commit deployment failure: service=%s error=%v", serviceID, err)
+	}
+}
+
+func limitDeploymentOutput(output string, limit int) string {
+	output = strings.ToValidUTF8(output, "")
+	if len(output) > limit {
+		output = output[len(output)-limit:]
+	}
+	return strings.ToValidUTF8(output, "")
 }
 
 // watchDeploy finishes a deploy whether or not anyone has the app open. A resumed watcher treats a missing log as an action the restart interrupted, because deploys create the log before they start.

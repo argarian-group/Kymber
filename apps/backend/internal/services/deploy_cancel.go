@@ -46,8 +46,22 @@ func (h *Handler) cancelServiceDeploy(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, "could not force-stop deployment: "+err.Error())
 		return
 	}
-	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", "Deployment force-stopped by user.", serviceID); err != nil {
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update deployment status")
+		return
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(r.Context(), "UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'deploying'", "Deployment force-stopped by user.", serviceID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update deployment status")
+		return
+	}
+	if _, err := tx.ExecContext(r.Context(), "UPDATE service_deployments SET status = 'cancelled', last_error = ?, output = CONCAT(output, '\\nDeployment force-stopped by user.'), finished_at = UTC_TIMESTAMP(6) WHERE service_id = ? AND status = 'deploying' ORDER BY started_at DESC LIMIT 1", "Deployment force-stopped by user.", serviceID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update deployment history")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not commit deployment status")
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)
