@@ -179,11 +179,12 @@ print_addresses() {
 }
 
 check_ports() {
-	local port id container_name listening compose_ids project_name
+	local port id container_name listening compose_ids project_name own_port
 	local ports=($(compose_port HTTP_PORT 80) $(compose_port APP_PORT 3000) $(compose_port HTTPS_PORT 443))
 	project_name=$(docker compose ls --format json | jq -r --arg file "$install_dir/docker-compose.yml" '.[] | select((.ConfigFiles | split(",") | index($file)) != null) | .Name' | head -n 1)
 	compose_ids=$(docker ps -q --filter "label=com.docker.compose.project=$project_name")
 	for port in "${ports[@]}"; do
+		own_port=0
 		if [[ ! "$port" =~ ^[0-9]{1,5}$ ]] || ((port < 1 || port > 65535)); then
 			printf 'Invalid host port in .env: %s\n' "$port"
 			return 1
@@ -192,12 +193,16 @@ check_ports() {
 			if docker inspect --format '{{json .NetworkSettings.Ports}}' "$id" | jq -e --arg port "$port" '[.[]? // [] | .[]? | select(.HostPort == $port)] | length > 0' >/dev/null; then
 				container_name=$(docker inspect --format '{{.Name}}' "$id")
 				if [[ -n "$project_name" ]] && grep -Fxq "${id:0:12}" <<<"$compose_ids"; then
-					continue
+					own_port=1
+					break
 				fi
 				printf 'Port %s is already published by container %s\n' "$port" "$container_name"
 				return 1
 			fi
 		done
+		if ((own_port)); then
+			continue
+		fi
 		listening=$(ss -H -ltn "sport = :$port")
 		if [[ -n "$listening" ]]; then
 			printf 'Port %s is already listening on the host:\n%s\n' "$port" "$listening"
