@@ -7,6 +7,12 @@ services:
       - ${KYMBER_LOCAL_SSH_PRIVATE_KEY_FILE:-./.local/kymber-local-ssh}:/host-secrets/local-ssh-key:ro
       - ${KYMBER_LOCAL_SSH_HOST_KEY_FILE:-/etc/ssh/ssh_host_ed25519_key.pub}:/host-secrets/local-ssh-hostkey.pub:ro
 
+  build-artifacts-init:
+    image: busybox:1.37.0
+    command: ["sh", "-c", "mkdir -p /artifacts; chown 65532:65532 /artifacts; chmod 0700 /artifacts"]
+    volumes:
+      - build_artifacts:/artifacts
+
   traefik:
     image: traefik:v3.7.15
     restart: unless-stopped
@@ -77,6 +83,8 @@ services:
       TRAEFIK_PANEL_WEB_TARGET: http://frontend:80
       KYMBER_SERVER_TOKEN_FILE: /run/kymber-secrets/server-token
       KYMBER_BUILD_WORKER_TOKEN: ${KYMBER_BUILD_WORKER_TOKEN:-}
+      KYMBER_GIT_BUILDS_ENABLED: ${KYMBER_GIT_BUILDS_ENABLED:-false}
+      KYMBER_BUILD_ARTIFACT_DIR: /var/lib/kymber/build-artifacts
       DB_HOST: mariadb
       DB_PORT: "3306"
       DB_NAME: ${DB_NAME:-kymber}
@@ -101,8 +109,11 @@ services:
         condition: service_completed_successfully
       mariadb:
         condition: service_healthy
+      build-artifacts-init:
+        condition: service_completed_successfully
     volumes:
       - kymber_secrets:/run/kymber-secrets
+      - build_artifacts:/var/lib/kymber/build-artifacts
 
   frontend:
     build:
@@ -191,6 +202,7 @@ volumes:
   kymber_secrets:
   traefik_certs:
   prometheus_data:
+  build_artifacts:
 
 networks:
   data:

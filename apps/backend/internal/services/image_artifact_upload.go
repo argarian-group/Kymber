@@ -53,6 +53,9 @@ func (h *Handler) deployImageArtifact(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusRequestEntityTooLarge, "OCI archive exceeds 1 GiB")
 		return
 	}
+	if !allowArtifactTransfer(w) {
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, artifacts.MaxOCIArchiveSize)
 	archive, _, err := artifacts.SpoolOCI(r.Body)
 	if err != nil {

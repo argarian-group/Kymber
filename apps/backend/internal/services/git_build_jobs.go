@@ -5,12 +5,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
+	"kymber/backend/internal/artifacts"
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
 	"kymber/backend/internal/permissions"
@@ -46,6 +51,9 @@ type gitBuildClaim struct {
 var gitRefPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$`)
 var gitHubOwnerPattern = regexp.MustCompile(`^[A-Za-z0-9-]{1,39}$`)
 var gitHubRepositoryPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,100}$`)
+var gitCommitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
+func gitBuildsEnabled() bool { return os.Getenv("KYMBER_GIT_BUILDS_ENABLED") == "true" }
 
 func validPublicGitHubURL(raw string) bool {
 	u, err := url.Parse(raw)
@@ -69,9 +77,11 @@ func validGitRef(ref string) bool {
 }
 
 func (h *Handler) claimGitBuild(w http.ResponseWriter, r *http.Request) {
-	token := os.Getenv("KYMBER_BUILD_WORKER_TOKEN")
-	authorization := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if token == "" || len(token) != len(authorization) || subtle.ConstantTimeCompare([]byte(token), []byte(authorization)) != 1 {
+	if !gitBuildsEnabled() {
+		writeError(w, http.StatusNotFound, "Git builds are disabled")
+		return
+	}
+	if !h.authenticateBuildWorker(r) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -118,8 +128,217 @@ func (h *Handler) claimGitBuild(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(job)
 }
 
+func (h *Handler) authenticateBuildWorker(r *http.Request) bool {
+	token := os.Getenv("KYMBER_BUILD_WORKER_TOKEN")
+	header := r.Header.Get("Authorization")
+	if !strings.HasPrefix(header, "Bearer ") {
+		return false
+	}
+	authorization := strings.TrimPrefix(header, "Bearer ")
+	return token != "" && len(token) == len(authorization) && subtle.ConstantTimeCompare([]byte(token), []byte(authorization)) == 1
+}
+
+func (h *Handler) heartbeatGitBuild(w http.ResponseWriter, r *http.Request) {
+	if !gitBuildsEnabled() {
+		writeError(w, http.StatusNotFound, "Git builds are disabled")
+		return
+	}
+	if !h.authenticateBuildWorker(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	jobID := r.PathValue("jobID")
+	attempt, ok := buildAttempt(w, r)
+	if !ok || !entityIDPattern.MatchString(jobID) {
+		if ok {
+			writeError(w, http.StatusBadRequest, "invalid job id")
+		}
+		return
+	}
+	result, err := h.db.ExecContext(r.Context(), `UPDATE git_build_jobs SET lease_expires_at = UTC_TIMESTAMP(6) + INTERVAL 15 MINUTE
+		WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6)`, jobID, attempt)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not renew build lease")
+		return
+	}
+	changed, err := result.RowsAffected()
+	if err != nil || changed != 1 {
+		writeError(w, http.StatusConflict, "build lease is no longer owned")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) failGitBuild(w http.ResponseWriter, r *http.Request) {
+	if !gitBuildsEnabled() {
+		writeError(w, http.StatusNotFound, "Git builds are disabled")
+		return
+	}
+	if !h.authenticateBuildWorker(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	jobID := r.PathValue("jobID")
+	attempt, ok := buildAttempt(w, r)
+	if !ok || !entityIDPattern.MatchString(jobID) {
+		if ok {
+			writeError(w, http.StatusBadRequest, "invalid job id")
+		}
+		return
+	}
+	var input struct {
+		Message string `json:"message"`
+	}
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	if input.Message == "" || len(input.Message) > 2048 {
+		writeError(w, http.StatusBadRequest, "failure message must be between 1 and 2048 bytes")
+		return
+	}
+	result, err := h.db.ExecContext(r.Context(), `UPDATE git_build_jobs SET status = 'failed', result_message = ?, finished_at = UTC_TIMESTAMP(6), lease_expires_at = NULL
+		WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6)`, input.Message, jobID, attempt)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not record build failure")
+		return
+	}
+	changed, err := result.RowsAffected()
+	if err != nil || changed != 1 {
+		writeError(w, http.StatusConflict, "build lease is no longer owned")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) {
+	if !gitBuildsEnabled() {
+		writeError(w, http.StatusNotFound, "Git builds are disabled")
+		return
+	}
+	if !h.authenticateBuildWorker(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	jobID := r.PathValue("jobID")
+	attempt, ok := buildAttempt(w, r)
+	if !ok || !entityIDPattern.MatchString(jobID) {
+		if ok {
+			writeError(w, http.StatusBadRequest, "invalid job id")
+		}
+		return
+	}
+	commitSHA := r.Header.Get("X-Git-Commit")
+	if !gitCommitPattern.MatchString(commitSHA) {
+		writeError(w, http.StatusBadRequest, "invalid Git commit SHA")
+		return
+	}
+	var owned bool
+	if err := h.db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM git_build_jobs
+		WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6))`, jobID, attempt).Scan(&owned); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not verify build lease")
+		return
+	}
+	if !owned {
+		writeError(w, http.StatusConflict, "build lease is no longer owned")
+		return
+	}
+	if !allowArtifactTransfer(w) {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, artifacts.MaxOCIArchiveSize)
+	archive, digest, err := artifacts.SpoolOCI(r.Body)
+	if err != nil {
+		status := http.StatusBadRequest
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) || strings.Contains(err.Error(), "exceeds 1 GiB") {
+			status = http.StatusRequestEntityTooLarge
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	defer os.Remove(archive.Name())
+	defer archive.Close()
+	converted, _, err := artifacts.ConvertOCIToDockerArchive(archive, "docker.io/kymber/build-artifacts:"+jobID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "OCI artifact must contain exactly one valid image: "+err.Error())
+		return
+	}
+	converted.Close()
+	os.Remove(converted.Name())
+	directory := os.Getenv("KYMBER_BUILD_ARTIFACT_DIR")
+	if directory == "" {
+		writeError(w, http.StatusInternalServerError, "build artifact storage is not configured")
+		return
+	}
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create artifact storage")
+		return
+	}
+	stored, err := os.CreateTemp(directory, fmt.Sprintf("%s-%d-*.oci", jobID, attempt))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not store build artifact")
+		return
+	}
+	storedPath := stored.Name()
+	keep := false
+	defer func() {
+		stored.Close()
+		if !keep {
+			os.Remove(storedPath)
+		}
+	}()
+	if _, err := archive.Seek(0, io.SeekStart); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read validated artifact")
+		return
+	}
+	if _, err := io.Copy(stored, archive); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not persist artifact")
+		return
+	}
+	if err := stored.Sync(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not persist artifact")
+		return
+	}
+	if err := stored.Close(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not persist artifact")
+		return
+	}
+	finalPath := storedPath + ".tar"
+	if err := os.Rename(storedPath, finalPath); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not publish artifact")
+		return
+	}
+	result, err := h.db.ExecContext(r.Context(), `UPDATE git_build_jobs SET status = 'succeeded', commit_sha = ?, artifact_digest = ?, artifact_path = ?, result_message = NULL,
+		finished_at = UTC_TIMESTAMP(6), lease_expires_at = NULL WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6)`, commitSHA, digest, filepath.Base(finalPath), jobID, attempt)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not complete build job")
+		return
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not verify build completion")
+		return
+	}
+	if changed != 1 {
+		os.Remove(finalPath)
+		writeError(w, http.StatusConflict, "build lease is no longer owned")
+		return
+	}
+	keep = true
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func buildAttempt(w http.ResponseWriter, r *http.Request) (int, bool) {
+	attempt, err := strconv.Atoi(r.Header.Get("X-Build-Attempt"))
+	if err != nil || attempt < 1 || attempt > 5 {
+		writeError(w, http.StatusBadRequest, "invalid build attempt")
+		return 0, false
+	}
+	return attempt, true
+}
+
 func (h *Handler) createGitBuild(w http.ResponseWriter, r *http.Request) {
-	if os.Getenv("KYMBER_GIT_BUILDS_ENABLED") != "true" {
+	if !gitBuildsEnabled() {
 		writeError(w, http.StatusNotFound, "Git builds are disabled")
 		return
 	}

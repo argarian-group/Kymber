@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/permissions"
@@ -68,6 +69,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		mux.Handle(route.pattern, auth.Authenticate(h.db, route.handler))
 	}
 	mux.HandleFunc("POST /internal/build-worker/claim", h.claimGitBuild)
+	mux.HandleFunc("POST /internal/build-worker/jobs/{jobID}/heartbeat", h.heartbeatGitBuild)
+	mux.HandleFunc("POST /internal/build-worker/jobs/{jobID}/fail", h.failGitBuild)
+	mux.HandleFunc("POST /internal/build-worker/jobs/{jobID}/artifact", h.storeGitBuildArtifact)
 }
 
 var entityIDPattern = regexp.MustCompile(`^[0-9a-f]{6}$`)
@@ -105,6 +109,20 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
+}
+
+func allowArtifactTransfer(w http.ResponseWriter) bool {
+	deadline := time.Now().Add(30 * time.Minute)
+	controller := http.NewResponseController(w)
+	if err := controller.SetReadDeadline(deadline); err != nil {
+		writeError(w, http.StatusInternalServerError, "streaming artifact uploads are unsupported")
+		return false
+	}
+	if err := controller.SetWriteDeadline(deadline); err != nil {
+		writeError(w, http.StatusInternalServerError, "streaming artifact uploads are unsupported")
+		return false
+	}
+	return true
 }
 func (h *Handler) authorize(w http.ResponseWriter, r *http.Request, user auth.User, workspaceID string, permission string) bool {
 	if user.IsRoot {
