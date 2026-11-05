@@ -31,7 +31,7 @@ Knowing how a project is doing usually means checking one tool for tasks, anothe
 - **Workspaces:** create, rename and delete workspaces, and switch between them.
 - **Team:** built-in owner, admin and member roles, custom roles with per-area permissions, and invite links.
 - **Projects:** create, edit and delete projects inside a workspace, each with an optional logo.
-- **Apps:** create MySQL and Redis apps from templates, or any public Docker Hub image, then deploy, start, stop and restart them in Docker.
+- **Apps:** create MySQL and Redis apps from templates, or any public Docker Hub image, then deploy, start, stop and restart them in Docker. Image-based apps have deployment history, output and a re-deploy action for previous versions.
 - **Environments:** add environments such as production and dev to a project. Apps in an environment share a private network, and apps can also stay outside any environment.
 - **Tasks:** boards with editable lists, draggable cards, a rich text editor for descriptions and comments, checklists, labels, multiple assignees and filters, across board, list and calendar views.
 - **Appearance:** theme, accent color and density, saved in the browser.
@@ -158,7 +158,8 @@ assets/                  # Logo, banner and background
 - [x] Projects
 - [x] Connect accounts, workspaces and projects to the API
 - [x] Database apps deployed to local and remote servers
-- [ ] Application apps and deploy history
+- [x] Deployment history and output for image-based apps
+- [ ] Git-based application builds and deploy history
 - [x] Tasks in the API
 - [ ] Collaboration and progress tracking
 
