@@ -347,6 +347,8 @@ export const ptBR = {
   "Create your account to accept this invitation.": "Crie sua conta para aceitar este convite.",
   "Create your first app from a template.": "Crie seu primeiro app a partir de um modelo.",
   "Docker Compose stack": "Stack do Docker Compose",
+  "Deploy from public GitHub": "Deploy do GitHub (público)",
+  "GitHub builds remain disabled while security validation is pending": "Indisponível enquanto a validação de segurança dos builds estiver pendente",
   "Host port {port} is already in use. Choose another published host port or remove its conflicting Compose mapping, then deploy again.": "A porta {port} já está em uso. Escolha outra porta publicada no host ou remova o mapeamento conflitante do Compose e faça o deploy novamente.",
   "Obsolete Compose containers were found ({containers}); they will be removed on the next deployment.": "Foram encontrados containers Compose obsoletos ({containers}); eles serão removidos no próximo deploy.",
   "Run multiple containers as one stack": "Execute vários containers como uma única stack",
