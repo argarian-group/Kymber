@@ -181,7 +181,7 @@ print_addresses() {
 check_ports() {
 	local port id container_name container_project listening project_name own_port
 	local ports=($(compose_port HTTP_PORT 80) $(compose_port APP_PORT 3000) $(compose_port HTTPS_PORT 443))
-	project_name=$(docker compose ls --format json | jq -r --arg file "$install_dir/docker-compose.yml" '.[] | select((.ConfigFiles | split(",") | index($file)) != null) | .Name' | head -n 1)
+	project_name=${COMPOSE_PROJECT_NAME:-$(basename "$install_dir")}
 	for port in "${ports[@]}"; do
 		own_port=0
 		if [[ ! "$port" =~ ^[0-9]{1,5}$ ]] || ((port < 1 || port > 65535)); then
