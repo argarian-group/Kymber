@@ -1,12 +1,14 @@
 package services
 
 import (
+	"context"
 	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,6 +16,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"kymber/backend/internal/artifacts"
 	"kymber/backend/internal/auth"
@@ -52,6 +55,8 @@ var gitRefPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$`)
 var gitHubOwnerPattern = regexp.MustCompile(`^[A-Za-z0-9-]{1,39}$`)
 var gitHubRepositoryPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,100}$`)
 var gitCommitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
+const maxBuildArtifactStorage int64 = 10 << 30
 
 func gitBuildsEnabled() bool { return os.Getenv("KYMBER_GIT_BUILDS_ENABLED") == "true" }
 
@@ -242,6 +247,11 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusConflict, "build lease is no longer owned")
 		return
 	}
+	var repositoryURL, gitRef string
+	if err := h.db.QueryRowContext(r.Context(), "SELECT repository_url, git_ref FROM git_build_jobs WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6)", jobID, attempt).Scan(&repositoryURL, &gitRef); err != nil {
+		writeError(w, http.StatusConflict, "build lease is no longer owned")
+		return
+	}
 	if !allowArtifactTransfer(w) {
 		return
 	}
@@ -258,6 +268,33 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 	}
 	defer os.Remove(archive.Name())
 	defer archive.Close()
+	if !validPublicGitHubURL(repositoryURL) || !validGitRef(gitRef) {
+		writeError(w, http.StatusConflict, "build job source is invalid")
+		return
+	}
+	repositoryPath := strings.TrimSuffix(strings.TrimPrefix(repositoryURL, "https://github.com/"), ".git")
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, "https://api.github.com/repos/"+repositoryPath+"/commits/"+url.PathEscape(gitRef), nil)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "could not verify source commit")
+		return
+	}
+	request.Header.Set("Accept", "application/vnd.github+json")
+	request.Header.Set("User-Agent", "Kymber-build-controller")
+	client := &http.Client{Timeout: 10 * time.Second}
+	response, err := client.Do(request)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "could not verify source commit")
+		return
+	}
+	var githubCommit struct {
+		SHA string `json:"sha"`
+	}
+	decodeErr := json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&githubCommit)
+	response.Body.Close()
+	if response.StatusCode != http.StatusOK || decodeErr != nil || githubCommit.SHA != commitSHA {
+		writeError(w, http.StatusConflict, "reported commit does not match the requested Git ref")
+		return
+	}
 	converted, _, err := artifacts.ConvertOCIToDockerArchive(archive, "docker.io/kymber/build-artifacts:"+jobID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "OCI artifact must contain exactly one valid image: "+err.Error())
@@ -303,25 +340,93 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "could not persist artifact")
 		return
 	}
+	info, err := stored.Stat()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not check artifact storage capacity")
+		return
+	}
+	if info.Size() > artifacts.MaxOCIArchiveSize {
+		writeError(w, http.StatusRequestEntityTooLarge, "OCI artifact exceeds 1 GiB")
+		return
+	}
+	if err := h.expireGitBuildArtifacts(r.Context(), directory); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not expire old build artifacts")
+		return
+	}
+	capacityTx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not check artifact storage capacity")
+		return
+	}
+	defer capacityTx.Rollback()
+	if _, err := capacityTx.ExecContext(r.Context(), "UPDATE git_build_jobs SET status = status WHERE id = ?", jobID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not reserve artifact storage")
+		return
+	}
+	var lockedJobID string
+	if err := capacityTx.QueryRowContext(r.Context(), "SELECT id FROM git_build_jobs WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6) FOR UPDATE", jobID, attempt).Scan(&lockedJobID); err != nil {
+		writeError(w, http.StatusConflict, "build lease is no longer owned")
+		return
+	}
+	var artifactBytes int64
+	rows, err := capacityTx.QueryContext(r.Context(), "SELECT artifact_size FROM git_build_jobs WHERE artifact_path IS NOT NULL AND artifact_expires_at > UTC_TIMESTAMP(6) AND id <> ? FOR UPDATE", jobID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not check artifact storage capacity")
+		return
+	}
+	for rows.Next() {
+		var size int64
+		if err := rows.Scan(&size); err != nil {
+			rows.Close()
+			writeError(w, http.StatusInternalServerError, "could not check artifact storage capacity")
+			return
+		}
+		if artifactBytes > math.MaxInt64-size {
+			rows.Close()
+			writeError(w, http.StatusInsufficientStorage, "build artifact storage accounting overflow")
+			return
+		}
+		artifactBytes += size
+	}
+	if err := rows.Close(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not check artifact storage capacity")
+		return
+	}
+	if info.Size() > maxBuildArtifactStorage || artifactBytes > maxBuildArtifactStorage-info.Size() {
+		writeError(w, http.StatusInsufficientStorage, "build artifact storage limit reached")
+		return
+	}
 	finalPath := storedPath + ".tar"
 	if err := os.Rename(storedPath, finalPath); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not publish artifact")
 		return
 	}
-	result, err := h.db.ExecContext(r.Context(), `UPDATE git_build_jobs SET status = 'succeeded', commit_sha = ?, artifact_digest = ?, artifact_path = ?, result_message = NULL,
-		finished_at = UTC_TIMESTAMP(6), lease_expires_at = NULL WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6)`, commitSHA, digest, filepath.Base(finalPath), jobID, attempt)
+	result, err := capacityTx.ExecContext(r.Context(), `UPDATE git_build_jobs SET status = 'succeeded', commit_sha = ?, artifact_digest = ?, artifact_path = ?, artifact_size = ?, artifact_expires_at = UTC_TIMESTAMP(6) + INTERVAL 30 DAY, result_message = NULL,
+		finished_at = UTC_TIMESTAMP(6), lease_expires_at = NULL WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6)`, commitSHA, digest, filepath.Base(finalPath), info.Size(), jobID, attempt)
 	if err != nil {
+		os.Remove(finalPath)
 		writeError(w, http.StatusInternalServerError, "could not complete build job")
 		return
 	}
 	changed, err := result.RowsAffected()
 	if err != nil {
+		os.Remove(finalPath)
 		writeError(w, http.StatusInternalServerError, "could not verify build completion")
 		return
 	}
 	if changed != 1 {
-		os.Remove(finalPath)
 		writeError(w, http.StatusConflict, "build lease is no longer owned")
+		return
+	}
+	if err := os.Rename(storedPath, finalPath); err != nil {
+		if _, updateErr := capacityTx.ExecContext(r.Context(), `UPDATE git_build_jobs SET status = 'failed', result_message = 'Artifact publication failed.', artifact_path = NULL, artifact_size = NULL, artifact_expires_at = NULL, commit_sha = NULL, artifact_digest = NULL, finished_at = UTC_TIMESTAMP(6), lease_expires_at = NULL WHERE id = ? AND status = 'running' AND attempts = ?`, jobID, attempt); updateErr == nil {
+			capacityTx.Commit()
+		}
+		writeError(w, http.StatusInternalServerError, "could not publish artifact")
+		return
+	}
+	if err := capacityTx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not commit build completion")
 		return
 	}
 	keep = true
@@ -335,6 +440,50 @@ func buildAttempt(w http.ResponseWriter, r *http.Request) (int, bool) {
 		return 0, false
 	}
 	return attempt, true
+}
+
+func (h *Handler) expireGitBuildArtifacts(ctx context.Context, directory string) error {
+	rows, err := h.db.QueryContext(ctx, `SELECT id, artifact_path FROM git_build_jobs WHERE artifact_path IS NOT NULL AND artifact_expires_at <= UTC_TIMESTAMP(6) ORDER BY artifact_expires_at LIMIT 100`)
+	if err != nil {
+		return err
+	}
+	type artifact struct{ id, name string }
+	var expired []artifact
+	for rows.Next() {
+		var item artifact
+		if err := rows.Scan(&item.id, &item.name); err != nil {
+			rows.Close()
+			return err
+		}
+		expired = append(expired, item)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for _, item := range expired {
+		if filepath.Base(item.name) != item.name || item.name == "." {
+			return fmt.Errorf("invalid stored build artifact path")
+		}
+	}
+	tx, err := h.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, item := range expired {
+		if _, err := tx.ExecContext(ctx, `UPDATE git_build_jobs SET artifact_path = NULL, artifact_size = NULL, artifact_expires_at = NULL WHERE id = ? AND artifact_path = ? AND artifact_expires_at <= UTC_TIMESTAMP(6)`, item.id, item.name); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	for _, item := range expired {
+		if err := os.Remove(filepath.Join(directory, item.name)); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
 }
 
 func (h *Handler) createGitBuild(w http.ResponseWriter, r *http.Request) {
