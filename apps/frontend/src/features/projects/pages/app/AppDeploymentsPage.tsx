@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FormError } from "@/components/ui/FormError";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
+import { isServiceBusy } from "@/features/projects/services";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { api } from "@/lib/api";
 import { language, t } from "@/lib/i18n";
@@ -68,7 +69,7 @@ export function AppDeploymentsPage() {
                 {deployment.last_error && <p className="mt-2 text-meta wrap-break-word text-ember">{deployment.last_error}</p>}
               </div>
               <div className="flex flex-wrap gap-2">
-                {canWrite && !service.compose && deployment.status === "succeeded" && deployment.image_version !== service.image_version && <button className="btn" type="button" disabled={pending} onClick={() => void run(async () => {
+                {canWrite && service.category === "application" && !service.compose && deployment.status === "succeeded" && deployment.image_version !== service.image_version && <button className="btn" type="button" disabled={pending || isServiceBusy(service.status)} onClick={() => void run(async () => {
                   await api(`${path}/${service.id}/deploy`, { method: "POST", body: { image_version: deployment.image_version } });
                   onChanged();
                   setRevision((value) => value + 1);
