@@ -99,7 +99,7 @@ export function ComposeServicesEditor({ initialFile, stackName, onStackNameChang
   }
 
   return <form className="grid gap-4 p-4" onSubmit={submit}>
-    {onStackNameChange && <Field label={t("Stack name")} value={stackName ?? ""} onChange={(event) => onStackNameChange(event.target.value.toLowerCase().replace(/\s+/g, "-"))} maxLength={63} pattern="[a-z][a-z0-9-]{1,62}" title={t("Lowercase letters, numbers and hyphens, starting with a letter")} required />}
+    {onStackNameChange && <Field label={t("Stack name")} value={stackName ?? ""} onChange={(event) => onStackNameChange(event.target.value.toLowerCase().replace(/\s+/g, "-"))} maxLength={63} pattern="[a-z][a-z0-9\-]{1,62}" title={t("Lowercase letters, numbers and hyphens, starting with a letter")} required />}
     <label className="grid gap-2 text-meta font-medium text-ink">Docker Compose<textarea className="field min-h-96 w-full font-mono text-xs" value={file} onChange={(event) => setFile(event.target.value)} aria-label="Docker Compose" spellCheck={false} required /></label>
     <FormError message={error} />
     <button className="btn btn-primary w-fit" type="submit" disabled={pending || !changed}>{pending ? t("Saving…") : submitLabel}</button>
