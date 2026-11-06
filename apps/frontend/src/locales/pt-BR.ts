@@ -493,6 +493,8 @@ export const ptBR = {
   "Delivery": "Entregas",
   "Density": "Densidade",
   "Deploy": "Deploy",
+  "Continue": "Continuar",
+  "Continuing…": "Continuando…",
   "Deploy the app to apply these changes.": "Faça o deploy do app para aplicar estas mudanças.",
   "Deploy the app to apply this domain change.": "Faça o deploy do app para aplicar a mudança de domínio.",
   "Deploy this version": "Fazer deploy desta versão",

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { Modal } from "@/components/ui/Modal";
@@ -29,6 +30,7 @@ function GitBuildSelector({ path, serviceId, value, onChange }: { path: string; 
 
 export function AppGeneralPage() {
   const { service, path, canWrite, onChanged, deployOutput } = useAppOutlet();
+  const [searchParams] = useSearchParams();
   const [name, setName] = useState(service.name);
   const [version, setVersion] = useState(service.image_version);
   const [saved, setSaved] = useState<string | null>(null);
@@ -54,6 +56,9 @@ export function AppGeneralPage() {
       if (draft) {
         await api(`${path}/${service.id}`, { method: "PUT", body: { name, image_version: version, ...(gitBuild ? { port: Number(port || 0), data_path: dataPath } : {}) } });
         if (gitBuild && Number(hostPort) > 0) await api(`${path}/${service.id}/ports`, { method: "POST", body: { host_port: Number(hostPort), container_port: Number(port), protocol: "tcp", bind: "127.0.0.1" } });
+        if (gitBuild && searchParams.get("repository_url") && searchParams.get("ref")) {
+          await api(`${path}/${service.id}/git-builds`, { method: "POST", body: { repository_url: searchParams.get("repository_url"), ref: searchParams.get("ref"), build_pack: "dockerfile" } });
+        }
         setSaved(t("Saved."));
       } else {
         const deployVersion = gitBuild ? githubBuildId : version;

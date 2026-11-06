@@ -124,19 +124,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
       setError(t("Select a valid GitHub branch"));
       return;
     }
-    setPending(true);
-    setError(null);
-    try {
-      const queued = await api<{ id: string; status: string }>(`${path}/${service.id}/git-builds`, {
-        method: "POST",
-        body: { repository_url: repositoryURL, ref, build_pack: "dockerfile" },
-      });
-      setJob({ ...queued, repository_url: repositoryURL, ref });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t("Could not queue GitHub build"));
-    } finally {
-      setPending(false);
-    }
+    navigate(`/projects/${projectId}/apps/${service.id}?repository_url=${encodeURIComponent(repositoryURL)}&ref=${encodeURIComponent(ref)}`);
   }
 
   if (!gitBuildsEnabled) return <p className="mx-auto w-full max-w-xl rounded-panel bg-raised p-4 text-meta text-ink-soft">{t("GitHub builds are disabled in this environment")}</p>;
@@ -157,7 +145,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
         <FormError message={error} />
         {job && (job.status === "running" || job.status === "queued") && <p className="text-meta text-ink-soft" aria-live="polite">{t("Building from GitHub…")}</p>}
         {job?.status === "failed" && <p className="text-meta text-ember" role="alert">{job.result_message || t("Could not queue GitHub build")}</p>}
-        <form onSubmit={startBuild} className="flex justify-end gap-2"><button className="btn btn-primary" type="submit" disabled={pending || !ref || !branches.some(({ name }) => name === ref) || job?.status === "queued" || job?.status === "running"}>{pending ? t("Queueing build…") : job?.status === "failed" ? t("Retry build") : t("Deploy")}</button></form>
+        <form onSubmit={startBuild} className="flex justify-end gap-2"><button className="btn btn-primary" type="submit" disabled={pending || !ref || !branches.some(({ name }) => name === ref) || job?.status === "queued" || job?.status === "running"}>{pending ? t("Continuing…") : job?.status === "failed" ? t("Retry build") : t("Continue")}</button></form>
       </>}
     </div>
   );
