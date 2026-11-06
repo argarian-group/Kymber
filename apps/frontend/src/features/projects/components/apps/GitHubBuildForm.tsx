@@ -24,7 +24,7 @@ function validGitRef(value: string) {
 }
 
 export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingService }: { path: string; gitBuildsEnabled: boolean; service?: Service }) {
-  const workspaceId = path.split("/")[2];
+  const projectId = path.split("/")[4];
   const [repositoryURL, setRepositoryURL] = useState("");
   const [ref, setRef] = useState("");
   const [branches, setBranches] = useState<GitHubBranch[]>([]);
@@ -105,7 +105,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
         body: { name, environment_id: environmentId },
       });
       setCreatedService(target);
-      navigate(`/projects/${workspaceId}/apps/${target.id}/source`);
+      navigate(`/projects/${projectId}/apps/${target.id}/source`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("Could not create app draft"));
     } finally {
