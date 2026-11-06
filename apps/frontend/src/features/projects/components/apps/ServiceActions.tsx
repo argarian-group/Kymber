@@ -74,7 +74,7 @@ export function ServiceActions({ service, path, workspaceId, deployOutput, onCha
             </select>
           </label>
         )}
-        {(gitBuild ? service.status === "draft" || service.status === "failed" ? [{ action: "deploy" as const, label: t("Deploy"), primary: true }] : [] : service.compose ? composeAvailable[service.status] : available[service.status])?.map(({ action, label, primary }) => (
+        {(gitBuild ? service.status === "failed" ? [{ action: "deploy" as const, label: t("Deploy"), primary: true }] : [] : service.compose ? composeAvailable[service.status] : available[service.status])?.map(({ action, label, primary }) => (
           <button className={`btn ${primary ? "btn-primary" : ""}`} type="button" disabled={pending || busy} onClick={() => act(action)} key={action}>
             {pending && action === "restart" ? t("Restarting…") : label}
           </button>
