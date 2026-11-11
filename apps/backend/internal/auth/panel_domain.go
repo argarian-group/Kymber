@@ -109,7 +109,26 @@ func (h *Handler) panelTraefikConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !domain.Valid || domain.String == "" {
-		writeJSON(w, http.StatusOK, map[string]any{})
+		apiTarget, err := panelTarget("TRAEFIK_PANEL_API_TARGET")
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "panel API target is not configured")
+			return
+		}
+		webTarget, err := panelTarget("TRAEFIK_PANEL_WEB_TARGET")
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "panel web target is not configured")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"http": map[string]any{
+			"routers": map[string]any{
+				"panel-setup-api": map[string]any{"entryPoints": []string{"web"}, "rule": "Path(`/api`) || PathPrefix(`/api/`) || Path(`/health`)", "priority": 100, "service": "panel-api"},
+				"panel-setup-web": map[string]any{"entryPoints": []string{"web"}, "rule": "PathPrefix(`/`) && !Path(`/api`) && !PathPrefix(`/api/`) && !Path(`/health`)", "priority": 1, "service": "panel-web"},
+			},
+			"services": map[string]any{
+				"panel-api": map[string]any{"loadBalancer": map[string]any{"servers": []map[string]string{{"url": apiTarget}}}},
+				"panel-web": map[string]any{"loadBalancer": map[string]any{"servers": []map[string]string{{"url": webTarget}}}},
+			},
+		}})
 		return
 	}
 	apiTarget, err := panelTarget("TRAEFIK_PANEL_API_TARGET")

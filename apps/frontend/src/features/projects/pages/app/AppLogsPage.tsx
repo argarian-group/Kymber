@@ -50,27 +50,27 @@ export function AppLogsPage() {
   const [customLimit, setCustomLimit] = useState<string | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const output = useRef<HTMLPreElement>(null);
-  const inFlight = useRef<string | null>(null);
+  const inFlight = useRef<object | null>(null);
   const deployed = Boolean(service.server_id);
   const { limit, seconds, wrap } = preferences;
 
   const load = useCallback(async () => {
-    const requestKey = `${limit}:${container}`;
-    if (inFlight.current === requestKey) return;
-    inFlight.current = requestKey;
+    if (inFlight.current) return;
+    const request = {};
+    inFlight.current = request;
     setLoading(true);
     try {
       const query = new URLSearchParams({ source: "runtime", tail: String(limit) });
       if (container) query.set("container", container);
       const result = await api<{ logs: string }>(`${path}/${service.id}/logs?${query}`);
-      if (inFlight.current !== requestKey) return;
+      if (inFlight.current !== request) return;
       setLogs(result.logs);
       setUpdatedAt(new Date());
       setError(null);
     } catch (cause) {
-      if (inFlight.current === requestKey) setError(errorMessage(cause));
+      if (inFlight.current === request) setError(errorMessage(cause));
     } finally {
-      if (inFlight.current === requestKey) {
+      if (inFlight.current === request) {
         inFlight.current = null;
         setLoading(false);
       }
@@ -78,7 +78,15 @@ export function AppLogsPage() {
   }, [path, service.id, limit, container]);
 
   useEffect(() => {
+    inFlight.current = null;
+    setLogs(null);
+    setError(null);
+    setUpdatedAt(null);
+    setLoading(false);
     if (deployed) void load();
+    return () => {
+      inFlight.current = null;
+    };
   }, [deployed, load]);
 
   useEffect(() => {

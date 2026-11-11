@@ -85,7 +85,8 @@ func (h *Handler) claimTask(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 	_, err = tx.ExecContext(r.Context(), `UPDATE database_services d JOIN server_tasks q ON q.service_id = d.id
 		SET d.status = 'failed', d.last_error = 'Server task lease expired too many times.'
-		WHERE q.server_id = ? AND q.status = 'running' AND q.attempts >= 5 AND (q.lease_expires_at IS NULL OR q.lease_expires_at < UTC_TIMESTAMP(6))`, serverID)
+		WHERE q.server_id = ? AND q.status = 'running' AND q.attempts >= 5 AND (q.lease_expires_at IS NULL OR q.lease_expires_at < UTC_TIMESTAMP(6))
+		AND NOT EXISTS (SELECT 1 FROM server_tasks newer WHERE newer.service_id = q.service_id AND newer.id <> q.id AND newer.created_at >= q.created_at)`, serverID)
 	if err == nil {
 		_, err = tx.ExecContext(r.Context(), `UPDATE server_tasks SET status = 'failed', result_message = 'Server task lease expired too many times.', completed_at = UTC_TIMESTAMP(6), lease_expires_at = NULL
 			WHERE server_id = ? AND status = 'running' AND attempts >= 5 AND (lease_expires_at IS NULL OR lease_expires_at < UTC_TIMESTAMP(6))`, serverID)
@@ -150,7 +151,9 @@ func (h *Handler) failUndeliverableTask(r *http.Request, tx *sql.Tx, taskID stri
 	if _, err := tx.ExecContext(r.Context(), "UPDATE server_tasks SET status = 'failed', result_message = 'Task configuration could not be decoded.', completed_at = UTC_TIMESTAMP(6) WHERE id = ?", taskID); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(r.Context(), "UPDATE database_services d JOIN server_tasks q ON q.service_id = d.id SET d.status = 'failed', d.last_error = 'Task configuration could not be decoded.' WHERE q.id = ?", taskID); err != nil {
+	if _, err := tx.ExecContext(r.Context(), `UPDATE database_services d JOIN server_tasks q ON q.service_id = d.id
+		SET d.status = 'failed', d.last_error = 'Task configuration could not be decoded.' WHERE q.id = ?
+		AND NOT EXISTS (SELECT 1 FROM server_tasks newer WHERE newer.service_id = q.service_id AND newer.id <> q.id AND newer.created_at >= q.created_at)`, taskID); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -201,16 +204,22 @@ func (h *Handler) completeTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not save task result", http.StatusInternalServerError)
 		return
 	}
-	if _, err := tx.ExecContext(r.Context(), "UPDATE database_services SET status = ?, last_error = ? WHERE id = ?", serviceStatus, nullableMessage(result.Message, result.Success), serviceID); err != nil {
+	if _, err := tx.ExecContext(r.Context(), `UPDATE database_services SET status = ?, last_error = ? WHERE id = ?
+		AND NOT EXISTS (SELECT 1 FROM server_tasks newer JOIN server_tasks current ON current.service_id = newer.service_id
+			WHERE current.id = ? AND newer.id <> current.id AND newer.created_at >= current.created_at)`, serviceStatus, nullableMessage(result.Message, result.Success), serviceID, r.PathValue("taskID")); err != nil {
 		http.Error(w, "could not update service", http.StatusInternalServerError)
 		return
 	}
 	if result.Success && action == "deploy" {
-		if _, err := tx.ExecContext(r.Context(), "UPDATE service_storages SET applied = TRUE WHERE service_id = ?", serviceID); err != nil {
+		if _, err := tx.ExecContext(r.Context(), `UPDATE service_storages SET applied = TRUE WHERE service_id = ?
+			AND NOT EXISTS (SELECT 1 FROM server_tasks newer JOIN server_tasks current ON current.service_id = newer.service_id
+				WHERE current.id = ? AND newer.id <> current.id AND newer.created_at >= current.created_at)`, serviceID, r.PathValue("taskID")); err != nil {
 			http.Error(w, "could not update service storage", http.StatusInternalServerError)
 			return
 		}
-		if _, err := tx.ExecContext(r.Context(), "UPDATE service_ports SET applied = TRUE WHERE service_id = ?", serviceID); err != nil {
+		if _, err := tx.ExecContext(r.Context(), `UPDATE service_ports SET applied = TRUE WHERE service_id = ?
+			AND NOT EXISTS (SELECT 1 FROM server_tasks newer JOIN server_tasks current ON current.service_id = newer.service_id
+				WHERE current.id = ? AND newer.id <> current.id AND newer.created_at >= current.created_at)`, serviceID, r.PathValue("taskID")); err != nil {
 			http.Error(w, "could not update service ports", http.StatusInternalServerError)
 			return
 		}

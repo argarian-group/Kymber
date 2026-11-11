@@ -30,11 +30,21 @@ for f in "$d"/* "$d"/.[!.]* "$d"/..?*; do
   if [ -L "$f" ]; then l=1; else l=0; fi
   printf '%s %s ' "$t" "$l"; stat -c '%s %Y %a %n' "$f" 2>/dev/null || echo
 done | head -n 2001`
-	readFileScript = `[ -e "$1" ] || exit 10; [ -f "$1" ] || exit 11; [ "$(stat -c %s "$1")" -le 524288 ] || exit 15; stat -c %Y "$1"; head -c 524289 "$1"`
-	// The upload lands in a temp file first, so a dropped connection cannot truncate the real file, and writing with cat keeps its owner and mode.
-	writeFileScript = `t=$(mktemp) || exit 1; trap 'rm -f "$t"' EXIT; cat > "$t"; [ "$(wc -c < "$t")" -eq "$3" ] || exit 16
-if [ -n "$2" ]; then [ -f "$1" ] || exit 10; [ "$(stat -c %Y "$1")" = "$2" ] || exit 12; fi
-cat "$t" > "$1" && stat -c %Y "$1"`
+	readFileScript = `[ -e "$1" ] || exit 10; [ -f "$1" ] || exit 11; [ "$(stat -c %s "$1")" -le 524288 ] || exit 15
+t=$(mktemp) || exit 1; trap 'rm -f "$t"' EXIT
+head -c 524289 "$1" > "$t" || exit 1; [ "$(wc -c < "$t")" -le 524288 ] || exit 15
+set -- $(sha256sum "$t"); printf '%s\n' "$1"; cat "$t"`
+	writeFileScript = `d=$(dirname "$1") || exit 1; t=$(mktemp "$d/.kymber-file.XXXXXX") || exit 1
+trap 'rm -f "$t"' EXIT
+cat > "$t" || exit 16; [ "$(wc -c < "$t")" -eq "$3" ] || exit 16
+exec 3< "$d" || exit 1; flock -x 3 || exit 1
+[ -e "$1" ] || exit 10; [ -f "$1" ] && [ ! -L "$1" ] || exit 11
+hash=$(sha256sum "$1") || exit 1; [ "${hash%% *}" = "$2" ] || exit 12
+owner=$(stat -c '%u:%g' "$1") || exit 1; mode=$(stat -c '%a' "$1") || exit 1
+[ "$(stat -c '%u:%g' "$t")" = "$owner" ] || chown "$owner" "$t" || exit 1
+chmod "$mode" "$t" || exit 1
+mv -fT -- "$t" "$1" || exit 1
+hash=$(sha256sum "$1") || exit 1; printf '%s\n' "${hash%% *}"`
 	createFileScript   = `[ ! -e "$1" ] && [ ! -L "$1" ] || exit 13; : > "$1"`
 	createFolderScript = `[ ! -e "$1" ] && [ ! -L "$1" ] || exit 13; mkdir -- "$1"`
 	moveFileScript     = `[ -e "$1" ] || [ -L "$1" ] || exit 10; [ ! -e "$2" ] && [ ! -L "$2" ] || exit 13; mv -- "$1" "$2"`
@@ -233,6 +243,10 @@ func (h *Handler) writeFile(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(input.Content) > maxEditableFile {
 		writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("files over %d KB cannot be edited here", maxEditableFile>>10))
+		return
+	}
+	if len(input.Modified) != 64 || strings.Trim(input.Modified, "0123456789abcdef") != "" {
+		writeError(w, http.StatusBadRequest, "a valid file version is required")
 		return
 	}
 	output, ok := h.runInContainer(w, r, service, []byte(input.Content), writeFileScript, file, input.Modified, strconv.Itoa(len(input.Content)))

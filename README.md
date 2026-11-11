@@ -46,7 +46,7 @@ On Debian, Ubuntu, Arch Linux, Fedora, RHEL 8–10, Rocky Linux, AlmaLinux, Orac
 curl -fsSL https://raw.githubusercontent.com/argarian-group/Kymber/main/install.sh | sudo bash
 ```
 
-The default install directory is `/opt/kymber`; set `KYMBER_INSTALL_DIR` to change it. Git builds are enabled by default.
+The default install directory is `/opt/kymber`; set `KYMBER_INSTALL_DIR` to change it. Git builds are enabled by default; the installer generates a worker token and starts `kymber-build-controller.service` on the host. The API is bound to loopback on port 8081 (`KYMBER_BUILD_API_PORT` in `.env`).
 
 ### Requirements
 

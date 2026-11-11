@@ -9,6 +9,7 @@ import { t } from "@/lib/i18n";
 type TaskColumnProps = {
   list: TaskListColumn;
   tasks: Task[];
+  orderedTasks: Task[];
   total: number;
   labels: TaskLabel[];
   draggingTaskId: string | null;
@@ -22,9 +23,11 @@ type TaskColumnProps = {
   onDragEnd: () => void;
   onDragOver: (event: DragEvent<HTMLElement>) => void;
   onDrop: (event: DragEvent<HTMLElement>) => void;
+  lists: { id: string; name: string }[];
+  onMoveTask: (taskId: string, listId: string, position: number) => void;
 };
 
-export function TaskColumn({ list, tasks, total, labels, draggingTaskId, dropBefore, listDropSide, onOpen, onEdit, onAdd, onCardDragStart, onHeaderDragStart, onDragEnd, onDragOver, onDrop }: TaskColumnProps) {
+export function TaskColumn({ list, tasks, orderedTasks, total, labels, draggingTaskId, dropBefore, listDropSide, onOpen, onEdit, onAdd, onCardDragStart, onHeaderDragStart, onDragEnd, onDragOver, onDrop, lists, onMoveTask }: TaskColumnProps) {
   return (
     <section
       className={`flex max-h-full w-[85vw] flex-none snap-start flex-col rounded-panel bg-sunken p-2 outline-2 -outline-offset-2 outline-transparent sm:w-72 ${listDropSide === "before" ? "border-l-2 border-seafoam" : listDropSide === "after" ? "border-r-2 border-seafoam" : ""}`}
@@ -55,7 +58,7 @@ export function TaskColumn({ list, tasks, total, labels, draggingTaskId, dropBef
         {tasks.map((task) => (
           <Fragment key={task.id}>
             {dropBefore === task.id && <TaskDropLine />}
-            <TaskCard task={task} labels={labels} done={list.is_done} dragging={draggingTaskId === task.id} onOpen={() => onOpen(task)} onDragStart={() => onCardDragStart(task)} onDragEnd={onDragEnd} />
+            <TaskCard task={task} labels={labels} done={list.is_done} dragging={draggingTaskId === task.id} onOpen={() => onOpen(task)} onDragStart={() => onCardDragStart(task)} onDragEnd={onDragEnd} lists={lists} index={orderedTasks.findIndex(({ id }) => id === task.id)} count={total} onMove={(listId, position) => onMoveTask(task.id, listId, position)} />
           </Fragment>
         ))}
         {dropBefore === null && <TaskDropLine />}

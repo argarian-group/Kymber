@@ -22,7 +22,7 @@ export function AppEnvironmentPage() {
   if (!canWrite) return <Navigate to=".." replace />;
   if (service.compose) {
     const busy = isServiceBusy(service.status);
-    function saveCompose(file: string, deploy: boolean) {
+    function saveCompose(file: string, deploy: boolean): Promise<boolean> {
       return run(async () => {
         await api(`${path}/${service.id}`, { method: "PUT", body: { compose_file: file } });
         if (deploy && service.status !== "draft") await api(`${path}/${service.id}/deploy`, { method: "POST", body: {} });

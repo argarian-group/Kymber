@@ -294,6 +294,10 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if service.Compose {
+		if service.Status == "queued" || service.Status == "deploying" {
+			writeError(w, http.StatusConflict, "service is being deployed")
+			return
+		}
 		if input.ComposeFile == "" || validateComposeFile(input.ComposeFile) != nil {
 			writeError(w, http.StatusBadRequest, "invalid Compose file")
 			return
@@ -314,21 +318,25 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		if service.Status != "deploying" && service.Status != "queued" {
-			if err := h.validateComposeOnServer(r, serverID, service, input.ComposeFile); err != nil {
-				writeError(w, http.StatusBadRequest, "invalid Compose file")
-				return
-			}
+		if err := h.validateComposeOnServer(r, serverID, service, input.ComposeFile); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid Compose file")
+			return
 		}
-		result, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET compose_file = ? WHERE id = ?", input.ComposeFile, serviceID)
+		result, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET compose_file = ? WHERE id = ? AND workspace_id = ? AND project_id = ? AND status NOT IN ('queued', 'deploying')", input.ComposeFile, serviceID, workspaceID, projectID)
 		if err != nil {
 			writeError(w, http.StatusConflict, "could not update Compose file")
 			return
 		}
 		if updated, _ := result.RowsAffected(); updated == 0 {
-			var exists bool
-			if err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM database_services WHERE id = ? AND workspace_id = ? AND project_id = ?)", serviceID, workspaceID, projectID).Scan(&exists); err != nil || !exists {
+			var status string
+			if err := h.db.QueryRowContext(r.Context(), "SELECT status FROM database_services WHERE id = ? AND workspace_id = ? AND project_id = ?", serviceID, workspaceID, projectID).Scan(&status); errors.Is(err, sql.ErrNoRows) {
 				writeError(w, http.StatusNotFound, "service not found")
+				return
+			} else if err != nil {
+				writeError(w, http.StatusInternalServerError, "could not read service")
+				return
+			} else if status == "queued" || status == "deploying" {
+				writeError(w, http.StatusConflict, "service is being deployed")
 				return
 			}
 		}
@@ -539,8 +547,8 @@ func (h *Handler) deleteService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !serverID.Valid {
-		if _, err := h.db.ExecContext(r.Context(), "DELETE FROM database_services WHERE id = ? AND status = 'draft'", serviceID); err != nil {
-			writeError(w, http.StatusInternalServerError, "could not delete draft service")
+		if _, err := h.db.ExecContext(r.Context(), "DELETE FROM database_services WHERE id = ? AND workspace_id = ? AND project_id = ?", serviceID, workspaceID, projectID); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not delete service")
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)

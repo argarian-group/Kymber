@@ -69,8 +69,11 @@ export function TaskBoard({ board, visible, onOpen, onMoveTask, onReorderLists, 
         <TaskColumn
           list={list}
           tasks={tasksInList(visible, list.id)}
+          orderedTasks={tasksInList(board.tasks, list.id)}
           total={tasksInList(board.tasks, list.id).length}
           labels={board.labels}
+          lists={lists}
+          onMoveTask={onMoveTask}
           draggingTaskId={drag?.kind === "task" ? drag.id : null}
           dropBefore={target?.listId === list.id && "beforeTask" in target ? target.beforeTask : undefined}
           listDropSide={target?.listId === list.id && "side" in target && drag?.id !== list.id ? target.side : null}

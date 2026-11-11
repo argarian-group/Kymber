@@ -74,19 +74,41 @@ function parseComposeFile(file: string): ComposeServiceInput[] | null {
   return services.length ? services : null;
 }
 
-function composeFile(services: ComposeServiceInput[]) {
-  const namedVolumes = new Set<string>();
-  const definitions = services.map((service) => {
-    const options = [`    image: ${yamlString(service.image.trim())}`];
-    for (const [key, input] of [["ports", service.ports], ["expose", service.expose], ["environment", service.environment], ["volumes", service.volumes]] as const) {
-      const values = lines(input);
-      if (!values.length) continue;
-      options.push(`    ${key}:`, ...values.map((value) => `      - ${yamlString(value)}`));
-      if (key === "volumes") values.forEach((value) => namedVolumes.add(value.split(":", 1)[0]));
+function composeFile(file: string, services: ComposeServiceInput[]) {
+  const output: string[] = [];
+  const source = file.split("\n");
+  let inServices = false;
+  let service = "";
+  let hasEnvironment = false;
+  const appendEnvironment = () => {
+    const environment = services.find((entry) => entry.name === service)?.environment;
+    if (service && !hasEnvironment && environment) output.push("    environment:", ...lines(environment).map((value) => `      - ${yamlString(value)}`));
+  };
+  for (let index = 0; index < source.length; index++) {
+    const line = source[index];
+    const trimmed = line.trim();
+    const indent = line.length - line.trimStart().length;
+    if (inServices && trimmed && !trimmed.startsWith("#") && indent <= 2) appendEnvironment();
+    if (indent === 0 && trimmed === "services:") inServices = true;
+    else if (indent === 0 && trimmed && !trimmed.startsWith("#")) inServices = false;
+    if (inServices && indent === 2 && trimmed.endsWith(":")) {
+      service = trimmed.slice(0, -1);
+      hasEnvironment = false;
     }
-    return `  ${service.name.trim()}:\n${options.join("\n")}`;
-  });
-  return `services:\n${definitions.join("\n")}\n${namedVolumes.size ? `volumes:\n${[...namedVolumes].map((volume) => `  ${volume}: {}`).join("\n")}\n` : ""}`;
+    if (inServices && service && indent === 4 && trimmed === "environment:") {
+      hasEnvironment = true;
+      output.push(line, ...lines(services.find((entry) => entry.name === service)?.environment ?? "").map((value) => `      - ${yamlString(value)}`));
+      while (index + 1 < source.length && source[index + 1].trim() && source[index + 1].length - source[index + 1].trimStart().length > 4) index++;
+      continue;
+    }
+    output.push(line);
+  }
+  if (inServices) {
+    while (output.at(-1) === "") output.pop();
+    appendEnvironment();
+    if (file.endsWith("\n")) output.push("");
+  }
+  return output.join("\n");
 }
 
 export function ComposeServicesEditor({ initialFile, stackName, onStackNameChange, submitLabel, pending, error, onSave }: { initialFile?: string; stackName?: string; onStackNameChange?: (name: string) => void; submitLabel: string; pending: boolean; error: string | null; onSave: (file: string) => Promise<unknown> }) {
@@ -106,7 +128,7 @@ export function ComposeServicesEditor({ initialFile, stackName, onStackNameChang
   </form>;
 }
 
-export function ComposeEnvironmentEditor({ initialFile, pending, error, submitLabel, deployLabel, deployDisabled, onSave }: { initialFile: string; pending: boolean; error: string | null; submitLabel: string; deployLabel: string; deployDisabled: boolean; onSave: (file: string, deploy: boolean) => Promise<unknown> }) {
+export function ComposeEnvironmentEditor({ initialFile, pending, error, submitLabel, deployLabel, deployDisabled, onSave }: { initialFile: string; pending: boolean; error: string | null; submitLabel: string; deployLabel: string; deployDisabled: boolean; onSave: (file: string, deploy: boolean) => Promise<boolean> }) {
   const parsed = parseComposeFile(initialFile);
   const [services, setServices] = useState(() => parsed ?? []);
   const [selected, setSelected] = useState(() => parsed?.find(({ environment }) => environment)?.name ?? parsed?.[0]?.name ?? "");
@@ -128,7 +150,7 @@ export function ComposeEnvironmentEditor({ initialFile, pending, error, submitLa
   const allEntries = rawLines.filter((line) => line.trim() && !line.trimStart().startsWith("#")).map((line) => line.slice(0, line.indexOf("=") < 0 ? line.length : line.indexOf("=")));
   const validVariables = allEntries.every((name) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) && new Set(allEntries).size === allEntries.length;
   const normalizedServices = (items: ComposeServiceInput[]) => items.map((entry) => ({ ...entry, environment: entry.environment.split("\n").filter((line) => line.trim() && !line.trimStart().startsWith("#")).join("\n") }));
-  const changed = parsed ? composeFile(services) !== composeFile(savedServices) : false;
+  const changed = parsed ? composeFile(initialFile, services) !== composeFile(initialFile, savedServices) : false;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -178,7 +200,8 @@ export function ComposeEnvironmentEditor({ initialFile, pending, error, submitLa
   }
 
   async function saveChanges(deploy: boolean) {
-    await onSave(composeFile(normalizedServices(services)), deploy);
+    const saved = await onSave(composeFile(initialFile, normalizedServices(services)), deploy);
+    if (!saved) return;
     const normalized = normalizedServices(services);
     setServices(normalized);
     setSavedServices(normalized);

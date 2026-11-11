@@ -1,11 +1,10 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { Modal } from "@/components/ui/Modal";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
 import { DeploymentDialog } from "@/features/projects/components/apps/DeploymentDialog";
-import CodeEditor from "@/features/projects/components/files/CodeEditor";
 import { ProjectDetail } from "@/features/projects/components/overview/ProjectDetail";
 import { isServiceBusy } from "@/features/projects/services";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
@@ -14,6 +13,8 @@ import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { t } from "@/lib/i18n";
 import { ComposeContainersPage } from "@/features/projects/pages/app/ComposeContainersPage";
+
+const CodeEditor = lazy(() => import("@/features/projects/components/files/CodeEditor"));
 
 function GitBuildSelector({ path, serviceId, value, onChange }: { path: string; serviceId: string; value: string; onChange: (value: string) => void }) {
   const [jobs, setJobs] = useState<{ id: string; status: string; repository_url: string; ref: string; artifact_expires_at?: string }[]>([]);
@@ -89,7 +90,7 @@ export function AppGeneralPage() {
         {editingCompose && <Modal label={t("Edit Compose")} className="max-w-5xl" onClose={() => setEditingCompose(false)} onCancel={() => setEditingCompose(false)}>
           <div className="grid max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]">
             <header className="flex items-center justify-between gap-4 border-b border-line p-4"><h2 className="font-display text-lg font-semibold">{t("Edit Compose")}</h2><button className="btn" type="button" onClick={() => setEditingCompose(false)}>{t("Cancel")}</button></header>
-            <div className="min-h-[60vh] overflow-auto"><CodeEditor filename="docker-compose.yml" value={composeDraft} readOnly={pending} label={t("Compose preview")} onChange={setComposeDraft} onSave={() => void saveCompose()} /></div>
+            <div className="min-h-[60vh] overflow-auto"><Suspense fallback={<p className="p-4 text-meta text-ink-soft">{t("Loading editor…")}</p>}><CodeEditor filename="docker-compose.yml" value={composeDraft} readOnly={pending} label={t("Compose preview")} onChange={setComposeDraft} onSave={() => void saveCompose()} /></Suspense></div>
             <footer className="flex items-center justify-between gap-3 border-t border-line p-4"><FormError message={error} /><button className="btn btn-primary" type="button" disabled={pending || composeDraft === service.compose_file} onClick={() => void saveCompose()}>{pending ? t("Saving…") : t("Save")}</button></footer>
           </div>
         </Modal>}

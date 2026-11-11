@@ -71,6 +71,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		mux.Handle(route.pattern, auth.Authenticate(h.db, route.handler))
 	}
 	mux.HandleFunc("POST /internal/build-worker/claim", h.claimGitBuild)
+	mux.HandleFunc("GET /internal/build-worker/server", h.buildWorkerServer)
 	mux.HandleFunc("POST /internal/build-worker/jobs/{jobID}/heartbeat", h.heartbeatGitBuild)
 	mux.HandleFunc("POST /internal/build-worker/jobs/{jobID}/fail", h.failGitBuild)
 	mux.HandleFunc("POST /internal/build-worker/jobs/{jobID}/artifact", h.storeGitBuildArtifact)

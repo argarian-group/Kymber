@@ -1,6 +1,6 @@
 import { ChevronRight, Download, File, FilePlus, Folder, FolderPlus, HardDrive, Pencil, RefreshCw, Trash2 } from "lucide-react";
-import { lazy, Suspense, useState, type FormEvent } from "react";
-import { Link, Navigate, useSearchParams } from "react-router";
+import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
+import { Link, Navigate, useBlocker, useBeforeUnload, useSearchParams } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FormError } from "@/components/ui/FormError";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
@@ -60,6 +60,19 @@ export function AppFilesPage() {
   const url = `${path}/${service.id}/files`;
   const running = service.status === "running";
   const dirty = open?.content !== undefined && draft !== open.content;
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
+
+  useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    if (window.confirm(t("Discard your unsaved changes?"))) blocker.proceed();
+    else blocker.reset();
+  }, [blocker]);
+
+  useBeforeUnload((event) => {
+    if (!dirty) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
 
   useLoadEffect(
     () => (running && canWrite ? api<Listing>(`${url}?path=${encodeURIComponent(directory)}`) : Promise.resolve(null)),

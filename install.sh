@@ -5,7 +5,7 @@ repo="https://github.com/argarian-group/Kymber.git"
 install_dir="${KYMBER_INSTALL_DIR:-/opt/kymber}"
 logfile=$(mktemp /tmp/kymber-install.XXXXXX)
 step_number=0
-total_steps=7
+total_steps=8
 spinner=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
 green=''
 red=''
@@ -144,7 +144,7 @@ TRAEFIK_CONFIG_TOKEN=$(openssl rand -hex 32)
 TRAEFIK_ACME_EMAIL=
 KYMBER_METRICS_TOKEN=$(openssl rand -hex 32)
 KYMBER_GIT_BUILDS_ENABLED=true
-KYMBER_BUILD_WORKER_TOKEN=
+KYMBER_BUILD_WORKER_TOKEN=$(openssl rand -hex 32)
 DB_NAME=kymber
 DB_USER=kymber
 DB_PASSWORD=$(openssl rand -hex 32)
@@ -153,6 +153,41 @@ EOF
 		[[ -s .env ]] || return 1
 		chmod 600 .env || return
 	fi
+	if ! grep -q '^KYMBER_BUILD_WORKER_TOKEN=.' .env; then
+		if grep -q '^KYMBER_BUILD_WORKER_TOKEN=' .env; then
+			sed -i "s/^KYMBER_BUILD_WORKER_TOKEN=$/KYMBER_BUILD_WORKER_TOKEN=$(openssl rand -hex 32)/" .env || return
+		else
+			printf 'KYMBER_BUILD_WORKER_TOKEN=%s\n' "$(openssl rand -hex 32)" >> .env || return
+		fi
+	fi
+}
+
+start_build_controller() {
+	local port
+	port=$(compose_port KYMBER_BUILD_API_PORT 8081)
+	if [[ ! "$port" =~ ^[0-9]{1,5}$ ]] || ((port < 1 || port > 65535)); then
+		printf 'Invalid build API port: %s\n' "$port" >&2
+		return 1
+	fi
+	cat > /etc/systemd/system/kymber-build-controller.service <<EOF
+[Unit]
+Description=Kymber Git build controller
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=$install_dir
+EnvironmentFile=$install_dir/.env
+Environment=KYMBER_API_URL=http://127.0.0.1:$port
+ExecStart=$install_dir/scripts/build-controller.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+	systemctl daemon-reload && systemctl enable --now kymber-build-controller.service && systemctl restart kymber-build-controller.service
 }
 
 compose_port() {
@@ -187,7 +222,7 @@ print_addresses() {
 
 check_ports() {
 	local port id container_name container_project listening project_name own_port
-	local ports=($(compose_port HTTP_PORT 80) $(compose_port APP_PORT 3000) $(compose_port HTTPS_PORT 443))
+	local ports=($(compose_port HTTP_PORT 80) $(compose_port APP_PORT 3000) $(compose_port HTTPS_PORT 443) $(compose_port KYMBER_BUILD_API_PORT 8081))
 	project_name=${COMPOSE_PROJECT_NAME:-$(basename "$install_dir")}
 	for port in "${ports[@]}"; do
 		own_port=0
@@ -251,6 +286,7 @@ run_step "Gerando configuração segura" prepare_configuration
 run_step "Verificando portas HTTP/HTTPS" check_ports
 run_step "Configurando SSH local" env -u SUDO_UID -u SUDO_GID ./scripts/setup-local-ssh.sh
 run_step "Construindo e iniciando os containers" docker compose up -d --build --wait --wait-timeout 180
+run_step "Iniciando controlador de builds Git" start_build_controller
 printf '\nAcesse o Kymber pelos endereços detectados:\n'
 print_addresses
 printf '\nInstalação: %s\nBuilds Git: ativados\n' "$install_dir"

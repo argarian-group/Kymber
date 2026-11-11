@@ -36,9 +36,11 @@ case "$KYMBER_API_URL" in
 esac
 
 mkdir -p "$KYMBER_BUILD_WORK_DIR"
-: "${KYMBER_BUILD_SERVER_ID:?Set KYMBER_BUILD_SERVER_ID}"
 api=${KYMBER_API_URL%/}
 headers="Authorization: Bearer $KYMBER_BUILD_WORKER_TOKEN"
+if [ -z "${KYMBER_BUILD_SERVER_ID:-}" ]; then
+	KYMBER_BUILD_SERVER_ID=$(curl --connect-timeout 10 --max-time 30 --fail --silent --show-error "$api/internal/build-worker/server" -H "$headers" | jq -er '.server_id')
+fi
 
 report_failure() {
 	job=$1

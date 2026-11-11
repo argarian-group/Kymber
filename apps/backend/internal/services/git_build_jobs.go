@@ -290,6 +290,19 @@ func (h *Handler) authenticateBuildWorker(r *http.Request) bool {
 	return token != "" && len(token) == len(authorization) && subtle.ConstantTimeCompare([]byte(token), []byte(authorization)) == 1
 }
 
+func (h *Handler) buildWorkerServer(w http.ResponseWriter, r *http.Request) {
+	if !h.authenticateBuildWorker(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	var id string
+	if err := h.db.QueryRowContext(r.Context(), "SELECT id FROM servers s WHERE s.connection_type = 'local' AND "+serverStatusSQL+" = 'online' ORDER BY s.created_at LIMIT 1").Scan(&id); err != nil {
+		writeError(w, http.StatusNotFound, "no online local server is available")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"server_id": id})
+}
+
 func (h *Handler) heartbeatGitBuild(w http.ResponseWriter, r *http.Request) {
 	if !gitBuildsEnabled() {
 		writeError(w, http.StatusNotFound, "Git builds are disabled")
