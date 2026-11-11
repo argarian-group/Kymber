@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { Modal } from "@/components/ui/Modal";
@@ -38,15 +38,12 @@ export function AppGeneralPage() {
   const [deploying, setDeploying] = useState<string | null>(null);
   const [editingCompose, setEditingCompose] = useState(false);
   const [composeDraft, setComposeDraft] = useState(service.compose_file ?? "");
-  const [port, setPort] = useState(service.port ? String(service.port) : "");
-  const [hostPort, setHostPort] = useState(service.port ? String(service.port) : "");
-  const [dataPath, setDataPath] = useState(service.data_path ?? "");
   const [githubBuildId, setGithubBuildId] = useState("");
   const { pending, error, run } = useAction();
   const draft = service.status === "draft";
   const busy = isServiceBusy(service.status);
   const gitBuild = service.image === "docker.io/kymber/build-artifacts";
-  const changed = name !== service.name || (gitBuild ? draft ? Number(port || 0) !== service.port || dataPath !== (service.data_path ?? "") : githubBuildId !== service.image_version : version !== service.image_version);
+  const changed = name !== service.name || (gitBuild ? githubBuildId !== service.image_version : version !== service.image_version);
 
   useEffect(() => setVersion(service.image_version), [service.image_version]);
 
@@ -55,8 +52,7 @@ export function AppGeneralPage() {
     setSaved(null);
     await run(async () => {
       if (draft) {
-        await api(`${path}/${service.id}`, { method: "PUT", body: { name, image_version: version, ...(gitBuild ? { port: Number(port || 0), data_path: dataPath } : {}) } });
-        if (gitBuild && Number(hostPort) > 0) await api(`${path}/${service.id}/ports`, { method: "POST", body: { host_port: Number(hostPort), container_port: Number(port), protocol: "tcp", bind: "127.0.0.1" } });
+        await api(`${path}/${service.id}`, { method: "PUT", body: { name, image_version: version } });
         if (gitBuild && searchParams.get("repository_url") && searchParams.get("ref") && !githubBuildId) {
           await api(`${path}/${service.id}/git-builds`, { method: "POST", body: { repository_url: searchParams.get("repository_url"), ref: searchParams.get("ref"), build_pack: "dockerfile" } });
         }
@@ -82,6 +78,16 @@ export function AppGeneralPage() {
     }
   }
 
+  async function queueGitBuild() {
+    const repositoryURL = searchParams.get("repository_url");
+    const ref = searchParams.get("ref");
+    if (!repositoryURL || !ref) return;
+    await run(async () => {
+      await api(`${path}/${service.id}/git-builds`, { method: "POST", body: { repository_url: repositoryURL, ref, build_pack: "dockerfile" } });
+      onChanged();
+    });
+  }
+
   return (
     <div className="grid gap-6">
       {service.compose ? <>
@@ -100,15 +106,14 @@ export function AppGeneralPage() {
           <div className="grid items-start gap-4 p-4 sm:grid-cols-2">
             <Field label={t("App name")} required maxLength={63} pattern="[a-z][a-z0-9\-]{1,62}" title={t("Lowercase letters, numbers and hyphens, starting with a letter")} disabled={!canWrite || !draft} value={name} onChange={(event) => setName(event.target.value)} />
             {!gitBuild && <Field label={t("Image version")} required maxLength={128} disabled={!canWrite || busy} value={version} onChange={(event) => setVersion(event.target.value)} />}
-      {gitBuild && <>
-              <Field label={t("Application port")} type="number" min={0} max={65535} hint={t("Container port; configure it before build to publish a host port.")} value={port} onChange={(event) => setPort(event.target.value)} />
-              {draft && <Field label={t("Host port (optional)")} type="number" min={1} max={65535} hint={t("Leave blank to keep the port private.")} value={hostPort} onChange={(event) => setHostPort(event.target.value)} />}
-              {draft && <Field label={t("Data path")} maxLength={255} pattern="/.+" title={t("An absolute path inside the container")} hint={t("Optional. Use this if the container stores persistent data.")} value={dataPath} onChange={(event) => setDataPath(event.target.value)} />}
+              {gitBuild && <>
               {gitBuild && <GitBuildSelector path={path} serviceId={service.id} value={githubBuildId} onChange={setGithubBuildId} />}
             </>}
           </div>
           {canWrite && (
             <FormFooter error={error} saved={saved}>
+              {draft && gitBuild && searchParams.get("repository_url") && searchParams.get("ref") && !githubBuildId && <button className="btn" type="button" disabled={pending} onClick={() => void queueGitBuild()}>{pending ? t("Creating build…") : t("Create build")}</button>}
+              {draft && gitBuild && (!searchParams.get("repository_url") || !searchParams.get("ref")) && <Link className="btn" to="../source">{t("Configure GitHub build")}</Link>}
               <button className="btn btn-primary" type="submit" disabled={pending || busy || !changed || (gitBuild && !draft && !githubBuildId)}>
                 {pending ? t("Saving…") : draft && !githubBuildId ? t("Save") : gitBuild ? t("Deploy selected GitHub build") : t("Deploy this version")}
               </button>
