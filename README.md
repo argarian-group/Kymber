@@ -79,7 +79,7 @@ cp .env.example .env
 make up
 ```
 
-This starts MariaDB in Docker and waits until it is ready, then runs the API with live reload and the frontend. Vite prints the local URL and forwards `/api` to the API on `SERVER_PORT`. Migrations run when the API starts.
+This starts MariaDB in Docker and waits until it is ready, then runs the API with live reload, the frontend and the Git build controller. Vite prints the local URL and forwards `/api` to the API on `SERVER_PORT`. Migrations run when the API starts.
 
 The first visit asks you to create the root account. Registration starts off, and root can turn it on under **Settings > System**.
 
@@ -95,6 +95,7 @@ Press `Ctrl+C` to stop the API and the frontend. MariaDB keeps running until you
 | `make run` | MariaDB and the API |
 | `make dev` | MariaDB and the API with live reload |
 | `make frontend` | The frontend |
+| `make build-worker` | The Git build controller, restarted every 10 seconds until a local server is online |
 | `make server` | A server that runs apps in Docker |
 | `make build-server` | Compiles a server to `apps/backend/build/kymber-server` |
 | `make build` | Compiles the API to `apps/backend/build/api` |

@@ -1,4 +1,6 @@
-.PHONY: build build-server run backend dev dev-run server server-run frontend db init check-user up local-secrets docker-build docker-up docker-agent docker-down
+.PHONY: build build-server run backend dev dev-run server server-run frontend db init check-user up local-secrets docker-build docker-up docker-agent docker-down build-worker
+
+API_PORT := $(or $(shell sed -n 's/^SERVER_PORT=//p' .env 2>/dev/null),8080)
 
 PNPM ?= $(shell command -v pnpm 2>/dev/null || { test -x "$$HOME/.bun/bin/pnpm" && printf '%s/.bun/bin/pnpm' "$$HOME"; })
 
@@ -6,7 +8,7 @@ DEV_ENV = SERVICE_ENCRYPTION_KEY_FILE=$(CURDIR)/.local/service-encryption-key \
 	KYMBER_LOCAL_SSH_PRIVATE_KEY_FILE=$(CURDIR)/.local/kymber-local-ssh \
 	KYMBER_LOCAL_SSH_HOST_KEY_FILE=/etc/ssh/ssh_host_ed25519_key.pub \
 	KYMBER_LOCAL_SSH_HOST=127.0.0.1 \
-	TRAEFIK_PANEL_API_TARGET=http://host.docker.internal:8080 \
+	TRAEFIK_PANEL_API_TARGET=http://host.docker.internal:$(API_PORT) \
 	TRAEFIK_PANEL_WEB_TARGET=http://host.docker.internal:5173 \
 	KYMBER_METRICS_TOKEN_FILE=$(CURDIR)/.local/metrics-token \
 	KYMBER_PROMETHEUS_URL=http://127.0.0.1:9090
@@ -70,11 +72,14 @@ docker-down:
 up:
 	$(MAKE) check-user
 	$(MAKE) init
-	TRAEFIK_CONFIG_URL=http://host.docker.internal:8080/internal/traefik/panel-domain docker compose up -d traefik
-	KYMBER_API_HOST=host.docker.internal:8080 KYMBER_METRICS_TOKEN=$$(cat .local/metrics-token) docker compose up -d prometheus
+	TRAEFIK_CONFIG_URL=http://host.docker.internal:$(API_PORT)/internal/traefik/panel-domain docker compose up -d traefik
+	KYMBER_API_HOST=host.docker.internal:$(API_PORT) KYMBER_METRICS_TOKEN=$$(cat .local/metrics-token) docker compose up -d prometheus
 	SERVICE_ENCRYPTION_KEY_FILE=$(CURDIR)/.local/service-encryption-key \
 	KYMBER_SERVER_TOKEN_FILE=$(CURDIR)/.local/server-token \
 	KYMBER_LOCAL_SSH_PRIVATE_KEY_FILE=$(CURDIR)/.local/kymber-local-ssh \
 	KYMBER_LOCAL_SSH_HOST_KEY_FILE=/etc/ssh/ssh_host_ed25519_key.pub \
 	KYMBER_LOCAL_SSH_HOST=127.0.0.1 \
-	$(MAKE) -j2 dev-run frontend
+	$(MAKE) -j3 dev-run frontend build-worker
+
+build-worker:
+	@while :; do set -a; . ./.env; set +a; KYMBER_API_URL=http://127.0.0.1:$(API_PORT) ./scripts/build-controller.sh; sleep 10; done
