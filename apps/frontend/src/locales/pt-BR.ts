@@ -1,4 +1,12 @@
 export const ptBR = {
+  "Time": "Tempo",
+  "Stop {time}": "Parar {time}",
+  "Start timer": "Iniciar cronômetro",
+  "Minutes": "Minutos",
+  "Minutes to log": "Minutos a registrar",
+  "Log": "Registrar",
+  "running": "em andamento",
+  "Delete time entry": "Excluir registro de tempo",
   "Start date": "Início",
   "Archived": "Arquivadas",
   "No archived tasks.": "Nenhuma tarefa arquivada.",

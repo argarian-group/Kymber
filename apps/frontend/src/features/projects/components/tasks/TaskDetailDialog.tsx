@@ -10,6 +10,7 @@ import { AddInline } from "@/features/projects/components/tasks/AddInline";
 import { TaskChecklistCard } from "@/features/projects/components/tasks/TaskChecklistCard";
 import { TaskComments } from "@/features/projects/components/tasks/TaskComments";
 import { TaskDescription } from "@/features/projects/components/tasks/TaskDescription";
+import { TaskTime } from "@/features/projects/components/tasks/TaskTime";
 import { TaskLabelPicker } from "@/features/projects/components/tasks/TaskLabelPicker";
 import { tasksInList, type Board, type TaskDetail } from "@/features/projects/tasks";
 import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
@@ -236,6 +237,7 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
                   ))}
                 </ul>
               </fieldset>
+              <TaskTime detail={detail} taskPath={taskPath} path={path} onChanged={setDetail} />
               <TaskLabelPicker labels={board.labels} selected={edit.label_ids} path={path} onToggle={(id, checked) => toggle("label_ids", id, checked)} onChanged={refresh} />
               <div>
                 <FormError message={archival.error} />

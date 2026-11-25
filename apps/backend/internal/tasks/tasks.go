@@ -50,6 +50,7 @@ type TaskDetail struct {
 	Checklists  []TaskChecklist `json:"checklists"`
 	Comments    []TaskComment   `json:"comments"`
 	Activity    []TaskActivity  `json:"activity"`
+	TimeEntries []TaskTimeEntry `json:"time_entries"`
 }
 
 type taskCreatePayload struct {
@@ -246,6 +247,10 @@ func (h *Handler) writeTaskDetail(w http.ResponseWriter, r *http.Request, status
 	}
 	if detail.Activity, err = h.loadActivity(r.Context(), taskID); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read task activity")
+		return
+	}
+	if detail.TimeEntries, err = h.loadTimeEntries(r.Context(), taskID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read time entries")
 		return
 	}
 	writeJSON(w, status, map[string]TaskDetail{"task": detail})
