@@ -1,8 +1,9 @@
-import { CalendarDays, Columns3, List, type LucideIcon } from "lucide-react";
-import { lazy, Suspense } from "react";
+import { Archive, CalendarDays, Columns3, List, type LucideIcon } from "lucide-react";
+import { lazy, Suspense, useState } from "react";
 import { useSearchParams } from "react-router";
 import { LoadError } from "@/components/ui/LoadError";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { ArchivedTasks } from "@/features/projects/components/tasks/ArchivedTasks";
 import { TaskBoard } from "@/features/projects/components/tasks/TaskBoard";
 import { TaskCalendar } from "@/features/projects/components/tasks/TaskCalendar";
 import { TaskFiltersBar } from "@/features/projects/components/tasks/TaskFiltersBar";
@@ -11,12 +12,13 @@ import { matchesFilters, type Task, type TaskFilters } from "@/features/projects
 import { useBoard } from "@/features/projects/useBoard";
 import { t } from "@/lib/i18n";
 
-type TaskView = "board" | "list" | "calendar";
+type TaskView = "board" | "list" | "calendar" | "archived";
 
 const views: { id: TaskView; label: string; icon: LucideIcon }[] = [
   { id: "board", label: t("Board"), icon: Columns3 },
   { id: "list", label: t("List"), icon: List },
   { id: "calendar", label: t("Calendar"), icon: CalendarDays },
+  { id: "archived", label: t("Archived"), icon: Archive },
 ];
 
 const TaskDetailDialog = lazy(() => import("@/features/projects/components/tasks/TaskDetailDialog").then(({ TaskDetailDialog: dialog }) => ({ default: dialog })));
@@ -28,6 +30,7 @@ export function ProjectTasksPage() {
   const view = views.find(({ id }) => id === params.get("view"))?.id ?? "board";
   const filters = Object.fromEntries(filterNames.map((name) => [name, params.get(name) ?? ""])) as TaskFilters;
   const openTaskId = params.get("task");
+  const [archiveRevision, setArchiveRevision] = useState(0);
   const { board, error, path, reload, createTask, moveTask, reorderLists, createList, updateList, deleteList } = useBoard();
 
   function setParam(name: string, value: string, replace = true) {
@@ -93,9 +96,10 @@ export function ProjectTasksPage() {
       {view === "board" && <TaskBoard board={board} visible={visible} onOpen={openTask} onMoveTask={moveTask} onReorderLists={reorderLists} onCreateTask={createTask} onCreateList={createList} onUpdateList={updateList} onDeleteList={deleteList} />}
       {view === "list" && <TaskList board={board} visible={visible} onOpen={openTask} />}
       {view === "calendar" && <TaskCalendar tasks={visible} isDone={isDone} onOpen={openTask} />}
+      {view === "archived" && <ArchivedTasks path={path} revision={archiveRevision} onOpen={openTask} onRestored={reload} />}
       {openTaskId && (
         <Suspense fallback={null}>
-          <TaskDetailDialog taskId={openTaskId} board={board} path={path} onMove={moveTask} onChanged={reload} onClose={() => setParam("task", "")} key={openTaskId} />
+          <TaskDetailDialog taskId={openTaskId} board={board} path={path} onMove={moveTask} onChanged={() => { reload(); setArchiveRevision((value) => value + 1); }} onClose={() => setParam("task", "")} key={openTaskId} />
         </Suspense>
       )}
     </div>

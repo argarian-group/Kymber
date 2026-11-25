@@ -47,6 +47,7 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
   const [attempt, setAttempt] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const removal = useAction();
+  const archival = useAction();
   const taskPath = `${path}/tasks/${taskId}`;
 
   useLoadEffect(
@@ -224,6 +225,23 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
                 </ul>
               </fieldset>
               <TaskLabelPicker labels={board.labels} selected={edit.label_ids} path={path} onToggle={(id, checked) => toggle("label_ids", id, checked)} onChanged={refresh} />
+              <div>
+                <FormError message={archival.error} />
+                <button
+                  className="btn mt-1"
+                  type="button"
+                  disabled={archival.pending}
+                  onClick={() =>
+                    void archival.run(async () => {
+                      const { task } = await api<{ task: TaskDetail }>(`${taskPath}/${detail.archived_at ? "restore" : "archive"}`, { method: "POST" });
+                      setDetail(task);
+                      onChanged();
+                    })
+                  }
+                >
+                  {detail.archived_at ? t("Restore task") : t("Archive task")}
+                </button>
+              </div>
               {canDeleteTasks && (
                 <div>
                   <FormError message={removal.error} />

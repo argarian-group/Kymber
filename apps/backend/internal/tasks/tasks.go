@@ -33,6 +33,7 @@ type Task struct {
 	ChecklistDone  int        `json:"checklist_done"`
 	ChecklistTotal int        `json:"checklist_total"`
 	CommentCount   int        `json:"comment_count"`
+	ArchivedAt     *time.Time `json:"archived_at"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 }
@@ -101,16 +102,22 @@ func insertAt(ids []string, id string, position int) []string {
 	return append(result, ids[position:]...)
 }
 
-func (h *Handler) loadTasks(ctx context.Context, projectID, taskID string) ([]Task, error) {
+// loadTasks returns one task when taskID is set, otherwise the project's archived or active tasks.
+func (h *Handler) loadTasks(ctx context.Context, projectID, taskID string, archived bool) ([]Task, error) {
 	filter, args := "t.project_id = ?", []any{projectID}
-	if taskID != "" {
+	switch {
+	case taskID != "":
 		filter, args = filter+" AND t.id = ?", append(args, taskID)
+	case archived:
+		filter += " AND t.archived_at IS NOT NULL"
+	default:
+		filter += " AND t.archived_at IS NULL"
 	}
 	rows, err := h.db.QueryContext(ctx, `SELECT t.id, t.number, CONCAT(p.task_prefix, '-', t.number), t.project_id, t.list_id, t.position, t.title, t.description <> '', t.priority, DATE_FORMAT(t.due_date, '%Y-%m-%d'),
 		(SELECT COUNT(*) FROM task_checklist_items i JOIN task_checklists c ON c.id = i.checklist_id WHERE c.task_id = t.id AND i.done),
 		(SELECT COUNT(*) FROM task_checklist_items i JOIN task_checklists c ON c.id = i.checklist_id WHERE c.task_id = t.id),
 		(SELECT COUNT(*) FROM task_comments m WHERE m.task_id = t.id),
-		t.created_at, t.updated_at
+		t.created_at, t.updated_at, t.archived_at
 		FROM project_tasks t JOIN projects p ON p.id = t.project_id WHERE `+filter+` ORDER BY t.position, t.id`, args...)
 	if err != nil {
 		return nil, err
@@ -121,7 +128,7 @@ func (h *Handler) loadTasks(ctx context.Context, projectID, taskID string) ([]Ta
 	for rows.Next() {
 		task := Task{Assignees: []TaskUser{}, LabelIDs: []string{}}
 		var dueDate sql.NullString
-		if err := rows.Scan(&task.ID, &task.Number, &task.Key, &task.ProjectID, &task.ListID, &task.Position, &task.Title, &task.HasDescription, &task.Priority, &dueDate, &task.ChecklistDone, &task.ChecklistTotal, &task.CommentCount, &task.CreatedAt, &task.UpdatedAt); err != nil {
+		if err := rows.Scan(&task.ID, &task.Number, &task.Key, &task.ProjectID, &task.ListID, &task.Position, &task.Title, &task.HasDescription, &task.Priority, &dueDate, &task.ChecklistDone, &task.ChecklistTotal, &task.CommentCount, &task.CreatedAt, &task.UpdatedAt, &task.ArchivedAt); err != nil {
 			return nil, err
 		}
 		if dueDate.Valid {
@@ -181,7 +188,7 @@ func (h *Handler) getBoard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not read task labels")
 		return
 	}
-	tasks, err := h.loadTasks(r.Context(), projectID, "")
+	tasks, err := h.loadTasks(r.Context(), projectID, "", r.URL.Query().Get("archived") == "1")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read tasks")
 		return
@@ -202,7 +209,7 @@ func (h *Handler) getTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) writeTaskDetail(w http.ResponseWriter, r *http.Request, status int, projectID, taskID string) {
-	tasks, err := h.loadTasks(r.Context(), projectID, taskID)
+	tasks, err := h.loadTasks(r.Context(), projectID, taskID, false)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read task")
 		return
@@ -492,4 +499,46 @@ func (h *Handler) scopeExists(w http.ResponseWriter, r *http.Request, query, not
 		return false
 	}
 	return true
+}
+
+func (h *Handler) archiveTask(w http.ResponseWriter, r *http.Request) {
+	h.setArchived(w, r, true)
+}
+
+func (h *Handler) restoreTask(w http.ResponseWriter, r *http.Request) {
+	h.setArchived(w, r, false)
+}
+
+func (h *Handler) setArchived(w http.ResponseWriter, r *http.Request, archive bool) {
+	_, projectID, taskID, ok := h.authorizeTask(w, r, "")
+	if !ok {
+		return
+	}
+	query, kind := "UPDATE project_tasks SET archived_at = CURRENT_TIMESTAMP, updated_at = updated_at WHERE id = ? AND archived_at IS NULL", "archived"
+	if !archive {
+		query, kind = "UPDATE project_tasks SET archived_at = NULL, updated_at = updated_at WHERE id = ? AND archived_at IS NOT NULL", "restored"
+	}
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update task")
+		return
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(r.Context(), query, taskID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update task")
+		return
+	}
+	if changed, _ := result.RowsAffected(); changed == 1 {
+		user, _ := auth.UserFromContext(r)
+		if err := recordActivity(r.Context(), tx, taskID, user.ID, activityEvent{kind, map[string]any{}}); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not update task")
+			return
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update task")
+		return
+	}
+	h.writeTaskDetail(w, r, http.StatusOK, projectID, taskID)
 }

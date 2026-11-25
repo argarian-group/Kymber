@@ -20,6 +20,7 @@ export type Task = {
   checklist_done: number;
   checklist_total: number;
   comment_count: number;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 };

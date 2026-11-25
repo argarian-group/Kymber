@@ -1,4 +1,9 @@
 export const ptBR = {
+  "Archived": "Arquivadas",
+  "No archived tasks.": "Nenhuma tarefa arquivada.",
+  "Archived {when}": "Arquivada {when}",
+  "Archive task": "Arquivar tarefa",
+  "Restore task": "Restaurar tarefa",
   "Comments and activity": "Comentários e atividade",
   "created this task": "criou esta tarefa",
   "renamed it to “{to}”": "renomeou para “{to}”",
