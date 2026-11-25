@@ -3,230 +3,102 @@
 
   <p>A project management platform that brings planning, tasks, deploys, collaboration, and progress tracking together in a single workspace.</p>
 
-  <p>
-    <a href="#why-kymber">Why Kymber</a> ·
-    <a href="#features">Features</a> ·
-    <a href="#getting-started">Getting started</a> ·
-    <a href="#project-structure">Project structure</a> ·
-    <a href="#roadmap">Roadmap</a>
-  </p>
-
   <img src="https://img.shields.io/badge/status-early%20development-8B5CF6?style=flat-square" alt="Status: early development" />
   <img src="https://img.shields.io/badge/contributions-welcome-22C55E?style=flat-square" alt="Contributions welcome" />
 </div>
 
 > [!NOTE]
-> Kymber is in early development. Accounts, workspaces, members and projects run on the API. Apps run as Docker containers on the servers you register.
+> Kymber is in early development.
 
-## Why Kymber
-
-Knowing how a project is doing usually means checking one tool for tasks, another for deploys, and asking around for the rest. Kymber aims to show the whole project in one place: what is planned, what is in progress, and what has reached production.
+Kymber shows the whole project in one place: what is planned, what is in progress, and what has reached production.
 
 ## Features
 
-**Available**
+- **Projects and tasks:** boards, lists and calendar views, with checklists, labels, comments and assignees.
+- **Team:** workspaces, invite links, and owner, admin, member or custom roles.
+- **Apps:** MySQL, Redis, any Docker Hub image or a Compose stack, deployed to your servers over SSH, with environments, domains and deploy history.
+- **Git deploys:** GitHub, GitLab, Bitbucket or any Git server over SSH, built with a Dockerfile, Nixpacks or as a static site. Push deploys, commit statuses, pull request previews and rollback.
+- **Monitoring:** server and app metrics with Prometheus, and alerts on the overview.
 
-- **Overview:** workspace dashboard with project health, late tasks, deadlines and app status.
-- **Accounts:** first-run root account, login, optional registration, and profile and password settings.
-- **Workspaces:** create, rename and delete workspaces, and switch between them.
-- **Team:** built-in owner, admin and member roles, custom roles with per-area permissions, and invite links.
-- **Projects:** create, edit and delete projects inside a workspace, each with an optional logo.
-- **Apps:** create MySQL and Redis apps from templates, or any public Docker Hub image, then deploy, start, stop and restart them in Docker. Image-based apps have deployment history, output and a re-deploy action for previous versions.
-- **Git deploys:** build apps from GitHub, GitLab, Bitbucket or any Git server over SSH, with a Dockerfile, Nixpacks or as a static site. Pushes deploy automatically and report a commit status, pull requests get their own preview app, and earlier builds can be redeployed to roll back.
-- **Environments:** add environments such as production and dev to a project. Apps in an environment share a private network, and apps can also stay outside any environment.
-- **Tasks:** boards with editable lists, draggable cards, a rich text editor for descriptions and comments, checklists, labels, multiple assignees and filters, across board, list and calendar views.
-- **Appearance:** theme, accent color and density, saved in the browser.
+## Install
 
-## Getting started
-
-### Production install
-
-On Debian, Ubuntu, Arch Linux, Fedora, RHEL 8–10, Rocky Linux, AlmaLinux, Oracle Linux, or CentOS Stream 9–10, the installer installs Docker Engine, Compose, OpenSSH, Buildx and Nixpacks, configures local SSH access, generates `.env` secrets without replacing an existing `.env`, and starts the stack:
+On Debian, Ubuntu, Arch, Fedora, RHEL and their derivatives:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/argarian-group/Kymber/main/install.sh | sudo bash
 ```
 
-The default install directory is `/opt/kymber`; set `KYMBER_INSTALL_DIR` to change it. Git builds are enabled by default; the installer generates a worker token and starts `kymber-build-controller.service` on the host. The API is bound to loopback on port 8081 (`KYMBER_BUILD_API_PORT` in `.env`).
+It installs Docker, Buildx and Nixpacks, generates the secrets in `/opt/kymber/.env` and starts Kymber with its build controller. Set `KYMBER_INSTALL_DIR` to install elsewhere.
 
-### Requirements
+> [!IMPORTANT]
+> Use HTTPS outside a trusted network. Set a panel domain during onboarding, or later under **Settings › System**, then set `TRAEFIK_ACME_EMAIL` in `.env` and open ports 80 and 443.
 
-- [Go](https://go.dev/dl/) 1.27.3 or newer
-- [Docker](https://docs.docker.com/get-docker/) with Docker Compose, for MariaDB
-- Make
-- [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/) for the frontend
+## Development
 
-### Configuration
-
-Copy the template and change the passwords before using it outside your machine:
+Requires Go 1.27.3+, Docker with Compose and Buildx, Make, Node.js and pnpm.
 
 ```bash
-cp .env.example .env
+cp .env.example .env   # then set the passwords and secrets
+make up                # MariaDB, API, frontend and build controller
 ```
+
+Open the URL Vite prints and create the root account. Then register the local server under **Servers**: `make up` sets up its SSH key on first run, asking for `sudo` once. Run it as your normal user.
+
+| Command | What it does |
+| --- | --- |
+| `Ctrl+C` | Stops the API, frontend and build controller |
+| `docker compose stop` | Stops MariaDB, Traefik and Prometheus |
+| `docker compose down -v` | Deletes all local data |
+| `make dev` / `make frontend` / `make build-worker` | Runs one part on its own |
+| `make build` / `make build-server` | Compiles the API or the server agent |
+
+Main `.env` settings:
 
 | Variable | Purpose |
 | --- | --- |
-| `SERVER_PORT` | API port, `8080` when not set. `make up` and the Vite proxy follow it |
-| `SECURE_ONBOARD` | When `true`, the API listens only on localhost until the root account exists |
-| `SERVICE_ENCRYPTION_KEY` | Encrypts app settings. Required to create apps. Generate it with `openssl rand -hex 32` |
-| `KYMBER_TRUST_PROXY` | When `true`, rate limits use the client address sent by the reverse proxy. Set it only when the API is reachable through that proxy alone |
-| `KYMBER_GIT_BUILDS_ENABLED` | Turns Git builds on when `true` |
-| `KYMBER_BUILD_WORKER_TOKEN` | Shared secret between the API and the build controller. Generate it with `openssl rand -hex 32` |
-| `DB_HOST`, `DB_PORT`, `DB_NAME` | MariaDB address and database |
-| `DB_USER`, `DB_PASSWORD` | MariaDB application user |
-| `DB_ROOT_PASSWORD` | MariaDB root password |
+| `SERVER_PORT` | API port, `8080` by default |
+| `SERVICE_ENCRYPTION_KEY` | Encrypts app settings: `openssl rand -hex 32` |
+| `KYMBER_BUILD_WORKER_TOKEN` | Secret shared with the build controller: `openssl rand -hex 32` |
+| `KYMBER_GIT_BUILDS_ENABLED` | `true` turns Git builds on |
+| `KYMBER_TRUST_PROXY` | `true` only when the API is reachable through a reverse proxy alone |
+| `DB_*` | MariaDB connection and passwords |
 
-### Run everything
+## Deploy from Git
 
-```bash
-make up
-```
+1. Connect a provider under **Settings › Git**: a GitHub App, an access token, or an SSH deploy key. Public GitHub repositories need none.
+2. In the app's **Source** tab, choose the repository, branch and build type, then save and build.
+3. For push deploys, add the webhook shown in the Source tab to the repository. GitHub Apps add it themselves.
 
-This starts MariaDB in Docker and waits until it is ready, then runs the API with live reload, the frontend and the Git build controller. Git builds need Docker Buildx on your machine. Vite prints the local URL and forwards `/api` to the API on `SERVER_PORT`. Migrations run when the API starts.
-
-The first visit asks you to create the root account. Registration starts off, and root can turn it on under **Settings > System**.
-
-Press `Ctrl+C` to stop the API and the frontend. MariaDB keeps running until you run `docker compose stop`.
-
-> [!IMPORTANT]
-> Use HTTPS for normal access. Behind the configured trusted proxy, Kymber only marks the session cookie `Secure` when the original request used HTTPS; HTTP access therefore exposes credentials and sessions to network interception. Use plain HTTP only for initial setup on a trusted network, then configure HTTPS.
-
-### Run only one part
-
-| Command | What it runs |
-| --- | --- |
-| `make run` | MariaDB and the API |
-| `make dev` | MariaDB and the API with live reload |
-| `make frontend` | The frontend |
-| `make build-worker` | The Git build controller, restarted every 10 seconds until a local server is online |
-| `make server` | A server that runs apps in Docker |
-| `make build-server` | Compiles a server to `apps/backend/build/kymber-server` |
-| `make build` | Compiles the API to `apps/backend/build/api` |
-
-To check that the API is running:
-
-```bash
-curl http://localhost:8080/health
-```
-
-```json
-{"status":"ok"}
-```
-
-### Run apps
-
-Root registers servers under **Servers**. Local setup follows Coolify's host-install approach: run `make up` as your normal user; `scripts/setup-local-ssh.sh` creates a persistent Ed25519 key and uses `sudo` to add its public key to root's `authorized_keys` on first setup only. Do not run `sudo make up`, since the frontend tools should run as your user. For a direct Docker Compose install, run the setup script before `docker compose up --build -d`. The host needs `sshd`, Docker, and its Ed25519 host public key at `/etc/ssh/ssh_host_ed25519_key.pub`. The backend stores the private key encrypted and executes Docker actions over SSH.
-
-For a remote server, provide its SSH host key during registration and install the displayed public key in the remote user's `~/.ssh/authorized_keys`. Deployments and service actions then run directly over SSH; the agent is not used for deployments.
-
-An app remains assigned to the server selected at its first deploy. The optional server agent claims queued non-Compose database/service-template actions with a 30-minute lease and reports bounded results; expired tasks are retried up to five claims. The agent needs access to that server's Docker daemon to execute tasks. The Compose profile intentionally does not mount the host Docker socket. SSH deployments continue to run directly over SSH. Git builds are enabled by default; `scripts/build-controller.sh` claims jobs for its `KYMBER_BUILD_SERVER_ID`, checks out the commit pinned when the build was queued (public GitHub repositories or a provider from **Settings › Git**), and invokes `docker buildx` directly on the host. Builds have network access so they can install dependencies. It uploads the validated OCI artifact to persistent API storage; runtime apps still run in Docker containers. Run one controller on each local deployment host and install Docker Buildx there, plus Nixpacks for Nixpacks builds; `install.sh` sets up all three. The GitHub App flow, webhooks and pull request previews need the panel on a public HTTPS domain, and previews also need a wildcard DNS record.
-
-To publish a web app or the panel over HTTPS, set `TRAEFIK_ACME_EMAIL` and a random `TRAEFIK_CONFIG_TOKEN` in `.env`, point the public DNS record to this machine, and allow inbound ports 80 and 443. In the app's **Connection** section, set a domain and save it, then deploy the app. Traefik obtains and renews HTTPS certificates automatically. Public app domains currently support HTTP application services on the local server; remote servers and database services are not exposed.
-
-The root-account onboarding also offers an optional domain for the Kymber panel. It can later be edited or removed in **Settings → System**. DNS checking only reports whether the hostname resolves; create or update its A/AAAA record at your DNS provider and verify that it points to this server. Cloudflare changes are not automated.
-
-Apps can alternatively publish an HTTP host port from their **Connection** settings. Choose an unused port, save, then deploy; access it at `http://<server-ipv4>:<port>`. This bypasses the Docker network, exposes the app to anyone who can reach that host port, and does not enable TLS. Domain and host-port publishing are mutually exclusive.
-
-### Deploy from Git
-
-1. Under **Settings › Git**, connect a provider. Public GitHub repositories need none.
-
-   | Provider | What it needs |
-   | --- | --- |
-   | GitHub App | Created from the panel; needs the panel on a public HTTPS domain |
-   | GitHub, GitLab, Bitbucket | An access token. GitLab can be self-hosted on a public address |
-   | Any Git server | A deploy key that Kymber generates; add it to the repository with read access |
-
-2. In the app's **Source** tab, choose the repository, branch, base directory and build type: Dockerfile, Nixpacks or static site. Build arguments are passed with `--build-arg` and stay in the image history, so keep secrets in environment variables.
-3. Save and build. A running app keeps running during the build and is redeployed when it succeeds.
-
-Each build checks out the commit resolved when it was queued. With **Deploy on every push**, add the webhook URL and secret shown in the Source tab to the repository; GitHub Apps register their own webhook. The build list redeploys an earlier build, or rebuilds its commit once the artifact has expired after 30 days.
-
-With **Preview deployments for pull requests** and a base domain that has a wildcard DNS record pointing to the server, each pull request to the app's branch gets its own app at `pr-<number>-<app>.<domain>`, rebuilt on every push and removed when the pull request closes. Pull requests from forks are never built.
-
-### Monitoring
-
-Kymber collects server and app metrics with Prometheus, which `make up` and `docker compose up` start next to the API. Under **Servers**, choose **Enable monitoring** on a server: Kymber starts `node-exporter` and `cAdvisor` there over SSH, bound to `127.0.0.1`, so no new port is opened. Prometheus scrapes them through the API, which reaches each exporter over the server's SSH connection, and keeps 15 days of history. The SSH server must allow TCP forwarding (`AllowTcpForwarding yes`, the OpenSSH default).
-
-Charts appear on each server card and on each app's **Metrics** tab. Apps with a public domain also show requests, server errors and response time from Traefik. Alerts for an unresponsive server, a nearly full disk or memory, an app restarting repeatedly and a high rate of 5xx errors appear under **Needs attention** on the overview.
-
-For a Docker Compose install, set a random `KYMBER_METRICS_TOKEN` in `.env`; `make up` generates one in `.local/metrics-token`. Prometheus listens only on `127.0.0.1:9090` (`PROMETHEUS_PORT`).
-
-To delete all local data, stop the app and run `docker compose down -v`.
+The GitHub App, webhooks and pull request previews need the panel on a public HTTPS domain. Previews also need a wildcard DNS record, and pull requests from forks are never built.
 
 ## Project structure
 
 ```text
-apps/
-├── backend/
-│   ├── cmd/
-│   │   ├── api/         # API entry point
-│   │   ├── server/      # Server that runs apps in Docker
-│   │   └── ssh-key-helper/
-│   └── internal/
-│       ├── agent/       # API used by servers
-│       ├── artifacts/   # OCI build artifacts
-│       ├── auth/        # Accounts, sessions, onboarding and invitations
-│       ├── database/    # Connection, migrations and IDs
-│       ├── logger/      # Colored log output
-│       ├── middleware/  # Rate limiting
-│       ├── monitoring/  # Prometheus metrics and alerts
-│       ├── permissions/ # Roles and permissions
-│       ├── project/     # Projects, environments and logos
-│       ├── projects/    # Registers the workspace, server, task, app and project routes
-│       ├── routes/      # HTTP routes
-│       ├── secrets/     # Encryption of app settings
-│       ├── server/      # HTTP server
-│       ├── servers/     # Server registration and SSH access
-│       ├── services/    # Apps, deploys, Git builds, providers and webhooks
-│       ├── tasks/       # Task boards, lists, comments and labels
-│       ├── templates/   # MySQL, Redis and Docker Hub image templates
-│       └── workspaces/  # Workspaces, members, roles and invitations
-└── frontend/src/        # React app (Vite, Tailwind CSS)
-    ├── components/      # Shared layout and UI components
-    ├── features/        # One folder per product area, with pages and components
-    └── lib/             # API client and shared hooks
-assets/                  # Logo, banner and background
-scripts/                 # Build controller, build runner and local SSH setup
+apps/backend/    Go API (cmd/api) and server agent (cmd/server)
+apps/frontend/   React app (Vite, Tailwind CSS)
+scripts/         Build controller, build runner and local SSH setup
+assets/          Logo, banner and background
 ```
 
 ## Roadmap
 
-- [x] Backend skeleton with a health check
-- [x] Accounts, sessions and onboarding
-- [x] Workspaces, members and invitations
-- [x] Projects
-- [x] Connect accounts, workspaces and projects to the API
-- [x] Database apps deployed to local and remote servers
-- [x] Deployment history and output for image-based apps
-- [x] Bounded build artifact transfer
-- [x] Git-based application builds, deploy history and rollback
-- [x] Private repositories, push deploys and pull request previews
+- [x] Accounts, workspaces, projects and tasks
+- [x] Apps on local and remote servers, with deploy history
+- [x] Git builds, push deploys, pull request previews and rollback
 - [ ] Isolated build worker on a separate host
-- [x] Tasks in the API
 - [ ] Collaboration and progress tracking
 
 ## Contributing
 
-Contributions are welcome. For anything larger than a small fix, open an issue first so the approach can be agreed before you write the code.
+Open an issue before anything larger than a small fix. Keep each change focused, follow the code around it, and check before opening a pull request:
 
-1. Fork the repository and create a branch from `main`.
-2. Set up the project as described in [Getting started](#getting-started) and run it with `make up`.
-3. Keep each change focused on one thing, and follow the structure of the code around it: backend domains live in `apps/backend/internal/`, frontend product areas in `apps/frontend/src/features/`.
-4. Before opening a pull request, make sure the checks pass:
+```bash
+(cd apps/backend && go vet ./... && go test ./...)
+(cd apps/frontend && pnpm build)
+```
 
-   ```bash
-   (cd apps/backend && go vet ./... && go test ./...)
-   (cd apps/frontend && pnpm build)
-   ```
-
-5. Write commit messages in the [Conventional Commits](https://www.conventionalcommits.org/) format, for example `feat(services): add port publishing` or `fix(frontend): keep logs scrolled to the bottom`.
-6. Open a pull request against `main` that explains what changed and why. Add screenshots for UI changes.
-
-Write code, comments, documentation and product text in English. Wrap every piece of UI text in `t()` from `apps/frontend/src/lib/i18n.ts` and add its Portuguese translation to `apps/frontend/src/locales/pt-BR.ts`; `pnpm build` fails when a translation is missing. Use `translate()` only for text that arrives at runtime, such as API errors. Do not commit secrets, `.env` files, or local tool folders such as `.claude/` or `.cursor/`.
-
-By contributing, you agree that your contributions are licensed under the project's [AGPL-3.0 license](LICENSE).
+Use [Conventional Commits](https://www.conventionalcommits.org/). Write code and UI text in English, wrap UI text in `t()` and add its translation to `apps/frontend/src/locales/pt-BR.ts`. Never commit secrets, `.env` or local tool folders.
 
 ## License
 
-Kymber is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only). If you modify Kymber and offer it to users over a network, you must make your modified source code available to them.
+[AGPL-3.0-only](LICENSE). If you offer a modified Kymber over a network, you must share its source code with its users.
