@@ -63,7 +63,7 @@ func commentBody(w http.ResponseWriter, r *http.Request) (string, bool) {
 
 func (h *Handler) createComment(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r)
-	_, _, taskID, ok := h.authorizeTask(w, r, "")
+	workspaceID, _, taskID, ok := h.authorizeTask(w, r, "")
 	if !ok {
 		return
 	}
@@ -76,7 +76,21 @@ func (h *Handler) createComment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not generate comment id")
 		return
 	}
-	if _, err := h.db.ExecContext(r.Context(), "INSERT INTO task_comments (id, task_id, author_id, body) VALUES (?, ?, ?, ?)", id, taskID, user.ID, body); err != nil {
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create comment")
+		return
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(r.Context(), "INSERT INTO task_comments (id, task_id, author_id, body) VALUES (?, ?, ?, ?)", id, taskID, user.ID, body); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create comment")
+		return
+	}
+	if err := notifyComment(r.Context(), tx, workspaceID, taskID, user.ID, body); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create comment")
+		return
+	}
+	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not create comment")
 		return
 	}

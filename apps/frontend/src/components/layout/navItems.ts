@@ -1,10 +1,11 @@
-import { FolderKanban, LayoutDashboard, ListTodo, Server, Settings, SquareTerminal, Users } from "lucide-react";
+import { Bell, FolderKanban, LayoutDashboard, ListTodo, Server, Settings, SquareTerminal, Users } from "lucide-react";
 import { t } from "@/lib/i18n";
 
 export const workspaceItems = [
   { label: t("Overview"), to: "/", icon: LayoutDashboard },
   { label: t("Projects"), to: "/projects", icon: FolderKanban },
   { label: t("My tasks"), to: "/tasks", icon: ListTodo },
+  { label: t("Notifications"), to: "/notifications", icon: Bell },
 ];
 
 export function organizationItems(isRoot: boolean) {

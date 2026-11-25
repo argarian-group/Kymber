@@ -21,6 +21,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		pattern string
 		handler http.HandlerFunc
 	}{
+		{"GET /api/notifications", h.listNotifications},
+		{"POST /api/notifications/read", h.readNotifications},
 		{"GET /api/workspaces/{workspaceID}/tasks", h.searchTasks},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/board", h.getBoard},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/tasks", h.createTask},

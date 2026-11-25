@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -361,6 +362,11 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not update task")
 		return
 	}
+	previousAssignees, err := queryIDs(r.Context(), tx, "SELECT user_id FROM task_assignees WHERE task_id = ?", taskID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update task")
+		return
+	}
 	if err := saveTask(r.Context(), tx, taskID, input, assigneeIDs); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update task")
 		return
@@ -369,6 +375,10 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		user, _ := auth.UserFromContext(r)
 		err = recordActivity(r.Context(), tx, taskID, user.ID, diffSnapshots(before, after)...)
+		if err == nil {
+			added := slices.DeleteFunc(slices.Clone(assigneeIDs), func(id uint64) bool { return slices.Contains(previousAssignees, id) })
+			err = notify(r.Context(), tx, taskID, user.ID, "assigned", added)
+		}
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update task")

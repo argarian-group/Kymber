@@ -10,7 +10,7 @@ import { ProjectMark } from "@/features/projects/components/ProjectMark";
 import { WorkspaceSwitcher } from "@/features/projects/components/WorkspaceSwitcher";
 import { t } from "@/lib/i18n";
 
-export function Sidebar({ width, onResize }: { width: number; onResize: (width: number) => void }) {
+export function Sidebar({ width, unread, onResize }: { width: number; unread: number; onResize: (width: number) => void }) {
   const user = useCurrentUser();
   const { state } = useProjects();
   const projects = state.status === "ready" ? state.projects : [];
@@ -32,7 +32,7 @@ export function Sidebar({ width, onResize }: { width: number; onResize: (width: 
       )}
 
       <nav className={`flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto ${compact ? "px-2" : "px-3"} pt-2 pb-3 [scrollbar-color:var(--color-line)_transparent] [scrollbar-width:thin]`} aria-label={t("Main")}>
-        <NavGroup title={t("Workspace")} items={workspaceItems} hints={projects.length > 0 ? { "/projects": String(projects.length) } : {}} compact={compact} />
+        <NavGroup title={t("Workspace")} items={workspaceItems} hints={{ ...(projects.length > 0 && { "/projects": String(projects.length) }), ...(unread > 0 && { "/notifications": String(unread) }) }} compact={compact} />
 
         {projects.length > 0 && (
           <div>
