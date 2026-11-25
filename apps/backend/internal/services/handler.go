@@ -26,6 +26,7 @@ END`
 func New(db *sql.DB) *Handler { return &Handler{db: db} }
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	go h.resumeDeployWatches()
+	go h.runJobScheduler()
 	for _, route := range []struct {
 		pattern string
 		handler http.HandlerFunc
@@ -76,6 +77,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/storages/{storageID}", h.getStorageContent},
 		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/storages/{storageID}", h.updateStorageContent},
 		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/storages/{storageID}", h.deleteStorage},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/jobs", h.listJobs},
+		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/jobs", h.createJob},
+		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/jobs/{jobID}", h.updateJob},
+		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/jobs/{jobID}", h.deleteJob},
+		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/jobs/{jobID}/run", h.runJobNow},
 		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}", h.deleteService},
 	} {
 		mux.Handle(route.pattern, auth.Authenticate(h.db, route.handler))
