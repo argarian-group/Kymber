@@ -52,6 +52,9 @@ func ActiveUser(db *sql.DB, r *http.Request) (User, bool, error) {
 }
 
 func userFromSession(db *sql.DB, r *http.Request) (User, error) {
+	if header := r.Header.Get("Authorization"); header != "" {
+		return userFromAPIToken(db, r, header)
+	}
 	cookie, err := r.Cookie(sessionCookie)
 	if err != nil {
 		return User{}, errUnauthenticated

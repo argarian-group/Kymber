@@ -50,7 +50,7 @@ Open the URL Vite prints and create the root account. Then register the local se
 | `docker compose stop` | Stops MariaDB, Traefik and Prometheus |
 | `docker compose down -v` | Deletes all local data |
 | `make dev` / `make frontend` / `make build-worker` | Runs one part on its own |
-| `make build` / `make build-server` | Compiles the API or the server agent |
+| `make build` / `make build-server` / `make build-cli` | Compiles the API, the server agent or the `kymber` CLI |
 
 Main `.env` settings:
 
@@ -70,6 +70,19 @@ Main `.env` settings:
 3. For push deploys, add the webhook shown in the Source tab to the repository. GitHub Apps add it themselves.
 
 The GitHub App, webhooks and pull request previews need the panel on a public HTTPS domain. Previews also need a wildcard DNS record, and pull requests from forks are never built.
+
+## CLI
+
+Create a token under **Settings › Account › API tokens**, then:
+
+```bash
+make build-cli
+apps/backend/build/kymber login https://panel.example.com kym_...
+apps/backend/build/kymber apps
+apps/backend/build/kymber deploy -wait <app-id>
+```
+
+In CI, set `KYMBER_URL` and `KYMBER_TOKEN` instead of running `login`.
 
 ## Project structure
 

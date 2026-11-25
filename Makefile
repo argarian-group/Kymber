@@ -1,4 +1,4 @@
-.PHONY: build build-server run backend dev dev-run server server-run frontend db init check-user up local-secrets docker-build docker-up docker-agent docker-down build-worker
+.PHONY: build build-server build-cli run backend dev dev-run server server-run frontend db init check-user up local-secrets docker-build docker-up docker-agent docker-down build-worker
 
 API_PORT := $(or $(shell sed -n 's/^SERVER_PORT=//p' .env 2>/dev/null),8080)
 
@@ -18,6 +18,9 @@ build:
 
 build-server:
 	cd apps/backend && go build -o build/kymber-server ./cmd/server
+
+build-cli:
+	cd apps/backend && go build -o build/kymber ./cmd/kymber
 
 run: backend
 
