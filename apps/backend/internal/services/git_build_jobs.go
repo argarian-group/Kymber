@@ -89,6 +89,7 @@ type gitBuildJob struct {
 	StartedAt         string `json:"started_at,omitempty"`
 	FinishedAt        string `json:"finished_at,omitempty"`
 	ArtifactExpiresAt string `json:"artifact_expires_at,omitempty"`
+	Trigger           string `json:"trigger"`
 }
 
 func (h *Handler) listGitHubBranches(w http.ResponseWriter, r *http.Request) {
@@ -713,6 +714,36 @@ func (h *Handler) createGitBuild(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]string{"id": id, "status": "queued"})
 }
 
+func (h *Handler) rebuildGitCommit(w http.ResponseWriter, r *http.Request) {
+	if !gitBuildsEnabled() {
+		writeError(w, http.StatusNotFound, "Git builds are disabled")
+		return
+	}
+	service, ok := h.authorizeGitSourceService(w, r)
+	if !ok {
+		return
+	}
+	jobID, ok := pathID(w, r, "jobID")
+	if !ok {
+		return
+	}
+	var commit sql.NullString
+	if err := h.db.QueryRowContext(r.Context(), "SELECT commit_sha FROM git_build_jobs WHERE id = ? AND service_id = ?", jobID, service.ID).Scan(&commit); err != nil {
+		writeError(w, http.StatusNotFound, "build not found")
+		return
+	}
+	if !commit.Valid {
+		writeError(w, http.StatusConflict, "this build has no recorded commit")
+		return
+	}
+	id, status, err := h.queueGitBuild(r.Context(), service, "rollback", commit.String)
+	if err != nil {
+		writeError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"id": id, "status": "queued"})
+}
+
 func (h *Handler) queueGitBuild(ctx context.Context, service databaseService, trigger, commit string) (string, int, error) {
 	source, err := h.readGitSource(ctx, service.ID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -803,7 +834,7 @@ func (h *Handler) listGitBuilds(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), `SELECT b.id, b.service_id, b.repository_url, b.git_ref, COALESCE(b.commit_sha, ''), b.status, COALESCE(b.artifact_digest, ''), COALESCE(b.result_message, ''), b.created_at, b.started_at, b.finished_at, b.artifact_expires_at
+	rows, err := h.db.QueryContext(r.Context(), `SELECT b.id, b.service_id, b.repository_url, b.git_ref, COALESCE(b.commit_sha, ''), b.status, COALESCE(b.artifact_digest, ''), COALESCE(b.result_message, ''), b.created_at, b.started_at, b.finished_at, b.artifact_expires_at, b.build_trigger
 		FROM git_build_jobs b JOIN database_services s ON s.id = b.service_id WHERE b.service_id = ? AND s.workspace_id = ? AND s.project_id = ? ORDER BY b.created_at DESC LIMIT 100`, serviceID, workspaceID, projectID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list build jobs")
@@ -814,7 +845,7 @@ func (h *Handler) listGitBuilds(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var job gitBuildJob
 		var startedAt, finishedAt, artifactExpiresAt *string
-		if err := rows.Scan(&job.ID, &job.ServiceID, &job.RepositoryURL, &job.Ref, &job.CommitSHA, &job.Status, &job.ArtifactDigest, &job.ResultMessage, &job.CreatedAt, &startedAt, &finishedAt, &artifactExpiresAt); err != nil {
+		if err := rows.Scan(&job.ID, &job.ServiceID, &job.RepositoryURL, &job.Ref, &job.CommitSHA, &job.Status, &job.ArtifactDigest, &job.ResultMessage, &job.CreatedAt, &startedAt, &finishedAt, &artifactExpiresAt, &job.Trigger); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read build jobs")
 			return
 		}

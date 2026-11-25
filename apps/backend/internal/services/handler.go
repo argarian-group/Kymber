@@ -49,6 +49,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"DELETE /api/workspaces/{workspaceID}/git-providers/{providerID}", h.deleteGitProvider},
 		{"GET /api/workspaces/{workspaceID}/git-providers/{providerID}/repositories", h.listGitProviderRepositories},
 		{"POST /api/workspaces/{workspaceID}/git-providers/{providerID}/sync", h.syncGitHubApp},
+		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-builds/{jobID}/rebuild", h.rebuildGitCommit},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-source", h.getGitSource},
 		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-source", h.updateGitSource},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/git-builds/branches", h.listGitHubBranches},

@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { GitBuildHistory } from "@/features/projects/components/apps/GitBuildHistory";
 import { GitHubBuildForm } from "@/features/projects/components/apps/GitHubBuildForm";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { api } from "@/lib/api";
@@ -7,7 +8,7 @@ import { t } from "@/lib/i18n";
 import { useState } from "react";
 
 export function GitHubBuildPage() {
-  const { path, service } = useAppOutlet();
+  const { path, service, canWrite, onChanged } = useAppOutlet();
   const [enabled, setEnabled] = useState(false);
   useLoadEffect(
     () => api<{ git_builds_enabled?: boolean }>("/database-templates"),
@@ -15,5 +16,5 @@ export function GitHubBuildPage() {
     () => setEnabled(false),
     [],
   );
-  return <div className="grid gap-5 px-4 py-6 md:px-6"><Link className="focus-ring inline-flex w-fit items-center gap-1 rounded-sm text-meta text-ink-soft hover:text-ink" to="..">{t("All apps")}</Link><GitHubBuildForm path={path} gitBuildsEnabled={enabled} service={service} /></div>;
+  return <div className="grid gap-5 px-4 py-6 md:px-6"><Link className="focus-ring inline-flex w-fit items-center gap-1 rounded-sm text-meta text-ink-soft hover:text-ink" to="..">{t("All apps")}</Link><GitHubBuildForm path={path} gitBuildsEnabled={enabled} service={service} />{service.image === "docker.io/kymber/build-artifacts" && <div className="mx-auto w-full max-w-xl"><GitBuildHistory path={path} service={service} canWrite={canWrite} onChanged={onChanged} /></div>}</div>;
 }
