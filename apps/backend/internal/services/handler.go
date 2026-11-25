@@ -82,6 +82,12 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/jobs/{jobID}", h.updateJob},
 		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/jobs/{jobID}", h.deleteJob},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/jobs/{jobID}/run", h.runJobNow},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/backups", h.listBackups},
+		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/backups", h.createBackup},
+		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/backups/settings", h.updateBackupSettings},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/backups/{backupID}/download", h.downloadBackup},
+		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/backups/{backupID}/restore", h.restoreBackup},
+		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/backups/{backupID}", h.deleteBackup},
 		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}", h.deleteService},
 	} {
 		mux.Handle(route.pattern, auth.Authenticate(h.db, route.handler))

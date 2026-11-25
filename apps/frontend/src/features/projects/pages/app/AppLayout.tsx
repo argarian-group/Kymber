@@ -1,4 +1,4 @@
-import { Activity, ArrowLeft, CalendarClock, Clock3, FolderOpen, GitBranch, HardDrive, KeyRound, Plug, ScrollText, Settings2, SquareTerminal, TriangleAlert } from "lucide-react";
+import { Activity, ArchiveRestore, ArrowLeft, CalendarClock, Clock3, FolderOpen, GitBranch, HardDrive, KeyRound, Plug, ScrollText, Settings2, SquareTerminal, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, Navigate, Outlet, useLocation, useParams } from "react-router";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -98,6 +98,7 @@ export function AppLayout() {
               { label: t("Connection"), to: "connection", end: false, icon: Plug },
               { label: t("Files"), to: "files", end: false, icon: FolderOpen },
               { label: t("Jobs"), to: "jobs", end: false, icon: CalendarClock },
+              { label: t("Backups"), to: "backups", end: false, icon: ArchiveRestore },
               ...(service.image === "docker.io/kymber/build-artifacts" ? [] : [
                 ...(canTerminal ? [{ label: t("Terminal"), to: "terminal", end: false, icon: SquareTerminal }] : []),
               ]),

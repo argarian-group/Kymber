@@ -202,8 +202,12 @@ func (h *Handler) runJobNow(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) runJobScheduler() {
+	if _, err := h.db.Exec("UPDATE service_backups SET status = CASE status WHEN 'running' THEN 'failed' ELSE 'succeeded' END, error = 'Interrupted when Kymber restarted.', finished_at = COALESCE(finished_at, UTC_TIMESTAMP(6)) WHERE status IN ('running', 'restoring')"); err != nil {
+		logger.Warn("could not close interrupted backups: %v", err)
+	}
 	for range time.Tick(20 * time.Second) {
 		h.startDueJobs()
+		h.startDueBackups()
 	}
 }
 
