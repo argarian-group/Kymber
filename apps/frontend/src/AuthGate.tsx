@@ -7,6 +7,7 @@ import { AuthScreen } from "@/features/auth/components/AuthScreen";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { OnboardingPage } from "@/features/auth/pages/OnboardingPage";
 import { ProjectsProvider } from "@/features/projects/ProjectsContext";
+import { MyTasksPage } from "@/features/tasks/MyTasksPage";
 import { AppConnectionPage } from "@/features/projects/pages/app/AppConnectionPage";
 import { AppDangerPage } from "@/features/projects/pages/app/AppDangerPage";
 import { AppDeploymentsPage } from "@/features/projects/pages/app/AppDeploymentsPage";
@@ -65,7 +66,7 @@ const router = createBrowserRouter(createRoutesFromElements(
       <Route path="tasks" element={<ProjectTasksPage />} />
       <Route path="settings" element={<ProjectSettingsPage />} />
     </Route>
-    <Route path="tasks" element={<Navigate to="/projects" replace />} />
+    <Route path="tasks" element={<MyTasksPage />} />
     <Route path="deploys" element={<Navigate to="/projects" replace />} />
     <Route path="team" element={<TeamPage section="members" />} />
     <Route path="team/roles" element={<TeamPage section="roles" />} />

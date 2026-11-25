@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n";
 
 export function MobileTabBar() {
   const user = useCurrentUser();
-  const navItems = [...workspaceItems, ...organizationItems(user.is_root)].filter(({ to }) => to !== "/terminal");
+  const navItems = [...workspaceItems, ...organizationItems(user.is_root)].filter(({ to }) => to !== "/terminal" && to !== "/tasks");
 
   return (
     <nav

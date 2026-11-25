@@ -86,12 +86,12 @@ function daysUntil(day: Date) {
   return Math.round((Date.UTC(day.getFullYear(), day.getMonth(), day.getDate()) - Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
 }
 
-export function isLate(task: Task, done: boolean) {
+export function isLate(task: Pick<Task, "due_date">, done: boolean) {
   const day = dueDay(task);
   return day !== null && !done && daysUntil(day) < 0;
 }
 
-export function dueLabel(task: Task, done: boolean) {
+export function dueLabel(task: Pick<Task, "due_date">, done: boolean) {
   const day = dueDay(task);
   if (!day) return "";
   const days = daysUntil(day);

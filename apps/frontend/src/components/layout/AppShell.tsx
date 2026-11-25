@@ -5,6 +5,7 @@ import { MobileTabBar } from "./MobileTabBar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { readSidebarWidth } from "@/components/layout/SidebarResizer";
 import { LogoutButton } from "./LogoutButton";
+import { TaskPalette } from "@/features/tasks/TaskPalette";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const user = useCurrentUser();
@@ -27,6 +28,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         {children}
       </main>
+      <TaskPalette />
     </div>
   );
 }

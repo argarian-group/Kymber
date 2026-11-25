@@ -1,4 +1,13 @@
 export const ptBR = {
+  "My tasks": "Minhas tarefas",
+  "1 open task assigned to you": "1 tarefa aberta atribuída a você",
+  "{count} open tasks assigned to you": "{count} tarefas abertas atribuídas a você",
+  "Hide done": "Ocultar concluídas",
+  "Show done ({count})": "Mostrar concluídas ({count})",
+  "Nothing assigned to you": "Nada atribuído a você",
+  "Tasks assigned to you in any project show up here.": "Tarefas atribuídas a você em qualquer projeto aparecem aqui.",
+  "Search tasks by title or key": "Buscar tarefas por título ou código",
+  "No tasks found.": "Nenhuma tarefa encontrada.",
   "Time": "Tempo",
   "Stop {time}": "Parar {time}",
   "Start timer": "Iniciar cronômetro",

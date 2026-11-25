@@ -29,6 +29,9 @@ export function OverviewContent({ projects }: { projects: Project[] }) {
         description={summaries.length === 1 ? t("{done} of {count} project on track", { done: onTrack, count: summaries.length }) : t("{done} of {count} projects on track", { done: onTrack, count: summaries.length })}
         actions={
           <>
+            <Link className="btn md:hidden" to="/tasks">
+              {t("My tasks")}
+            </Link>
             <Link className="btn" to="/projects">
               {t("View projects")}
             </Link>
