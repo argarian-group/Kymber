@@ -4,6 +4,7 @@ import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { Modal } from "@/components/ui/Modal";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
+import { RuntimeSettings } from "@/features/projects/components/apps/RuntimeSettings";
 import { DeploymentDialog } from "@/features/projects/components/apps/DeploymentDialog";
 import { ProjectDetail } from "@/features/projects/components/overview/ProjectDetail";
 import { isServiceBusy } from "@/features/projects/services";
@@ -30,7 +31,7 @@ function GitBuildSelector({ path, serviceId, value, onChange }: { path: string; 
 }
 
 export function AppGeneralPage() {
-  const { service, path, canWrite, onChanged, deployOutput } = useAppOutlet();
+  const { service, detail, path, canWrite, onChanged, deployOutput } = useAppOutlet();
   const [searchParams] = useSearchParams();
   const [name, setName] = useState(service.name);
   const [version, setVersion] = useState(service.image_version);
@@ -118,6 +119,7 @@ export function AppGeneralPage() {
           )}
         </form>
       </AppSection>
+      {canWrite && detail && <RuntimeSettings key={detail.id} service={detail} path={path} onChanged={onChanged} />}
       <AppSection title={t("Details")}>
         <dl className="grid gap-4 p-4 sm:grid-cols-2">
           <ProjectDetail label={t("Engine")}>{service.compose ? t("Docker Compose") : service.engine}</ProjectDetail>

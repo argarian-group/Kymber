@@ -49,6 +49,9 @@ type databaseService struct {
 	ContainersError string             `json:"containers_error,omitempty"`
 	PreviewOf       string             `json:"preview_of,omitempty"`
 	PRNumber        int                `json:"pr_number,omitempty"`
+	CPULimit        float64            `json:"cpu_limit"`
+	MemoryLimitMB   int                `json:"memory_limit_mb"`
+	HealthCmd       string             `json:"health_cmd"`
 }
 
 var errServiceActionInProgress = errors.New("service action already in progress")
@@ -474,7 +477,7 @@ func (h *Handler) updateServiceDomain(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) readService(r *http.Request, workspaceID, projectID string, serviceID string, includeSecret bool) (databaseService, error) {
 	var service databaseService
 	var encrypted []byte
-	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), COALESCE(d.domain, '') <> COALESCE(d.applied_domain, ''), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.encrypted_config, d.compose_file IS NOT NULL, COALESCE(CAST(d.compose_file AS CHAR), '') FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.id = ? AND d.workspace_id = ? AND d.project_id = ?`, serviceID, workspaceID, projectID).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DomainPending, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &encrypted, &service.Compose, &service.ComposeFile)
+	err := h.db.QueryRowContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), COALESCE(d.domain, '') <> COALESCE(d.applied_domain, ''), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.encrypted_config, d.compose_file IS NOT NULL, COALESCE(CAST(d.compose_file AS CHAR), ''), d.cpu_limit, d.memory_limit_mb, d.health_cmd FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.id = ? AND d.workspace_id = ? AND d.project_id = ?`, serviceID, workspaceID, projectID).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DomainPending, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &encrypted, &service.Compose, &service.ComposeFile, &service.CPULimit, &service.MemoryLimitMB, &service.HealthCmd)
 	if err != nil {
 		return service, err
 	}

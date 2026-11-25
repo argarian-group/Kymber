@@ -573,7 +573,7 @@ func shellQuote(value string) string {
 func (h *Handler) readServiceByID(r *http.Request, id string) (databaseService, error) {
 	var service databaseService
 	var encrypted []byte
-	err := h.db.QueryRowContext(r.Context(), "SELECT id, workspace_id, project_id, engine, name, image_version, image, port, COALESCE(domain, ''), data_path, COALESCE(server_id, ''), database_name, database_user, encrypted_config, compose_file IS NOT NULL, COALESCE(CAST(compose_file AS CHAR), '') FROM database_services WHERE id = ?", id).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.ServerID, &service.DatabaseName, &service.DatabaseUser, &encrypted, &service.Compose, &service.ComposeFile)
+	err := h.db.QueryRowContext(r.Context(), "SELECT id, workspace_id, project_id, engine, name, image_version, image, port, COALESCE(domain, ''), data_path, COALESCE(server_id, ''), database_name, database_user, encrypted_config, compose_file IS NOT NULL, COALESCE(CAST(compose_file AS CHAR), ''), cpu_limit, memory_limit_mb, health_cmd FROM database_services WHERE id = ?", id).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.ServerID, &service.DatabaseName, &service.DatabaseUser, &encrypted, &service.Compose, &service.ComposeFile, &service.CPULimit, &service.MemoryLimitMB, &service.HealthCmd)
 	if err != nil {
 		return service, err
 	}
@@ -623,6 +623,9 @@ func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, imag
 	}
 	if !templates.ValidDataPath(t.DataPath) {
 		return "", fmt.Errorf("invalid data path")
+	}
+	if s.HealthCmd != "" {
+		t.HealthCmd = s.HealthCmd
 	}
 	config, ok := templates.DockerArgs(s.Engine, s.Environment)
 	if !ok {
@@ -674,7 +677,7 @@ func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, imag
 	if t.HealthCmd != "" {
 		command += " --health-cmd " + quote(t.HealthCmd) + " --health-interval 10s --health-timeout 5s --health-retries 10 --health-start-period 30s"
 	}
-	command += storageArgs + portArgs + " --env-file \"$f\" " + quote(image)
+	command += runtimeLimitArgs(s.CPULimit, s.MemoryLimitMB) + storageArgs + portArgs + " --env-file \"$f\" " + quote(image)
 	for _, arg := range config {
 		command += " " + quote(arg)
 	}

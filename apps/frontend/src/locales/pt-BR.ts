@@ -1,4 +1,12 @@
 export const ptBR = {
+  "Resources and health": "Recursos e saúde",
+  "Leave a limit empty for no limit. Changes apply on the next deploy.": "Deixe um limite vazio para não limitar. As mudanças valem a partir do próximo deploy.",
+  "CPU limit (cores)": "Limite de CPU (núcleos)",
+  "Memory limit (MB)": "Limite de memória (MB)",
+  "No limit": "Sem limite",
+  "Health check command": "Comando de verificação de saúde",
+  "Runs inside the container. The deploy fails if it does not pass within 3 minutes.": "Roda dentro do container. O deploy falha se não passar em até 3 minutos.",
+  "Saved. Applies on the next deploy.": "Salvo. Vale a partir do próximo deploy.",
   "(edited)": "(editado)",
   ", which rewrites this file on every deploy.": ", que reescreve este arquivo a cada deploy.",
   "1 day late": "1 dia de atraso",

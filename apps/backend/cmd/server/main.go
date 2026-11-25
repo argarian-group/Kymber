@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,6 +38,9 @@ type task struct {
 	Username     string           `json:"database_user"`
 	Password     string           `json:"password"`
 	Config       templates.Config `json:"config"`
+	CPULimit     float64          `json:"cpu_limit"`
+	MemoryMB     int              `json:"memory_limit_mb"`
+	HealthCmd    string           `json:"health_cmd"`
 }
 
 type result struct {
@@ -277,6 +281,15 @@ func runArgs(t task, template templates.Template, network, envFile string) []str
 	args := []string{"run", "--pull=missing", "-d", "--name", containerName(t), "--restart", "unless-stopped", "--network", network, "--network-alias", template.InternalHost(t.ServiceID), "--label", "kymber.managed=true", "--label", "kymber.service=" + t.ServiceID}
 	if template.DataPath != "" {
 		args = append(args, "--volume", template.VolumeName(t.ServiceID)+":"+template.DataPath)
+	}
+	if t.CPULimit > 0 {
+		args = append(args, "--cpus", strconv.FormatFloat(t.CPULimit, 'f', -1, 64))
+	}
+	if t.MemoryMB > 0 {
+		args = append(args, "--memory", strconv.Itoa(t.MemoryMB)+"m")
+	}
+	if t.HealthCmd != "" {
+		template.HealthCmd = t.HealthCmd
 	}
 	if template.HealthCmd != "" {
 		args = append(args, "--health-cmd", template.HealthCmd, "--health-interval", "10s", "--health-timeout", "5s", "--health-retries", "10", "--health-start-period", "30s")

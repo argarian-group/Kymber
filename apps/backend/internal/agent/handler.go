@@ -31,6 +31,9 @@ type task struct {
 	Username     string           `json:"database_user"`
 	Password     string           `json:"password"`
 	Config       templates.Config `json:"config"`
+	CPULimit     float64          `json:"cpu_limit"`
+	MemoryMB     int              `json:"memory_limit_mb"`
+	HealthCmd    string           `json:"health_cmd"`
 }
 
 type result struct {
@@ -100,11 +103,11 @@ func (h *Handler) claimTask(w http.ResponseWriter, r *http.Request) {
 	}
 	var t task
 	var encrypted []byte
-	err = tx.QueryRowContext(r.Context(), `SELECT q.id, q.service_id, q.action, d.workspace_id, d.engine, d.name, d.image_version, d.image, d.port, d.data_path, COALESCE(d.environment_id, ''), d.database_name, d.database_user, d.encrypted_config
+	err = tx.QueryRowContext(r.Context(), `SELECT q.id, q.service_id, q.action, d.workspace_id, d.engine, d.name, d.image_version, d.image, d.port, d.data_path, COALESCE(d.environment_id, ''), d.database_name, d.database_user, d.encrypted_config, d.cpu_limit, d.memory_limit_mb, d.health_cmd
 		FROM server_tasks q JOIN database_services d ON d.id = q.service_id
 		WHERE q.server_id = ? AND q.status = 'queued' AND d.category <> 'application' AND d.compose_file IS NULL
 		ORDER BY q.created_at LIMIT 1 FOR UPDATE SKIP LOCKED`, serverID).
-		Scan(&t.ID, &t.ServiceID, &t.Action, &t.WorkspaceID, &t.Engine, &t.Name, &t.ImageVersion, &t.Image, &t.Port, &t.DataPath, &t.Environment, &t.Database, &t.Username, &encrypted)
+		Scan(&t.ID, &t.ServiceID, &t.Action, &t.WorkspaceID, &t.Engine, &t.Name, &t.ImageVersion, &t.Image, &t.Port, &t.DataPath, &t.Environment, &t.Database, &t.Username, &encrypted, &t.CPULimit, &t.MemoryMB, &t.HealthCmd)
 	if errors.Is(err, sql.ErrNoRows) {
 		if err := tx.Commit(); err != nil {
 			http.Error(w, "could not recover expired task", http.StatusInternalServerError)

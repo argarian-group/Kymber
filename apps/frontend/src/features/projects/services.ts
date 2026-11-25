@@ -36,6 +36,9 @@ export type Service = {
   preview_of?: string;
   pr_number?: number;
   environment?: Record<string, string>;
+  cpu_limit?: number;
+  memory_limit_mb?: number;
+  health_cmd?: string;
 };
 
 export type StorageKind = "volume" | "bind" | "file";
