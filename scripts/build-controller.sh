@@ -92,7 +92,10 @@ mkdir -p "$KYMBER_BUILD_WORK_DIR"
 api=${KYMBER_API_URL%/}
 headers="Authorization: Bearer $KYMBER_BUILD_WORKER_TOKEN"
 if [ -z "${KYMBER_BUILD_SERVER_ID:-}" ]; then
-	KYMBER_BUILD_SERVER_ID=$(curl --connect-timeout 10 --max-time 30 --fail --silent --show-error "$api/internal/build-worker/server" -H "$headers" | jq -er '.server_id')
+	if ! KYMBER_BUILD_SERVER_ID=$(curl --connect-timeout 10 --max-time 30 --silent "$api/internal/build-worker/server" -H "$headers" | jq -er '.server_id // error(.error // "API unreachable")' 2>/dev/null); then
+		printf 'Waiting for the API and an online local server (register it under Servers)\n' >&2
+		exit 1
+	fi
 fi
 
 report_failure() {
