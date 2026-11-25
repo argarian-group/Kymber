@@ -82,7 +82,8 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
     setError(null);
     queue.current = queue.current.then(async () => {
       try {
-        await api(taskPath, { method: "PUT", body: next });
+        const { task } = await api<{ task: TaskDetail }>(taskPath, { method: "PUT", body: next });
+        setDetail(task);
         onChanged();
       } catch (failure) {
         setError(errorMessage(failure));
@@ -173,7 +174,7 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
                   refresh();
                 }}
               />
-              <TaskComments comments={detail.comments} path={path} taskId={taskId} onChanged={refresh} />
+              <TaskComments comments={detail.comments} activity={detail.activity} path={path} taskId={taskId} onChanged={refresh} />
             </div>
             <aside className="grid min-w-0 grid-cols-1 content-start gap-4">
               <SelectField label={t("List")} value={listId} onChange={(event) => onMove(taskId, event.target.value, tasksInList(board.tasks, event.target.value).length)}>

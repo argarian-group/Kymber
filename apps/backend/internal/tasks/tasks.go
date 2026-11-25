@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
 	"kymber/backend/internal/permissions"
 )
@@ -46,6 +47,7 @@ type TaskDetail struct {
 	Description string          `json:"description"`
 	Checklists  []TaskChecklist `json:"checklists"`
 	Comments    []TaskComment   `json:"comments"`
+	Activity    []TaskActivity  `json:"activity"`
 }
 
 type taskCreatePayload struct {
@@ -222,6 +224,10 @@ func (h *Handler) writeTaskDetail(w http.ResponseWriter, r *http.Request, status
 		writeError(w, http.StatusInternalServerError, "could not read task comments")
 		return
 	}
+	if detail.Activity, err = h.loadActivity(r.Context(), taskID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read task activity")
+		return
+	}
 	writeJSON(w, status, map[string]TaskDetail{"task": detail})
 }
 
@@ -263,6 +269,11 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 	}
 	if created, err := result.RowsAffected(); err != nil || created == 0 {
 		writeError(w, http.StatusBadRequest, "list not found in this project")
+		return
+	}
+	user, _ := auth.UserFromContext(r)
+	if err := recordActivity(r.Context(), tx, id, user.ID, activityEvent{"created", map[string]any{}}); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create task")
 		return
 	}
 	if err := tx.Commit(); err != nil {
@@ -320,7 +331,21 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
+	before, err := loadSnapshot(r.Context(), tx, taskID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update task")
+		return
+	}
 	if err := saveTask(r.Context(), tx, taskID, input, assigneeIDs); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update task")
+		return
+	}
+	after, err := loadSnapshot(r.Context(), tx, taskID)
+	if err == nil {
+		user, _ := auth.UserFromContext(r)
+		err = recordActivity(r.Context(), tx, taskID, user.ID, diffSnapshots(before, after)...)
+	}
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update task")
 		return
 	}
@@ -379,6 +404,15 @@ func (h *Handler) moveTask(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not move task")
 		return
 	}
+	var fromListID, fromList, toList string
+	if err := tx.QueryRowContext(r.Context(), "SELECT l.id, l.name FROM project_tasks t JOIN task_lists l ON l.id = t.list_id WHERE t.id = ?", taskID).Scan(&fromListID, &fromList); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not move task")
+		return
+	}
+	if err := tx.QueryRowContext(r.Context(), "SELECT name FROM task_lists WHERE id = ?", input.ListID).Scan(&toList); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not move task")
+		return
+	}
 	rows, err := tx.QueryContext(r.Context(), "SELECT id FROM project_tasks WHERE list_id = ? AND id <> ? ORDER BY position, id", input.ListID, taskID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not move task")
@@ -402,6 +436,13 @@ func (h *Handler) moveTask(w http.ResponseWriter, r *http.Request) {
 	if _, err := tx.ExecContext(r.Context(), "UPDATE project_tasks SET list_id = ? WHERE id = ?", input.ListID, taskID); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not move task")
 		return
+	}
+	if fromListID != input.ListID {
+		user, _ := auth.UserFromContext(r)
+		if err := recordActivity(r.Context(), tx, taskID, user.ID, activityEvent{"moved", map[string]any{"from": fromList, "to": toList}}); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not move task")
+			return
+		}
 	}
 	for position, id := range insertAt(siblings, taskID, input.Position) {
 		if _, err := tx.ExecContext(r.Context(), "UPDATE project_tasks SET position = ?, updated_at = updated_at WHERE id = ?", position+1, id); err != nil {

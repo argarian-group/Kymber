@@ -36,7 +36,9 @@ export type Checklist = { id: string; title: string; items: ChecklistItem[] };
 
 export type TaskComment = { id: string; author: TaskPerson | null; body: string; created_at: string; updated_at: string };
 
-export type TaskDetail = Task & { description: string; checklists: Checklist[]; comments: TaskComment[] };
+export type TaskActivity = { id: string; actor: TaskPerson | null; kind: string; payload: Record<string, unknown>; created_at: string };
+
+export type TaskDetail = Task & { description: string; checklists: Checklist[]; comments: TaskComment[]; activity: TaskActivity[] };
 
 export type TaskFilters = { search: string; assignee: string; label: string; priority: string; due: string };
 
