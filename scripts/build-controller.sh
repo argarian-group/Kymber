@@ -12,6 +12,8 @@ if [ "${1:-}" = --run-job ]; then
 	ref=$2
 	dir=$3
 	server=$4
+	base=$5
+	dockerfile=$6
 	case "$ref" in
 		''|-*|*[!A-Za-z0-9._/-]*|*..*|*//*|*@\{*) exit 2 ;;
 	esac
@@ -27,7 +29,13 @@ if [ "${1:-}" = --run-job ]; then
 	git -C "$dir/source" -c core.hooksPath=/dev/null checkout --detach --force "$commit" || exit 1
 	rm -rf "$dir/source/.git"
 	printf '%s' "$commit" > "$dir/commit"
-	exec "$KYMBER_BUILD_RUNNER" "$dir/source" "$dir/artifact.oci.tar" "$server"
+	root=$(readlink -f "$dir/source") || exit 1
+	context=$(readlink -f "$root/$base") || { printf 'base directory not found\n' >&2; exit 1; }
+	case "$context/" in "$root"/*) ;; *) printf 'base directory escapes the repository\n' >&2; exit 1 ;; esac
+	file=$(readlink -f "$context/$dockerfile") || { printf 'Dockerfile not found\n' >&2; exit 1; }
+	case "$file" in "$root"/*) ;; *) printf 'Dockerfile escapes the repository\n' >&2; exit 1 ;; esac
+	[ -f "$file" ] || { printf 'Dockerfile not found: %s\n' "$dockerfile" >&2; exit 1; }
+	exec "$KYMBER_BUILD_RUNNER" "$context" "$dir/artifact.oci.tar" "$server" "$file" "$dir/build-args"
 fi
 
 case "$KYMBER_API_URL" in
@@ -88,6 +96,9 @@ while :; do
 	url=$(jq -er '.repository_url | select(type == "string")' "$response")
 	ref=$(jq -er '.ref | select(type == "string")' "$response")
 	server=$(jq -er '.server_id | select(type == "string" and test("^[0-9a-f]{6}$"))' "$response")
+	base=$(jq -r '.base_directory // ""' "$response")
+	dockerfile=$(jq -r '.dockerfile_path // "Dockerfile"' "$response")
+	jq -r '.build_args // [] | .[] | select(type == "string" and test("^[A-Za-z_][A-Za-z0-9_]*=[^\\n\\r]*$"))' "$response" > "$dir/build-args"
 	if [ "$server" != "$KYMBER_BUILD_SERVER_ID" ]; then
 		rm -rf "$dir"
 		sleep 5
@@ -98,7 +109,16 @@ while :; do
 		rm -rf "$dir"
 		continue
 	fi
-	setsid timeout --signal=TERM --kill-after=10s 2h "$0" --run-job "$url" "$ref" "$dir" "$server" >"$dir/build.log" 2>&1 &
+	paths_ok=1
+	case "$base" in /*) paths_ok=0 ;; esac
+	case "$dockerfile" in /*|'') paths_ok=0 ;; esac
+	case "/$base/$dockerfile/" in */../*|*/./*) paths_ok=0 ;; esac
+	if [ "$paths_ok" -ne 1 ]; then
+		report_failure "$job" "$attempt" 'Controller rejected build paths.'
+		rm -rf "$dir"
+		continue
+	fi
+	setsid timeout --signal=TERM --kill-after=10s 2h "$0" --run-job "$url" "$ref" "$dir" "$server" "$base" "$dockerfile" >"$dir/build.log" 2>&1 &
 	build_pid=$!
 	active_pid=$build_pid
 	active_dir=$dir

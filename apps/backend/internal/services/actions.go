@@ -31,7 +31,10 @@ func (h *Handler) serviceAction(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	action := r.PathValue("action")
+	h.runServiceAction(w, r, workspaceID, projectID, serviceID, r.PathValue("action"))
+}
+
+func (h *Handler) runServiceAction(w http.ResponseWriter, r *http.Request, workspaceID, projectID, serviceID, action string) {
 	if action != "deploy" && action != "start" && action != "stop" && action != "restart" && action != "remove_container" && action != "remove_container_image" {
 		writeError(w, http.StatusBadRequest, "unsupported service action")
 		return

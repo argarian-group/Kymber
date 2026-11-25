@@ -3,10 +3,12 @@ set -eu
 umask 077
 set -C
 
-if [ "$#" -ne 3 ] || [ ! -d "$1" ]; then
-	printf 'usage: %s BUILD_CONTEXT OUTPUT_OCI_TAR SERVER_ID\n' "$0" >&2
+if [ "$#" -lt 3 ] || [ "$#" -gt 5 ] || [ ! -d "$1" ]; then
+	printf 'usage: %s BUILD_CONTEXT OUTPUT_OCI_TAR SERVER_ID [DOCKERFILE [BUILD_ARGS_FILE]]\n' "$0" >&2
 	exit 2
 fi
+dockerfile=${4:-$1/Dockerfile}
+build_args=${5:-}
 
 context=$(cd "$1" && pwd -P)
 output=$2
@@ -29,7 +31,13 @@ cleanup() {
 	fi
 }
 trap cleanup EXIT HUP INT TERM
-if ! docker buildx build --network=none --output "type=oci,dest=$output" "$context"; then
+set --
+if [ -n "$build_args" ] && [ -f "$build_args" ]; then
+	while IFS= read -r arg; do
+		set -- "$@" --build-arg "$arg"
+	done < "$build_args"
+fi
+if ! docker buildx build "$@" --file "$dockerfile" --output "type=oci,dest=$output" "$context"; then
 	exit 1
 fi
 size=$(wc -c < "$output")

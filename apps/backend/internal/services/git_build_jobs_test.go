@@ -25,15 +25,27 @@ func TestGitBuildSourceValidation(t *testing.T) {
 	}
 }
 
-func TestGitBuildConfigurationOnlyAcceptsRepositoryDockerfile(t *testing.T) {
-	if err := validateGitBuildConfiguration(gitBuildRequest{BuildPack: "dockerfile"}); err != nil {
+func TestGitBuildConfiguration(t *testing.T) {
+	source := gitSource{BaseDirectory: "/apps/web/", DockerfilePath: "", BuildArgs: []string{"NODE_ENV=production", "EMPTY="}}
+	if err := validateGitBuildConfiguration(&source); err != nil {
 		t.Fatal(err)
 	}
-	if err := validateGitBuildConfiguration(gitBuildRequest{}); err != nil {
-		t.Fatalf("default Dockerfile build rejected: %v", err)
+	if source.BuildPack != "dockerfile" || source.BaseDirectory != "apps/web" || source.DockerfilePath != "Dockerfile" {
+		t.Fatalf("defaults not applied: %+v", source)
 	}
-	if err := validateGitBuildConfiguration(gitBuildRequest{BuildPack: "nixpacks", StartCommand: "npm start"}); err == nil {
-		t.Fatal("unsupported custom build commands accepted")
+	for _, invalid := range []gitSource{
+		{BaseDirectory: "../outside"},
+		{BaseDirectory: "a/../../b"},
+		{DockerfilePath: "docker/../../Dockerfile"},
+		{DockerfilePath: "a//Dockerfile"},
+		{BuildArgs: []string{"NO_VALUE"}},
+		{BuildArgs: []string{"1BAD=x"}},
+		{BuildArgs: []string{"MULTI=a\nb"}},
+		{BuildPack: "nixpacks", StartCommand: "npm start"},
+	} {
+		if err := validateGitBuildConfiguration(&invalid); err == nil {
+			t.Errorf("invalid configuration accepted: %+v", invalid)
+		}
 	}
 }
 

@@ -43,6 +43,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/image-artifact", h.deployImageArtifact},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-builds", h.createGitBuild},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-builds", h.listGitBuilds},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-source", h.getGitSource},
+		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-source", h.updateGitSource},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/git-builds/branches", h.listGitHubBranches},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/containers/{container}/{action}", h.composeContainerAction},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/cancel-deploy", h.cancelServiceDeploy},

@@ -25,16 +25,6 @@ import (
 	"kymber/backend/internal/secrets"
 )
 
-type gitBuildRequest struct {
-	RepositoryURL    string `json:"repository_url"`
-	Ref              string `json:"ref"`
-	BuildPack        string `json:"build_pack"`
-	InstallCommand   string `json:"install_command"`
-	BuildCommand     string `json:"build_command"`
-	StartCommand     string `json:"start_command"`
-	PublishDirectory string `json:"publish_directory"`
-}
-
 func (h *Handler) createGitBuildDraft(w http.ResponseWriter, r *http.Request) {
 	if !gitBuildsEnabled() {
 		writeError(w, http.StatusNotFound, "Git builds are disabled")
@@ -162,12 +152,16 @@ func (h *Handler) listGitHubBranches(w http.ResponseWriter, r *http.Request) {
 }
 
 type gitBuildClaim struct {
-	ID            string `json:"id"`
-	RepositoryURL string `json:"repository_url"`
-	Ref           string `json:"ref"`
-	ServiceID     string `json:"service_id"`
-	ServerID      string `json:"server_id"`
-	Attempt       int    `json:"attempt"`
+	ID             string   `json:"id"`
+	RepositoryURL  string   `json:"repository_url"`
+	Ref            string   `json:"ref"`
+	ServiceID      string   `json:"service_id"`
+	ServerID       string   `json:"server_id"`
+	Attempt        int      `json:"attempt"`
+	BaseDirectory  string   `json:"base_directory"`
+	DockerfilePath string   `json:"dockerfile_path"`
+	BuildPack      string   `json:"build_pack"`
+	BuildArgs      []string `json:"build_args"`
 }
 
 var gitRefPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$`)
@@ -186,16 +180,6 @@ func validPublicGitHubURL(raw string) bool {
 	}
 	parts := strings.Split(strings.TrimSuffix(u.Path, ".git"), "/")
 	return len(parts) == 3 && parts[0] == "" && gitHubOwnerPattern.MatchString(parts[1]) && gitHubRepositoryPattern.MatchString(parts[2])
-}
-
-func validateGitBuildConfiguration(config gitBuildRequest) error {
-	if config.BuildPack == "" {
-		config.BuildPack = "dockerfile"
-	}
-	if config.BuildPack != "dockerfile" || config.InstallCommand != "" || config.BuildCommand != "" || config.StartCommand != "" || config.PublishDirectory != "" {
-		return errors.New("only Dockerfile builds from the repository root are supported")
-	}
-	return nil
 }
 
 func validGitRef(ref string) bool {
@@ -250,11 +234,12 @@ func (h *Handler) claimGitBuild(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "build controller must run on the selected local deployment host")
 		return
 	}
-	err = tx.QueryRowContext(r.Context(), `SELECT b.id, b.repository_url, b.git_ref, b.service_id, s.server_id, b.attempts
+	var encryptedConfig []byte
+	err = tx.QueryRowContext(r.Context(), `SELECT b.id, b.repository_url, b.git_ref, b.service_id, b.attempts, b.encrypted_build_config
 		FROM git_build_jobs b JOIN database_services s ON s.id = b.service_id
 		WHERE (b.status = 'queued' OR (b.status = 'running' AND b.lease_expires_at < UTC_TIMESTAMP(6) AND b.attempts < 5))
-		AND s.status IN ('queued', 'failed', 'draft') AND s.server_id = ?
-		ORDER BY b.created_at LIMIT 1 FOR UPDATE SKIP LOCKED`, job.ServerID).Scan(&job.ID, &job.RepositoryURL, &job.Ref, &job.ServiceID, &job.ServerID, &job.Attempt)
+		AND (s.status IN ('queued', 'failed', 'draft') OR (b.deploy_on_success AND s.status <> 'deleted')) AND (s.server_id = ? OR s.server_id IS NULL)
+		ORDER BY b.created_at LIMIT 1 FOR UPDATE SKIP LOCKED`, job.ServerID).Scan(&job.ID, &job.RepositoryURL, &job.Ref, &job.ServiceID, &job.Attempt, &encryptedConfig)
 	if errors.Is(err, sql.ErrNoRows) {
 		if err := tx.Commit(); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not recover expired build jobs")
@@ -266,6 +251,21 @@ func (h *Handler) claimGitBuild(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read build queue")
 		return
+	}
+	source := gitSource{DockerfilePath: "Dockerfile", BuildPack: "dockerfile"}
+	if encryptedConfig != nil {
+		plaintext, err := secrets.Decrypt(encryptedConfig)
+		if err == nil {
+			err = json.Unmarshal(plaintext, &source)
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not read build configuration")
+			return
+		}
+	}
+	job.BaseDirectory, job.DockerfilePath, job.BuildPack, job.BuildArgs = source.BaseDirectory, source.DockerfilePath, source.BuildPack, source.BuildArgs
+	if job.BuildArgs == nil {
+		job.BuildArgs = []string{}
 	}
 	job.Attempt++
 	if _, err := tx.ExecContext(r.Context(), `UPDATE git_build_jobs SET status = 'running', attempts = ?, lease_expires_at = UTC_TIMESTAMP(6) + INTERVAL 15 MINUTE, started_at = COALESCE(started_at, UTC_TIMESTAMP(6)), result_message = NULL WHERE id = ?`, job.Attempt, job.ID); err != nil {
@@ -433,7 +433,8 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var repositoryURL, gitRef string
-	if err := h.db.QueryRowContext(r.Context(), "SELECT repository_url, git_ref FROM git_build_jobs WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6)", jobID, attempt).Scan(&repositoryURL, &gitRef); err != nil {
+	var deployOnSuccess bool
+	if err := h.db.QueryRowContext(r.Context(), "SELECT repository_url, git_ref, deploy_on_success FROM git_build_jobs WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6)", jobID, attempt).Scan(&repositoryURL, &gitRef, &deployOnSuccess); err != nil {
 		writeError(w, http.StatusConflict, "build lease is no longer owned")
 		return
 	}
@@ -617,24 +618,29 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusConflict, "build lease is no longer owned")
 		return
 	}
-	serviceResult, err := capacityTx.ExecContext(r.Context(), `UPDATE database_services SET image = 'docker.io/kymber/build-artifacts', image_version = ?, status = 'draft', last_error = NULL
-		WHERE id = (SELECT service_id FROM git_build_jobs WHERE id = ?) AND image_version = ? AND status = 'queued'`, jobID, jobID, jobID)
-	if err != nil {
-		os.Remove(finalPath)
-		writeError(w, http.StatusInternalServerError, "could not update built application")
-		return
-	}
-	serviceChanged, err := serviceResult.RowsAffected()
-	if err != nil || serviceChanged != 1 {
-		os.Remove(finalPath)
-		writeError(w, http.StatusConflict, "application changed while the build was running")
-		return
+	if !deployOnSuccess {
+		serviceResult, err := capacityTx.ExecContext(r.Context(), `UPDATE database_services SET image = 'docker.io/kymber/build-artifacts', image_version = ?, status = 'draft', last_error = NULL
+			WHERE id = (SELECT service_id FROM git_build_jobs WHERE id = ?) AND image_version = ? AND status = 'queued'`, jobID, jobID, jobID)
+		if err != nil {
+			os.Remove(finalPath)
+			writeError(w, http.StatusInternalServerError, "could not update built application")
+			return
+		}
+		serviceChanged, err := serviceResult.RowsAffected()
+		if err != nil || serviceChanged != 1 {
+			os.Remove(finalPath)
+			writeError(w, http.StatusConflict, "application changed while the build was running")
+			return
+		}
 	}
 	if err := capacityTx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not commit build completion")
 		return
 	}
 	keep = true
+	if deployOnSuccess {
+		go h.deployGitBuild(jobID)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -722,59 +728,71 @@ func (h *Handler) createGitBuild(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "Git builds require a Docker application")
 		return
 	}
-	if service.Status != "draft" && service.Status != "failed" {
-		writeError(w, http.StatusConflict, "Git builds can only be queued for draft or failed apps")
-		return
-	}
-	var input gitBuildRequest
-	if !decodeJSON(w, r, &input) {
-		return
-	}
-	if input.BuildPack == "" {
-		input.BuildPack = "dockerfile"
-	}
-	if !validPublicGitHubURL(input.RepositoryURL) || !validGitRef(input.Ref) {
-		writeError(w, http.StatusBadRequest, "a public GitHub HTTPS repository and valid ref are required")
-		return
-	}
-	if service.Image != "docker.io/kymber/build-artifacts" && service.Status != "draft" {
-		writeError(w, http.StatusConflict, "only draft apps can be converted to GitHub builds")
-		return
-	}
-	if err := validateGitBuildConfiguration(input); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	id, err := database.NewShortID()
+	id, status, err := h.queueGitBuild(r.Context(), service, "manual")
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "could not create build job")
-		return
-	}
-	tx, err := h.db.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "could not queue build job")
-		return
-	}
-	defer tx.Rollback()
-	serviceResult, err := tx.ExecContext(r.Context(), `UPDATE database_services SET image='docker.io/kymber/build-artifacts', image_version=?, status='queued', last_error=NULL
-		WHERE id=? AND status NOT IN ('queued', 'deploying') AND (image='docker.io/kymber/build-artifacts' OR status='draft')`, id, serviceID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "could not prepare application for build")
-		return
-	}
-	if changed, err := serviceResult.RowsAffected(); err != nil || changed != 1 {
-		writeError(w, http.StatusConflict, "wait for the current app action to finish")
-		return
-	}
-	if _, err := tx.ExecContext(r.Context(), "INSERT INTO git_build_jobs (id, service_id, repository_url, git_ref) VALUES (?, ?, ?, ?)", id, serviceID, input.RepositoryURL, input.Ref); err != nil {
-		writeError(w, http.StatusInternalServerError, "could not queue build job")
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		writeError(w, http.StatusInternalServerError, "could not queue build job")
+		writeError(w, status, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]string{"id": id, "status": "queued"})
+}
+
+func (h *Handler) queueGitBuild(ctx context.Context, service databaseService, trigger string) (string, int, error) {
+	source, err := h.readGitSource(ctx, service.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", http.StatusConflict, errors.New("configure the app's Git source first")
+	}
+	if err != nil {
+		return "", http.StatusInternalServerError, errors.New("could not read Git source")
+	}
+	config, err := json.Marshal(source)
+	if err != nil {
+		return "", http.StatusInternalServerError, errors.New("could not snapshot Git source")
+	}
+	encryptedConfig, err := secrets.Encrypt(config)
+	if err != nil {
+		return "", http.StatusInternalServerError, errors.New("service encryption is not configured")
+	}
+	id, err := database.NewShortID()
+	if err != nil {
+		return "", http.StatusInternalServerError, errors.New("could not create build job")
+	}
+	tx, err := h.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", http.StatusInternalServerError, errors.New("could not queue build job")
+	}
+	defer tx.Rollback()
+	var status, image string
+	var serverID sql.NullString
+	if err := tx.QueryRowContext(ctx, "SELECT status, image, server_id FROM database_services WHERE id = ? FOR UPDATE", service.ID).Scan(&status, &image, &serverID); err != nil {
+		return "", http.StatusNotFound, errors.New("service not found")
+	}
+	if status == "queued" || status == "deploying" || status == "deleted" {
+		return "", http.StatusConflict, errors.New("wait for the current app action to finish")
+	}
+	if image != "docker.io/kymber/build-artifacts" && status != "draft" {
+		return "", http.StatusConflict, errors.New("only draft apps can be converted to Git builds")
+	}
+	var active bool
+	if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM git_build_jobs WHERE service_id = ? AND status IN ('queued', 'running'))", service.ID).Scan(&active); err != nil {
+		return "", http.StatusInternalServerError, errors.New("could not check running builds")
+	}
+	if active {
+		return "", http.StatusConflict, errors.New("a build is already queued or running for this app")
+	}
+	deployOnSuccess := serverID.Valid && status != "draft"
+	if !deployOnSuccess {
+		if _, err := tx.ExecContext(ctx, `UPDATE database_services SET image='docker.io/kymber/build-artifacts', image_version=?, status='queued', last_error=NULL WHERE id=?`, id, service.ID); err != nil {
+			return "", http.StatusInternalServerError, errors.New("could not prepare application for build")
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO git_build_jobs (id, service_id, repository_url, git_ref, encrypted_build_config, build_trigger, deploy_on_success) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		id, service.ID, source.RepositoryURL, source.Ref, encryptedConfig, trigger, deployOnSuccess); err != nil {
+		return "", http.StatusInternalServerError, errors.New("could not queue build job")
+	}
+	if err := tx.Commit(); err != nil {
+		return "", http.StatusInternalServerError, errors.New("could not queue build job")
+	}
+	return id, http.StatusAccepted, nil
 }
 
 func (h *Handler) listGitBuilds(w http.ResponseWriter, r *http.Request) {

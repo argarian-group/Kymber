@@ -53,8 +53,8 @@ export function AppGeneralPage() {
     await run(async () => {
       if (draft) {
         await api(`${path}/${service.id}`, { method: "PUT", body: { name, image_version: version } });
-        if (gitBuild && searchParams.get("repository_url") && searchParams.get("ref") && !githubBuildId) {
-          await api(`${path}/${service.id}/git-builds`, { method: "POST", body: { repository_url: searchParams.get("repository_url"), ref: searchParams.get("ref"), build_pack: "dockerfile" } });
+        if (gitBuild && searchParams.has("build") && !githubBuildId) {
+          await api(`${path}/${service.id}/git-builds`, { method: "POST" });
         }
         if (gitBuild && githubBuildId) await api(`${path}/${service.id}/deploy`, { method: "POST", body: { image_version: githubBuildId } });
         setSaved(t("Saved."));
@@ -79,11 +79,8 @@ export function AppGeneralPage() {
   }
 
   async function queueGitBuild() {
-    const repositoryURL = searchParams.get("repository_url");
-    const ref = searchParams.get("ref");
-    if (!repositoryURL || !ref) return;
     await run(async () => {
-      await api(`${path}/${service.id}/git-builds`, { method: "POST", body: { repository_url: repositoryURL, ref, build_pack: "dockerfile" } });
+      await api(`${path}/${service.id}/git-builds`, { method: "POST" });
       onChanged();
     });
   }
@@ -112,8 +109,8 @@ export function AppGeneralPage() {
           </div>
           {canWrite && (
             <FormFooter error={error} saved={saved}>
-              {draft && gitBuild && searchParams.get("repository_url") && searchParams.get("ref") && !githubBuildId && <button className="btn" type="button" disabled={pending} onClick={() => void queueGitBuild()}>{pending ? t("Creating build…") : t("Create build")}</button>}
-              {draft && gitBuild && (!searchParams.get("repository_url") || !searchParams.get("ref")) && <Link className="btn" to="../source">{t("Configure GitHub build")}</Link>}
+              {draft && gitBuild && searchParams.has("build") && !githubBuildId && <button className="btn" type="button" disabled={pending} onClick={() => void queueGitBuild()}>{pending ? t("Creating build…") : t("Create build")}</button>}
+              {draft && gitBuild && !searchParams.has("build") && <Link className="btn" to="../source">{t("Configure GitHub build")}</Link>}
               <button className="btn btn-primary" type="submit" disabled={pending || busy || !changed || (gitBuild && !draft && !githubBuildId)}>
                 {pending ? t("Saving…") : draft && !githubBuildId ? t("Save") : gitBuild ? t("Deploy selected GitHub build") : t("Deploy this version")}
               </button>

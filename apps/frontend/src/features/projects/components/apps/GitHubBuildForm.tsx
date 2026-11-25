@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
 
 type GitBuildJob = { id: string; status: string; result_message?: string; repository_url?: string; ref?: string; artifact_expires_at?: string };
+type GitSource = { repository_url: string; ref: string; base_directory: string; dockerfile_path: string; build_args: string[]; auto_deploy: boolean };
 type GitHubBranch = { name: string; commit: { sha: string } };
 
 function validRepositoryURL(value: string) {
@@ -27,6 +28,10 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
   const projectId = path.split("/")[4];
   const [repositoryURL, setRepositoryURL] = useState("");
   const [ref, setRef] = useState("");
+  const [baseDirectory, setBaseDirectory] = useState("");
+  const [dockerfilePath, setDockerfilePath] = useState("Dockerfile");
+  const [buildArgs, setBuildArgs] = useState("");
+  const [savedSource, setSavedSource] = useState<GitSource | null>(null);
   const [branches, setBranches] = useState<GitHubBranch[]>([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
   const [branchRequest, setBranchRequest] = useState(0);
@@ -68,6 +73,23 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
   useEffect(() => {
     if (existingService) setCreatedService(existingService);
   }, [existingService]);
+
+  useEffect(() => {
+    if (!existingService) return;
+    let active = true;
+    api<GitSource | null>(`${path}/${existingService.id}/git-source`)
+      .then((source) => {
+        if (!active || !source) return;
+        setSavedSource(source);
+        setRepositoryURL(source.repository_url);
+        setRef(source.ref);
+        setBaseDirectory(source.base_directory);
+        setDockerfilePath(source.dockerfile_path);
+        setBuildArgs(source.build_args.join("\n"));
+      })
+      .catch(() => { if (active) setError(t("Could not load the Git source")); });
+    return () => { active = false; };
+  }, [existingService?.id, path]);
 
   useEffect(() => {
     if (!service || !job || job.status === "succeeded" || job.status === "failed") return;
@@ -113,7 +135,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
     }
   }
 
-  async function startBuild(event: FormEvent) {
+  async function saveSource(event: FormEvent, build: boolean) {
     event.preventDefault();
     if (!gitBuildsEnabled || pending || !service) return;
     if (!validRepositoryURL(repositoryURL)) {
@@ -124,7 +146,25 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
       setError(t("Select a valid GitHub branch"));
       return;
     }
-    navigate(`/projects/${projectId}/apps/${service.id}?repository_url=${encodeURIComponent(repositoryURL)}&ref=${encodeURIComponent(ref)}`);
+    setPending(true);
+    setError(null);
+    try {
+      const source = await api<GitSource>(`${path}/${service.id}/git-source`, {
+        method: "PUT",
+        body: { repository_url: repositoryURL, ref, base_directory: baseDirectory, dockerfile_path: dockerfilePath, build_args: buildArgs.split("\n").map((line) => line.trim()).filter(Boolean), auto_deploy: savedSource?.auto_deploy ?? true },
+      });
+      setSavedSource(source);
+      if (service.status === "draft") {
+        navigate(`/projects/${projectId}/apps/${service.id}?build=1`);
+      } else if (build) {
+        const queued = await api<{ id: string; status: string }>(`${path}/${service.id}/git-builds`, { method: "POST" });
+        setJob(queued);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t("Could not save the Git source"));
+    } finally {
+      setPending(false);
+    }
   }
 
   if (!gitBuildsEnabled) return <p className="mx-auto w-full max-w-xl rounded-panel bg-raised p-4 text-meta text-ink-soft">{t("GitHub builds are disabled in this environment")}</p>;
@@ -142,10 +182,19 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
         <Field label={t("Public GitHub repository URL")} type="url" required maxLength={512} placeholder="https://github.com/owner/repository" value={repositoryURL} onChange={(event) => { setRepositoryURL(event.target.value); setBranches([]); setJob(null); setError(null); }} />
         <label className="block"><span className="mb-1 block text-meta font-medium">{t("Branch")}</span><select className="field" required disabled={branchesLoading || branches.length === 0} value={ref} onChange={(event) => setRef(event.target.value)}><option value="">{branchesLoading ? t("Loading branches…") : t("Select a branch")}</option>{branches.map(({ name }) => <option key={name} value={name}>{name}</option>)}</select></label>
         {branchesError && <div><FormError message={branchesError} /><button className="text-button text-meta" type="button" disabled={branchesLoading} onClick={() => setBranchRequest((value) => value + 1)}>{t("Retry loading branches")}</button></div>}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("Base directory")} hint={t("Folder used as the build context. Leave empty for the repository root.")} maxLength={255} placeholder="apps/web" value={baseDirectory} onChange={(event) => setBaseDirectory(event.target.value)} />
+          <Field label={t("Dockerfile path")} hint={t("Relative to the base directory.")} required maxLength={255} value={dockerfilePath} onChange={(event) => setDockerfilePath(event.target.value)} />
+        </div>
+        <label className="block"><span className="mb-1 block text-meta font-medium">{t("Build arguments")}</span><textarea className="field min-h-24 font-mono text-xs" spellCheck={false} placeholder="NODE_ENV=production" value={buildArgs} onChange={(event) => setBuildArgs(event.target.value)} /><span className="mt-1 block text-xs text-ink-soft">{t("One KEY=VALUE per line, passed as --build-arg. They are kept in the image history, so use environment variables for secrets.")}</span></label>
         <FormError message={error} />
         {job && (job.status === "running" || job.status === "queued") && <p className="text-meta text-ink-soft" aria-live="polite">{t("Building from GitHub…")}</p>}
+        {job?.status === "succeeded" && <p className="text-meta text-ink-soft" aria-live="polite">{t("Build finished. The app is being redeployed.")}</p>}
         {job?.status === "failed" && <p className="text-meta text-ember" role="alert">{job.result_message || t("Could not queue GitHub build")}</p>}
-        <form onSubmit={startBuild} className="flex justify-end gap-2"><button className="btn btn-primary" type="submit" disabled={pending || !ref || !branches.some(({ name }) => name === ref) || job?.status === "queued" || job?.status === "running"}>{pending ? t("Continuing…") : job?.status === "failed" ? t("Retry build") : t("Continue")}</button></form>
+        <form onSubmit={(event) => void saveSource(event, true)} className="flex flex-wrap justify-end gap-2">
+          {service.status !== "draft" && <button className="btn" type="button" disabled={pending || !ref} onClick={(event) => void saveSource(event, false)}>{t("Save")}</button>}
+          <button className="btn btn-primary" type="submit" disabled={pending || !ref || !branches.some(({ name }) => name === ref) || job?.status === "queued" || job?.status === "running"}>{pending ? t("Saving…") : service.status === "draft" ? t("Continue") : t("Save and rebuild")}</button>
+        </form>
       </>}
     </div>
   );
