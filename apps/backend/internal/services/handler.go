@@ -43,6 +43,12 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/image-artifact", h.deployImageArtifact},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-builds", h.createGitBuild},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-builds", h.listGitBuilds},
+		{"GET /api/workspaces/{workspaceID}/git-providers", h.listGitProviders},
+		{"POST /api/workspaces/{workspaceID}/git-providers", h.createGitProvider},
+		{"POST /api/workspaces/{workspaceID}/git-providers/github-app", h.startGitHubApp},
+		{"DELETE /api/workspaces/{workspaceID}/git-providers/{providerID}", h.deleteGitProvider},
+		{"GET /api/workspaces/{workspaceID}/git-providers/{providerID}/repositories", h.listGitProviderRepositories},
+		{"POST /api/workspaces/{workspaceID}/git-providers/{providerID}/sync", h.syncGitHubApp},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-source", h.getGitSource},
 		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-source", h.updateGitSource},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/git-builds/branches", h.listGitHubBranches},
@@ -72,6 +78,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	} {
 		mux.Handle(route.pattern, auth.Authenticate(h.db, route.handler))
 	}
+	mux.HandleFunc("GET /api/git-providers/github-app/callback", h.gitHubAppCallback)
+	mux.HandleFunc("GET /api/git-providers/github-app/setup", h.gitHubAppSetup)
 	mux.HandleFunc("POST /internal/build-worker/claim", h.claimGitBuild)
 	mux.HandleFunc("GET /internal/build-worker/server", h.buildWorkerServer)
 	mux.HandleFunc("POST /internal/build-worker/jobs/{jobID}/heartbeat", h.heartbeatGitBuild)

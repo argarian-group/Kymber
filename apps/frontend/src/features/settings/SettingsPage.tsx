@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { useCurrentUser } from "@/features/auth/AuthContext";
 import { AccountSettings } from "./components/AccountSettings";
 import { AppearanceSettings } from "./components/AppearanceSettings";
+import { GitProvidersSettings } from "./components/GitProvidersSettings";
 import { SystemSettings } from "./components/SystemSettings";
 import { WorkspaceSettings } from "./components/WorkspaceSettings";
 import { t } from "@/lib/i18n";
@@ -10,17 +11,19 @@ import { t } from "@/lib/i18n";
 const descriptions: Partial<Record<string, string>> = {
   account: t("Your profile and password."),
   workspace: t("Name and lifecycle of your workspaces."),
+  git: t("GitHub, GitLab, Bitbucket and SSH connections for app builds."),
   system: t("Options for everyone on this server."),
   users: t("Manage accounts on this server."),
 };
 
-export function SettingsPage({ section }: { section: "account" | "appearance" | "workspace" | "system" | "users" }) {
+export function SettingsPage({ section }: { section: "account" | "appearance" | "workspace" | "git" | "system" | "users" }) {
   const user = useCurrentUser();
   if ((section === "system" || section === "users") && !user.is_root) return <Navigate to="/settings" replace />;
   const tabs = [
     { label: t("Account"), to: "/settings" },
     { label: t("Appearance"), to: "/settings/appearance" },
     { label: t("Workspace"), to: "/settings/workspace" },
+    { label: "Git", to: "/settings/git" },
     ...(user.is_root ? [{ label: t("System"), to: "/settings/system" }, { label: t("Users"), to: "/settings/users" }] : []),
   ];
 
@@ -44,6 +47,7 @@ export function SettingsPage({ section }: { section: "account" | "appearance" | 
       {section === "account" && <AccountSettings />}
       {section === "appearance" && <AppearanceSettings />}
       {section === "workspace" && <WorkspaceSettings />}
+      {section === "git" && <GitProvidersSettings />}
       {section === "system" && <SystemSettings />}
       {section === "users" && <SystemSettings usersOnly />}
       <p className="px-4 pt-2 pb-8 text-xs text-ink-soft md:px-6">

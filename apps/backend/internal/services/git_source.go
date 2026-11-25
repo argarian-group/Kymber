@@ -19,6 +19,8 @@ import (
 )
 
 type gitSource struct {
+	ProviderID       string   `json:"provider_id"`
+	InstallationID   int64    `json:"installation_id"`
 	RepositoryURL    string   `json:"repository_url"`
 	Ref              string   `json:"ref"`
 	BaseDirectory    string   `json:"base_directory"`
@@ -82,11 +84,14 @@ func validateGitBuildConfiguration(source *gitSource) error {
 func (h *Handler) readGitSource(ctx context.Context, serviceID string) (gitSource, error) {
 	var source gitSource
 	var encryptedArgs []byte
-	err := h.db.QueryRowContext(ctx, `SELECT repository_url, git_ref, base_directory, dockerfile_path, build_pack, install_command, build_command, start_command, publish_directory, encrypted_build_args, auto_deploy
-		FROM service_git_sources WHERE service_id = ?`, serviceID).Scan(&source.RepositoryURL, &source.Ref, &source.BaseDirectory, &source.DockerfilePath, &source.BuildPack, &source.InstallCommand, &source.BuildCommand, &source.StartCommand, &source.PublishDirectory, &encryptedArgs, &source.AutoDeploy)
+	var providerID sql.NullString
+	var installationID sql.NullInt64
+	err := h.db.QueryRowContext(ctx, `SELECT provider_id, installation_id, repository_url, git_ref, base_directory, dockerfile_path, build_pack, install_command, build_command, start_command, publish_directory, encrypted_build_args, auto_deploy
+		FROM service_git_sources WHERE service_id = ?`, serviceID).Scan(&providerID, &installationID, &source.RepositoryURL, &source.Ref, &source.BaseDirectory, &source.DockerfilePath, &source.BuildPack, &source.InstallCommand, &source.BuildCommand, &source.StartCommand, &source.PublishDirectory, &encryptedArgs, &source.AutoDeploy)
 	if err != nil {
 		return source, err
 	}
+	source.ProviderID, source.InstallationID = providerID.String, installationID.Int64
 	source.BuildArgs = []string{}
 	if encryptedArgs != nil {
 		plaintext, err := secrets.Decrypt(encryptedArgs)
@@ -160,10 +165,16 @@ func (h *Handler) updateGitSource(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &source) {
 		return
 	}
-	if !validPublicGitHubURL(source.RepositoryURL) || !validGitRef(source.Ref) {
-		writeError(w, http.StatusBadRequest, "a public GitHub HTTPS repository and valid ref are required")
+	if !validGitRef(source.Ref) {
+		writeError(w, http.StatusBadRequest, "a valid branch or ref is required")
 		return
 	}
+	repository, err := h.openGitRepository(r.Context(), service.WorkspaceID, source)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	source.InstallationID = repository.installationID
 	if err := validateGitBuildConfiguration(&source); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -177,11 +188,11 @@ func (h *Handler) updateGitSource(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "service encryption is not configured")
 		return
 	}
-	if _, err := h.db.ExecContext(r.Context(), `INSERT INTO service_git_sources (service_id, repository_url, git_ref, base_directory, dockerfile_path, build_pack, install_command, build_command, start_command, publish_directory, encrypted_build_args, auto_deploy)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE repository_url = VALUES(repository_url), git_ref = VALUES(git_ref), base_directory = VALUES(base_directory),
+	if _, err := h.db.ExecContext(r.Context(), `INSERT INTO service_git_sources (service_id, provider_id, installation_id, repository_url, git_ref, base_directory, dockerfile_path, build_pack, install_command, build_command, start_command, publish_directory, encrypted_build_args, auto_deploy)
+		VALUES (?, NULLIF(?, ''), NULLIF(?, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE provider_id = VALUES(provider_id), installation_id = VALUES(installation_id), repository_url = VALUES(repository_url), git_ref = VALUES(git_ref), base_directory = VALUES(base_directory),
 		dockerfile_path = VALUES(dockerfile_path), build_pack = VALUES(build_pack), install_command = VALUES(install_command), build_command = VALUES(build_command), start_command = VALUES(start_command),
 		publish_directory = VALUES(publish_directory), encrypted_build_args = VALUES(encrypted_build_args), auto_deploy = VALUES(auto_deploy)`,
-		service.ID, source.RepositoryURL, source.Ref, source.BaseDirectory, source.DockerfilePath, source.BuildPack, source.InstallCommand, source.BuildCommand, source.StartCommand, source.PublishDirectory, encryptedArgs, source.AutoDeploy); err != nil {
+		service.ID, source.ProviderID, source.InstallationID, source.RepositoryURL, source.Ref, source.BaseDirectory, source.DockerfilePath, source.BuildPack, source.InstallCommand, source.BuildCommand, source.StartCommand, source.PublishDirectory, encryptedArgs, source.AutoDeploy); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save Git source")
 		return
 	}

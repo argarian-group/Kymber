@@ -16,7 +16,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"kymber/backend/internal/artifacts"
 	"kymber/backend/internal/auth"
@@ -92,13 +91,6 @@ type gitBuildJob struct {
 	ArtifactExpiresAt string `json:"artifact_expires_at,omitempty"`
 }
 
-type gitHubRef struct {
-	Name   string `json:"name"`
-	Commit struct {
-		SHA string `json:"sha"`
-	} `json:"commit"`
-}
-
 func (h *Handler) listGitHubBranches(w http.ResponseWriter, r *http.Request) {
 	if !gitBuildsEnabled() {
 		writeError(w, http.StatusNotFound, "Git builds are disabled")
@@ -113,55 +105,34 @@ func (h *Handler) listGitHubBranches(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
 		return
 	}
-	repositoryURL := r.URL.Query().Get("repository_url")
-	if !validPublicGitHubURL(repositoryURL) {
-		writeError(w, http.StatusBadRequest, "a public GitHub HTTPS repository is required")
-		return
-	}
-	repositoryPath := strings.TrimSuffix(strings.TrimPrefix(repositoryURL, "https://github.com/"), ".git")
-	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, "https://api.github.com/repos/"+repositoryPath+"/branches?per_page=100", nil)
+	query := r.URL.Query()
+	installationID, _ := strconv.ParseInt(query.Get("installation_id"), 10, 64)
+	repository, err := h.openGitRepository(r.Context(), workspaceID, gitSource{ProviderID: query.Get("provider_id"), InstallationID: installationID, RepositoryURL: query.Get("repository_url")})
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "could not request GitHub branches")
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	request.Header.Set("Accept", "application/vnd.github+json")
-	request.Header.Set("User-Agent", "Kymber-build-controller")
-	response, err := (&http.Client{Timeout: 10 * time.Second}).Do(request)
+	branches, err := repository.branches(r.Context())
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "could not reach GitHub")
+		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		if response.StatusCode == http.StatusNotFound {
-			writeError(w, http.StatusBadRequest, "GitHub repository was not found or is private")
-			return
-		}
-		writeError(w, http.StatusBadGateway, fmt.Sprintf("GitHub returned HTTP %d while listing branches", response.StatusCode))
-		return
-	}
-	var branches []gitHubRef
-	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&branches); err != nil {
-		writeError(w, http.StatusBadGateway, "GitHub returned an invalid branches response")
-		return
-	}
-	if len(branches) > 100 {
-		branches = branches[:100]
-	}
-	writeJSON(w, http.StatusOK, map[string][]gitHubRef{"branches": branches})
+	writeJSON(w, http.StatusOK, map[string][]gitBranch{"branches": branches})
 }
 
 type gitBuildClaim struct {
-	ID             string   `json:"id"`
-	RepositoryURL  string   `json:"repository_url"`
-	Ref            string   `json:"ref"`
-	ServiceID      string   `json:"service_id"`
-	ServerID       string   `json:"server_id"`
-	Attempt        int      `json:"attempt"`
-	BaseDirectory  string   `json:"base_directory"`
-	DockerfilePath string   `json:"dockerfile_path"`
-	BuildPack      string   `json:"build_pack"`
-	BuildArgs      []string `json:"build_args"`
+	ID             string       `json:"id"`
+	RepositoryURL  string       `json:"repository_url"`
+	Ref            string       `json:"ref"`
+	ServiceID      string       `json:"service_id"`
+	ServerID       string       `json:"server_id"`
+	Attempt        int          `json:"attempt"`
+	BaseDirectory  string       `json:"base_directory"`
+	DockerfilePath string       `json:"dockerfile_path"`
+	BuildPack      string       `json:"build_pack"`
+	BuildArgs      []string     `json:"build_args"`
+	Commit         string       `json:"commit,omitempty"`
+	Auth           gitCloneAuth `json:"auth"`
 }
 
 var gitRefPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$`)
@@ -235,11 +206,13 @@ func (h *Handler) claimGitBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var encryptedConfig []byte
-	err = tx.QueryRowContext(r.Context(), `SELECT b.id, b.repository_url, b.git_ref, b.service_id, b.attempts, b.encrypted_build_config
+	var workspaceID string
+	var commit sql.NullString
+	err = tx.QueryRowContext(r.Context(), `SELECT b.id, b.repository_url, b.git_ref, b.service_id, b.attempts, b.encrypted_build_config, s.workspace_id, b.commit_sha
 		FROM git_build_jobs b JOIN database_services s ON s.id = b.service_id
 		WHERE (b.status = 'queued' OR (b.status = 'running' AND b.lease_expires_at < UTC_TIMESTAMP(6) AND b.attempts < 5))
 		AND (s.status IN ('queued', 'failed', 'draft') OR (b.deploy_on_success AND s.status <> 'deleted')) AND (s.server_id = ? OR s.server_id IS NULL)
-		ORDER BY b.created_at LIMIT 1 FOR UPDATE SKIP LOCKED`, job.ServerID).Scan(&job.ID, &job.RepositoryURL, &job.Ref, &job.ServiceID, &job.Attempt, &encryptedConfig)
+		ORDER BY b.created_at LIMIT 1 FOR UPDATE SKIP LOCKED`, job.ServerID).Scan(&job.ID, &job.RepositoryURL, &job.Ref, &job.ServiceID, &job.Attempt, &encryptedConfig, &workspaceID, &commit)
 	if errors.Is(err, sql.ErrNoRows) {
 		if err := tx.Commit(); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not recover expired build jobs")
@@ -267,7 +240,29 @@ func (h *Handler) claimGitBuild(w http.ResponseWriter, r *http.Request) {
 	if job.BuildArgs == nil {
 		job.BuildArgs = []string{}
 	}
+	job.Commit = commit.String
+	repository, err := h.openGitRepository(r.Context(), workspaceID, source)
+	if err == nil {
+		job.Auth, err = repository.cloneAuth(r.Context())
+	}
 	job.Attempt++
+	if err != nil {
+		message := "Could not prepare repository access: " + err.Error()
+		if _, err := tx.ExecContext(r.Context(), `UPDATE git_build_jobs SET status = 'failed', attempts = ?, result_message = ?, finished_at = UTC_TIMESTAMP(6) WHERE id = ?`, job.Attempt, message, job.ID); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not fail build job")
+			return
+		}
+		if _, err := tx.ExecContext(r.Context(), `UPDATE database_services SET status = 'failed', last_error = ? WHERE id = ? AND status = 'queued' AND image_version = ?`, message, job.ServiceID, job.ID); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not fail build job")
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not fail build job")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	if _, err := tx.ExecContext(r.Context(), `UPDATE git_build_jobs SET status = 'running', attempts = ?, lease_expires_at = UTC_TIMESTAMP(6) + INTERVAL 15 MINUTE, started_at = COALESCE(started_at, UTC_TIMESTAMP(6)), result_message = NULL WHERE id = ?`, job.Attempt, job.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not claim build job")
 		return
@@ -432,10 +427,14 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusConflict, "build lease is no longer owned")
 		return
 	}
-	var repositoryURL, gitRef string
+	var pinnedCommit sql.NullString
 	var deployOnSuccess bool
-	if err := h.db.QueryRowContext(r.Context(), "SELECT repository_url, git_ref, deploy_on_success FROM git_build_jobs WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6)", jobID, attempt).Scan(&repositoryURL, &gitRef, &deployOnSuccess); err != nil {
+	if err := h.db.QueryRowContext(r.Context(), "SELECT commit_sha, deploy_on_success FROM git_build_jobs WHERE id = ? AND status = 'running' AND attempts = ? AND lease_expires_at > UTC_TIMESTAMP(6)", jobID, attempt).Scan(&pinnedCommit, &deployOnSuccess); err != nil {
 		writeError(w, http.StatusConflict, "build lease is no longer owned")
+		return
+	}
+	if pinnedCommit.Valid && pinnedCommit.String != commitSHA {
+		writeError(w, http.StatusConflict, "reported commit does not match the queued commit")
 		return
 	}
 	if !allowArtifactTransfer(w) {
@@ -454,41 +453,6 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 	}
 	defer os.Remove(archive.Name())
 	defer archive.Close()
-	if !validPublicGitHubURL(repositoryURL) || !validGitRef(gitRef) {
-		writeError(w, http.StatusConflict, "build job source is invalid")
-		return
-	}
-	repositoryPath := strings.TrimSuffix(strings.TrimPrefix(repositoryURL, "https://github.com/"), ".git")
-	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, "https://api.github.com/repos/"+repositoryPath+"/commits/"+url.PathEscape(gitRef), nil)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "could not verify source commit")
-		return
-	}
-	request.Header.Set("Accept", "application/vnd.github+json")
-	request.Header.Set("User-Agent", "Kymber-build-controller")
-	client := &http.Client{Timeout: 10 * time.Second}
-	response, err := client.Do(request)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "could not verify source commit")
-		return
-	}
-	var githubCommit struct {
-		SHA string `json:"sha"`
-	}
-	decodeErr := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&githubCommit)
-	response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		writeError(w, http.StatusBadGateway, fmt.Sprintf("GitHub returned HTTP %d while verifying the requested ref", response.StatusCode))
-		return
-	}
-	if decodeErr != nil {
-		writeError(w, http.StatusBadGateway, "GitHub returned an invalid ref response")
-		return
-	}
-	if githubCommit.SHA != commitSHA {
-		writeError(w, http.StatusConflict, "reported commit does not match the requested Git ref")
-		return
-	}
 	converted, _, err := artifacts.ConvertOCIToDockerArchive(archive, "docker.io/kymber/build-artifacts:"+jobID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "OCI artifact must contain exactly one valid image: "+err.Error())
@@ -728,7 +692,7 @@ func (h *Handler) createGitBuild(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "Git builds require a Docker application")
 		return
 	}
-	id, status, err := h.queueGitBuild(r.Context(), service, "manual")
+	id, status, err := h.queueGitBuild(r.Context(), service, "manual", "")
 	if err != nil {
 		writeError(w, status, err.Error())
 		return
@@ -736,13 +700,22 @@ func (h *Handler) createGitBuild(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]string{"id": id, "status": "queued"})
 }
 
-func (h *Handler) queueGitBuild(ctx context.Context, service databaseService, trigger string) (string, int, error) {
+func (h *Handler) queueGitBuild(ctx context.Context, service databaseService, trigger, commit string) (string, int, error) {
 	source, err := h.readGitSource(ctx, service.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", http.StatusConflict, errors.New("configure the app's Git source first")
 	}
 	if err != nil {
 		return "", http.StatusInternalServerError, errors.New("could not read Git source")
+	}
+	repository, err := h.openGitRepository(ctx, service.WorkspaceID, source)
+	if err != nil {
+		return "", http.StatusConflict, err
+	}
+	if commit == "" {
+		if commit, err = repository.resolveCommit(ctx, source.Ref); err != nil {
+			return "", http.StatusBadGateway, err
+		}
 	}
 	config, err := json.Marshal(source)
 	if err != nil {
@@ -785,8 +758,8 @@ func (h *Handler) queueGitBuild(ctx context.Context, service databaseService, tr
 			return "", http.StatusInternalServerError, errors.New("could not prepare application for build")
 		}
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO git_build_jobs (id, service_id, repository_url, git_ref, encrypted_build_config, build_trigger, deploy_on_success) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		id, service.ID, source.RepositoryURL, source.Ref, encryptedConfig, trigger, deployOnSuccess); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO git_build_jobs (id, service_id, repository_url, git_ref, commit_sha, encrypted_build_config, build_trigger, deploy_on_success) VALUES (?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?)`,
+		id, service.ID, source.RepositoryURL, source.Ref, commit, encryptedConfig, trigger, deployOnSuccess); err != nil {
 		return "", http.StatusInternalServerError, errors.New("could not queue build job")
 	}
 	if err := tx.Commit(); err != nil {

@@ -71,6 +71,7 @@ const router = createBrowserRouter(createRoutesFromElements(
     <Route path="settings" element={<SettingsPage section="account" />} />
     <Route path="settings/appearance" element={<SettingsPage section="appearance" />} />
     <Route path="settings/workspace" element={<SettingsPage section="workspace" />} />
+    <Route path="settings/git" element={<SettingsPage section="git" />} />
     <Route path="settings/system" element={<SettingsPage section="system" />} />
     <Route path="settings/users" element={<SettingsPage section="users" />} />
     <Route path="*" element={<Navigate to="/" replace />} />

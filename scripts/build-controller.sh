@@ -14,6 +14,7 @@ if [ "${1:-}" = --run-job ]; then
 	server=$4
 	base=$5
 	dockerfile=$6
+	expected=${7:-}
 	case "$ref" in
 		''|-*|*[!A-Za-z0-9._/-]*|*..*|*//*|*@\{*) exit 2 ;;
 	esac
@@ -21,9 +22,23 @@ if [ "${1:-}" = --run-job ]; then
 		case "$part" in .*) exit 2 ;; *.|*.lock) exit 2 ;; esac
 	done
 	export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_LFS_SKIP_SMUDGE=1
+	if [ -n "${KYMBER_GIT_AUTH_HEADER:-}" ]; then
+		export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.extraHeader GIT_CONFIG_VALUE_0="$KYMBER_GIT_AUTH_HEADER"
+	fi
+	unset KYMBER_GIT_AUTH_HEADER
+	if [ -s "$dir/ssh_key" ]; then
+		export GIT_SSH_COMMAND="ssh -i '$dir/ssh_key' -o IdentitiesOnly=yes -o UserKnownHostsFile='$dir/known_hosts' -o StrictHostKeyChecking=yes -o BatchMode=yes"
+	fi
 	git -c protocol.ext.allow=never -c protocol.file.allow=never clone --no-checkout --depth=1 "$url" "$dir/source" || exit 1
 	git -C "$dir/source" -c protocol.ext.allow=never -c protocol.file.allow=never fetch --no-tags --depth=1 origin "$ref" || exit 1
 	commit=$(git -C "$dir/source" rev-parse --verify 'FETCH_HEAD^{commit}') || exit 1
+	if [ -n "$expected" ] && [ "$commit" != "$expected" ]; then
+		git -C "$dir/source" -c protocol.ext.allow=never -c protocol.file.allow=never fetch --no-tags --depth=1 origin "$expected" || { printf 'queued commit %s is no longer reachable\n' "$expected" >&2; exit 1; }
+		commit=$(git -C "$dir/source" rev-parse --verify 'FETCH_HEAD^{commit}') || exit 1
+		[ "$commit" = "$expected" ] || exit 1
+	fi
+	unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 GIT_SSH_COMMAND
+	rm -f "$dir/ssh_key"
 	case "$commit" in *[!0-9a-f]*|'') exit 1 ;; esac
 	[ "${#commit}" -eq 40 ] || exit 1
 	git -C "$dir/source" -c core.hooksPath=/dev/null checkout --detach --force "$commit" || exit 1
@@ -98,13 +113,18 @@ while :; do
 	server=$(jq -er '.server_id | select(type == "string" and test("^[0-9a-f]{6}$"))' "$response")
 	base=$(jq -r '.base_directory // ""' "$response")
 	dockerfile=$(jq -r '.dockerfile_path // "Dockerfile"' "$response")
+	expected=$(jq -r '.commit // "" | select(test("^([0-9a-f]{40})?$"))' "$response")
+	auth_header=$(jq -r '.auth.header // ""' "$response")
+	jq -r '.auth.ssh_key // ""' "$response" > "$dir/ssh_key"
+	jq -r '.auth.known_hosts // ""' "$response" > "$dir/known_hosts"
+	[ -s "$dir/known_hosts" ] && [ "$(wc -c < "$dir/ssh_key")" -gt 1 ] || rm -f "$dir/ssh_key"
 	jq -r '.build_args // [] | .[] | select(type == "string" and test("^[A-Za-z_][A-Za-z0-9_]*=[^\\n\\r]*$"))' "$response" > "$dir/build-args"
 	if [ "$server" != "$KYMBER_BUILD_SERVER_ID" ]; then
 		rm -rf "$dir"
 		sleep 5
 		continue
 	fi
-	if ! printf '%s' "$url" | grep -Eq '^https://github\.com/[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}(\.git)?$'; then
+	if ! printf '%s' "$url" | grep -Eq '^(https://|ssh://[A-Za-z0-9._-]{1,64}@)[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?(/[A-Za-z0-9_][A-Za-z0-9._-]{0,99}){2,20}(\.git)?$'; then
 		report_failure "$job" "$attempt" 'Controller rejected repository URL.'
 		rm -rf "$dir"
 		continue
@@ -118,7 +138,7 @@ while :; do
 		rm -rf "$dir"
 		continue
 	fi
-	setsid timeout --signal=TERM --kill-after=10s 2h "$0" --run-job "$url" "$ref" "$dir" "$server" "$base" "$dockerfile" >"$dir/build.log" 2>&1 &
+	KYMBER_GIT_AUTH_HEADER=$auth_header setsid timeout --signal=TERM --kill-after=10s 2h "$0" --run-job "$url" "$ref" "$dir" "$server" "$base" "$dockerfile" "$expected" >"$dir/build.log" 2>&1 &
 	build_pid=$!
 	active_pid=$build_pid
 	active_dir=$dir

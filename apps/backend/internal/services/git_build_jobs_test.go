@@ -49,19 +49,6 @@ func TestGitBuildConfiguration(t *testing.T) {
 	}
 }
 
-func TestGitHubBranchAPIResponseLimit(t *testing.T) {
-	branches := make([]gitHubRef, 101)
-	for i := range branches {
-		branches[i].Name = "branch"
-	}
-	if len(branches) > 100 {
-		branches = branches[:100]
-	}
-	if len(branches) != 100 {
-		t.Fatalf("expected 100 branches, got %d", len(branches))
-	}
-}
-
 func TestGitHubBranchURLAndRefs(t *testing.T) {
 	for _, repository := range []string{"https://github.com/owner/repo", "https://github.com/owner/repo.git"} {
 		if !validPublicGitHubURL(repository) {
