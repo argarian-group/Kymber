@@ -33,6 +33,8 @@ export type Service = {
   environment_id?: string;
   environment_name?: string;
   connection_url?: string;
+  preview_of?: string;
+  pr_number?: number;
   environment?: Record<string, string>;
 };
 

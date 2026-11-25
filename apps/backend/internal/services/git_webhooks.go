@@ -150,6 +150,14 @@ func (h *Handler) sourceWebhook(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid webhook signature")
 		return
 	}
+	if request, ok, err := parsePullRequest(r.Header, body); err != nil || ok {
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid webhook payload")
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]string{"status": h.handlePullRequest(r.Context(), serviceID, request)})
+		return
+	}
 	push, build, err := parsePush(r.Header, body)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid webhook payload")
@@ -213,16 +221,25 @@ func (h *Handler) gitHubAppWebhook(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
-	push, build, err := parsePush(r.Header, body)
+	request, isPullRequest, err := parsePullRequest(r.Header, body)
+	var push gitPush
+	build := false
+	if err == nil && !isPullRequest {
+		push, build, err = parsePush(r.Header, body)
+	}
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid webhook payload")
 		return
 	}
-	if !build {
+	if !build && !isPullRequest {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ignored"})
 		return
 	}
-	serviceRows, err := h.db.QueryContext(r.Context(), "SELECT service_id FROM service_git_sources WHERE provider_id = ? AND installation_id = ? AND git_ref = ? AND auto_deploy", provider.ID, envelope.Installation.ID, push.branch)
+	query, branch := "SELECT service_id FROM service_git_sources WHERE provider_id = ? AND installation_id = ? AND git_ref = ? AND auto_deploy", push.branch
+	if isPullRequest {
+		query, branch = "SELECT service_id FROM service_git_sources WHERE provider_id = ? AND installation_id = ? AND git_ref = ? AND previews_enabled", request.base
+	}
+	serviceRows, err := h.db.QueryContext(r.Context(), query, provider.ID, envelope.Installation.ID, branch)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not find apps for this push")
 		return
@@ -237,7 +254,11 @@ func (h *Handler) gitHubAppWebhook(w http.ResponseWriter, r *http.Request) {
 	serviceRows.Close()
 	results := map[string]string{}
 	for _, id := range serviceIDs {
-		results[id] = h.buildPushedService(r.Context(), id, push)
+		if isPullRequest {
+			results[id] = h.handlePullRequest(r.Context(), id, request)
+		} else {
+			results[id] = h.buildPushedService(r.Context(), id, push)
+		}
 	}
 	writeJSON(w, http.StatusAccepted, results)
 }

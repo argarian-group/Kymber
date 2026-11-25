@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
 
 type GitBuildJob = { id: string; status: string; result_message?: string; repository_url?: string; ref?: string; artifact_expires_at?: string };
-type GitSource = { provider_id: string; installation_id: number; repository_url: string; ref: string; base_directory: string; dockerfile_path: string; build_pack: string; install_command: string; build_command: string; start_command: string; publish_directory: string; build_args: string[]; auto_deploy: boolean; webhook_url?: string; webhook_secret?: string };
+type GitSource = { provider_id: string; installation_id: number; repository_url: string; ref: string; base_directory: string; dockerfile_path: string; build_pack: string; install_command: string; build_command: string; start_command: string; publish_directory: string; build_args: string[]; auto_deploy: boolean; previews_enabled: boolean; preview_domain: string; webhook_url?: string; webhook_secret?: string };
 type GitHubBranch = { name: string; commit: { sha: string } };
 
 function validRepositoryURL(value: string, provider?: GitProvider) {
@@ -41,6 +41,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
   const [dockerfilePath, setDockerfilePath] = useState("Dockerfile");
   const [buildArgs, setBuildArgs] = useState("");
   const [autoDeploy, setAutoDeploy] = useState(true);
+  const [previews, setPreviews] = useState({ enabled: false, domain: "" });
   const [buildPack, setBuildPack] = useState("dockerfile");
   const [commands, setCommands] = useState({ install: "", build: "", start: "" });
   const [publishDirectory, setPublishDirectory] = useState("");
@@ -123,6 +124,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
         setDockerfilePath(source.dockerfile_path);
         setBuildArgs(source.build_args.join("\n"));
         setAutoDeploy(source.auto_deploy);
+        setPreviews({ enabled: source.previews_enabled, domain: source.preview_domain });
         setBuildPack(source.build_pack);
         setCommands({ install: source.install_command, build: source.build_command, start: source.start_command });
         setPublishDirectory(source.publish_directory);
@@ -191,7 +193,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
     try {
       const source = await api<GitSource>(`${path}/${service.id}/git-source`, {
         method: "PUT",
-        body: { provider_id: providerId, installation_id: installationId, repository_url: repositoryURL, ref, base_directory: baseDirectory, dockerfile_path: dockerfilePath, build_pack: buildPack, install_command: buildPack === "nixpacks" ? commands.install : "", build_command: buildPack === "nixpacks" ? commands.build : "", start_command: buildPack === "nixpacks" ? commands.start : "", publish_directory: buildPack === "static" ? publishDirectory : "", build_args: buildArgs.split("\n").map((line) => line.trim()).filter(Boolean), auto_deploy: autoDeploy },
+        body: { provider_id: providerId, installation_id: installationId, repository_url: repositoryURL, ref, base_directory: baseDirectory, dockerfile_path: dockerfilePath, build_pack: buildPack, install_command: buildPack === "nixpacks" ? commands.install : "", build_command: buildPack === "nixpacks" ? commands.build : "", start_command: buildPack === "nixpacks" ? commands.start : "", publish_directory: buildPack === "static" ? publishDirectory : "", build_args: buildArgs.split("\n").map((line) => line.trim()).filter(Boolean), auto_deploy: autoDeploy, previews_enabled: previews.enabled, preview_domain: previews.enabled ? previews.domain : "" },
       });
       setSavedSource(source);
       if (service.status === "draft") {
@@ -248,6 +250,10 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
         </div>}
         <label className="block"><span className="mb-1 block text-meta font-medium">{t("Build arguments")}</span><textarea className="field min-h-24 font-mono text-xs" spellCheck={false} placeholder="NODE_ENV=production" value={buildArgs} onChange={(event) => setBuildArgs(event.target.value)} /><span className="mt-1 block text-xs text-ink-soft">{t("One KEY=VALUE per line, passed as --build-arg. They are kept in the image history, so use environment variables for secrets.")}</span></label>
         <label className="flex items-start gap-2 text-meta"><input className="mt-0.5 size-4 flex-none cursor-pointer accent-seafoam" type="checkbox" checked={autoDeploy} onChange={(event) => setAutoDeploy(event.target.checked)} /><span><span className="font-medium">{t("Deploy automatically on push")}</span><span className="block text-xs text-ink-soft">{provider?.kind === "github_app" ? t("The GitHub App already sends pushes to Kymber.") : t("Add the webhook below to the repository so pushes reach Kymber.")}</span></span></label>
+        {!service.preview_of && <div className="grid gap-3">
+          <label className="flex items-start gap-2 text-meta"><input className="mt-0.5 size-4 flex-none cursor-pointer accent-seafoam" type="checkbox" checked={previews.enabled} onChange={(event) => setPreviews({ ...previews, enabled: event.target.checked })} /><span><span className="font-medium">{t("Preview deployments for pull requests")}</span><span className="block text-xs text-ink-soft">{t("Each pull request to this branch gets its own app, removed when it closes. Pull requests from forks are not built.")}</span></span></label>
+          {previews.enabled && <Field label={t("Preview base domain")} required maxLength={180} placeholder="preview.example.com" hint={t("Needs a wildcard DNS record (*.preview.example.com) pointing to this server. Previews get pr-<number>-<app>.<domain>.")} value={previews.domain} onChange={(event) => setPreviews({ ...previews, domain: event.target.value })} />}
+        </div>}
         {provider?.kind !== "github_app" && savedSource && (savedSource.webhook_secret ? <div className="grid gap-3 rounded-panel bg-raised p-4">
           {savedSource.webhook_url ? <CopyField label={t("Webhook URL")} value={savedSource.webhook_url} /> : <p className="text-meta text-ink-soft">{t("Set the panel domain in System settings to get a public webhook URL.")}</p>}
           <CopyField label={t("Webhook secret")} value={savedSource.webhook_secret} secret />

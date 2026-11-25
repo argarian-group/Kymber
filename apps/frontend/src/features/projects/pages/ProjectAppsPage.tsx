@@ -6,6 +6,7 @@ import { LoadError } from "@/components/ui/LoadError";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { ServiceCard } from "@/features/projects/components/apps/ServiceCard";
 import { appCategories } from "@/features/projects/engines";
+import type { Service } from "@/features/projects/services";
 import { useProjects } from "@/features/projects/ProjectsContext";
 import { useEnvironments } from "@/features/projects/useEnvironments";
 import { useServices } from "@/features/projects/useServices";
@@ -67,7 +68,9 @@ export function ProjectAppsPage() {
       ) : (
         <div className="grid gap-6">
           {appCategories.map(({ id, label }) => {
-            const group = visible.filter((service) => service.category === id);
+            const order = new Map(visible.map((service, index) => [service.id, index]));
+            const position = (service: Service) => (order.get(service.preview_of ?? service.id) ?? 0) * 1e6 + (service.pr_number ?? 0);
+            const group = visible.filter((service) => service.category === id).sort((a, b) => position(a) - position(b));
             return (
               group.length > 0 && (
                 <section className="grid gap-3" aria-label={label} key={id}>

@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import { EngineMark } from "@/features/projects/components/apps/EngineMark";
 import { ServiceStatus } from "@/features/projects/components/apps/ServiceStatus";
 import type { Service } from "@/features/projects/services";
+import { t } from "@/lib/i18n";
 
 export function ServiceCard({ service, to }: { service: Service; to: string }) {
   return (
@@ -17,6 +18,7 @@ export function ServiceCard({ service, to }: { service: Service; to: string }) {
         <span className="mt-auto flex items-center justify-between gap-3 border-t border-line pt-3">
           <span className="flex min-w-0 items-center gap-2">
             <ServiceStatus status={service.status} />
+            {service.pr_number && <span className="flex-none rounded-sm bg-raised px-1.5 text-xs text-ink-soft">{t("PR #{number}", { number: service.pr_number })}</span>}
             {service.environment_name && <span className="min-w-0 truncate rounded-sm bg-seafoam/15 px-1.5 text-xs text-seafoam">{service.environment_name}</span>}
           </span>
           <span className="min-w-0 truncate text-xs text-ink-soft">{service.server_name ?? service.image_version}</span>

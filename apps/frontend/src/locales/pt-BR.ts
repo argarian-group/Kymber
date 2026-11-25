@@ -1320,4 +1320,9 @@ export const ptBR = {
   "current": "atual",
   "Deploy this build": "Fazer deploy deste build",
   "Rebuild this commit": "Refazer build deste commit",
+  "PR #{number}": "PR #{number}",
+  "Preview deployments for pull requests": "Deploys de preview para pull requests",
+  "Each pull request to this branch gets its own app, removed when it closes. Pull requests from forks are not built.": "Cada pull request para esta branch ganha um app próprio, removido quando ele fecha. Pull requests de forks não são buildados.",
+  "Preview base domain": "Domínio base dos previews",
+  "Needs a wildcard DNS record (*.preview.example.com) pointing to this server. Previews get pr-<number>-<app>.<domain>.": "Precisa de um registro DNS curinga (*.preview.example.com) apontando para este servidor. Os previews ficam em pr-<número>-<app>.<domínio>.",
 } satisfies Record<string, string>;

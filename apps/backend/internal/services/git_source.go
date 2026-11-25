@@ -34,6 +34,8 @@ type gitSource struct {
 	PublishDirectory string   `json:"publish_directory"`
 	BuildArgs        []string `json:"build_args"`
 	AutoDeploy       bool     `json:"auto_deploy"`
+	PreviewsEnabled  bool     `json:"previews_enabled"`
+	PreviewDomain    string   `json:"preview_domain"`
 	WebhookURL       string   `json:"webhook_url,omitempty"`
 	WebhookSecret    string   `json:"webhook_secret,omitempty"`
 }
@@ -113,8 +115,8 @@ func (h *Handler) readGitSource(ctx context.Context, serviceID string) (gitSourc
 	var encryptedArgs []byte
 	var providerID sql.NullString
 	var installationID sql.NullInt64
-	err := h.db.QueryRowContext(ctx, `SELECT provider_id, installation_id, repository_url, git_ref, base_directory, dockerfile_path, build_pack, install_command, build_command, start_command, publish_directory, encrypted_build_args, auto_deploy
-		FROM service_git_sources WHERE service_id = ?`, serviceID).Scan(&providerID, &installationID, &source.RepositoryURL, &source.Ref, &source.BaseDirectory, &source.DockerfilePath, &source.BuildPack, &source.InstallCommand, &source.BuildCommand, &source.StartCommand, &source.PublishDirectory, &encryptedArgs, &source.AutoDeploy)
+	err := h.db.QueryRowContext(ctx, `SELECT provider_id, installation_id, repository_url, git_ref, base_directory, dockerfile_path, build_pack, install_command, build_command, start_command, publish_directory, encrypted_build_args, auto_deploy, previews_enabled, preview_domain
+		FROM service_git_sources WHERE service_id = ?`, serviceID).Scan(&providerID, &installationID, &source.RepositoryURL, &source.Ref, &source.BaseDirectory, &source.DockerfilePath, &source.BuildPack, &source.InstallCommand, &source.BuildCommand, &source.StartCommand, &source.PublishDirectory, &encryptedArgs, &source.AutoDeploy, &source.PreviewsEnabled, &source.PreviewDomain)
 	if err != nil {
 		return source, err
 	}
@@ -218,6 +220,11 @@ func (h *Handler) updateGitSource(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "a valid branch or ref is required")
 		return
 	}
+	source.PreviewDomain = strings.ToLower(strings.TrimSpace(source.PreviewDomain))
+	if source.PreviewsEnabled && (len(source.PreviewDomain) > 180 || !serviceDomainPattern.MatchString(source.PreviewDomain)) {
+		writeError(w, http.StatusBadRequest, "previews need a base domain with a wildcard DNS record, such as preview.example.com")
+		return
+	}
 	repository, err := h.openGitRepository(r.Context(), service.WorkspaceID, source)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -248,11 +255,11 @@ func (h *Handler) updateGitSource(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "service encryption is not configured")
 		return
 	}
-	if _, err := h.db.ExecContext(r.Context(), `INSERT INTO service_git_sources (service_id, provider_id, installation_id, repository_url, git_ref, base_directory, dockerfile_path, build_pack, install_command, build_command, start_command, publish_directory, encrypted_build_args, auto_deploy, encrypted_webhook_secret)
-		VALUES (?, NULLIF(?, ''), NULLIF(?, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE encrypted_webhook_secret = COALESCE(encrypted_webhook_secret, VALUES(encrypted_webhook_secret)), provider_id = VALUES(provider_id), installation_id = VALUES(installation_id), repository_url = VALUES(repository_url), git_ref = VALUES(git_ref), base_directory = VALUES(base_directory),
+	if _, err := h.db.ExecContext(r.Context(), `INSERT INTO service_git_sources (service_id, provider_id, installation_id, repository_url, git_ref, base_directory, dockerfile_path, build_pack, install_command, build_command, start_command, publish_directory, encrypted_build_args, auto_deploy, encrypted_webhook_secret, previews_enabled, preview_domain)
+		VALUES (?, NULLIF(?, ''), NULLIF(?, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE previews_enabled = VALUES(previews_enabled), preview_domain = VALUES(preview_domain), encrypted_webhook_secret = COALESCE(encrypted_webhook_secret, VALUES(encrypted_webhook_secret)), provider_id = VALUES(provider_id), installation_id = VALUES(installation_id), repository_url = VALUES(repository_url), git_ref = VALUES(git_ref), base_directory = VALUES(base_directory),
 		dockerfile_path = VALUES(dockerfile_path), build_pack = VALUES(build_pack), install_command = VALUES(install_command), build_command = VALUES(build_command), start_command = VALUES(start_command),
 		publish_directory = VALUES(publish_directory), encrypted_build_args = VALUES(encrypted_build_args), auto_deploy = VALUES(auto_deploy)`,
-		service.ID, source.ProviderID, source.InstallationID, source.RepositoryURL, source.Ref, source.BaseDirectory, source.DockerfilePath, source.BuildPack, source.InstallCommand, source.BuildCommand, source.StartCommand, source.PublishDirectory, encryptedArgs, source.AutoDeploy, encryptedWebhookSecret); err != nil {
+		service.ID, source.ProviderID, source.InstallationID, source.RepositoryURL, source.Ref, source.BaseDirectory, source.DockerfilePath, source.BuildPack, source.InstallCommand, source.BuildCommand, source.StartCommand, source.PublishDirectory, encryptedArgs, source.AutoDeploy, encryptedWebhookSecret, source.PreviewsEnabled, source.PreviewDomain); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save Git source")
 		return
 	}

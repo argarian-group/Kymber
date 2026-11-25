@@ -47,6 +47,8 @@ type databaseService struct {
 	ComposeFile     string             `json:"compose_file,omitempty"`
 	Containers      []composeContainer `json:"containers,omitempty"`
 	ContainersError string             `json:"containers_error,omitempty"`
+	PreviewOf       string             `json:"preview_of,omitempty"`
+	PRNumber        int                `json:"pr_number,omitempty"`
 }
 
 var errServiceActionInProgress = errors.New("service action already in progress")
@@ -73,7 +75,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), COALESCE(d.domain, '') <> COALESCE(d.applied_domain, ''), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.compose_file IS NOT NULL, COALESCE(CAST(d.compose_file AS CHAR), '') FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.workspace_id = ? AND d.project_id = ? AND (d.status <> 'deleted' OR d.compose_file IS NULL) ORDER BY d.created_at`, workspaceID, projectID)
+	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id, d.workspace_id, d.project_id, d.engine, d.name, d.image_version, d.image, d.port, COALESCE(d.domain, ''), COALESCE(d.domain, '') <> COALESCE(d.applied_domain, ''), d.data_path, d.logo_url, d.category, d.environment_id, COALESCE(e.name, ''), COALESCE(d.server_id, ''), COALESCE(v.name, ''), d.database_name, d.database_user, d.status, COALESCE(d.last_error, ''), d.compose_file IS NOT NULL, COALESCE(CAST(d.compose_file AS CHAR), ''), COALESCE(d.preview_of, ''), COALESCE(d.pr_number, 0) FROM database_services d LEFT JOIN servers v ON v.id = d.server_id LEFT JOIN project_environments e ON e.id = d.environment_id WHERE d.workspace_id = ? AND d.project_id = ? AND (d.status <> 'deleted' OR d.compose_file IS NULL) ORDER BY d.created_at`, workspaceID, projectID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list services")
 		return
@@ -82,7 +84,7 @@ func (h *Handler) listServices(w http.ResponseWriter, r *http.Request) {
 	services := make([]databaseService, 0)
 	for rows.Next() {
 		var service databaseService
-		if err := rows.Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DomainPending, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &service.Compose, &service.ComposeFile); err != nil {
+		if err := rows.Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DomainPending, &service.DataPath, &service.LogoURL, &service.Category, &service.EnvironmentID, &service.EnvironmentName, &service.ServerID, &service.ServerName, &service.DatabaseName, &service.DatabaseUser, &service.Status, &service.LastError, &service.Compose, &service.ComposeFile, &service.PreviewOf, &service.PRNumber); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read services")
 			return
 		}
@@ -540,6 +542,10 @@ func (h *Handler) deleteService(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	h.runDeleteService(w, r, workspaceID, projectID, serviceID)
+}
+
+func (h *Handler) runDeleteService(w http.ResponseWriter, r *http.Request, workspaceID, projectID, serviceID string) {
 	var serverID sql.NullString
 	var compose bool
 	if err := h.db.QueryRowContext(r.Context(), "SELECT server_id, compose_file IS NOT NULL FROM database_services WHERE id = ? AND workspace_id = ? AND project_id = ?", serviceID, workspaceID, projectID).Scan(&serverID, &compose); err != nil {

@@ -790,8 +790,8 @@ func (h *Handler) queueGitBuild(ctx context.Context, service databaseService, tr
 		return "", http.StatusConflict, errors.New("only draft apps can be converted to Git builds")
 	}
 	activeStatuses := "'queued', 'running'"
-	if trigger == "push" {
-		if _, err := tx.ExecContext(ctx, "UPDATE git_build_jobs SET status = 'cancelled', result_message = 'Superseded by a newer push.', finished_at = UTC_TIMESTAMP(6) WHERE service_id = ? AND status = 'queued' AND deploy_on_success", service.ID); err != nil {
+	if trigger == "push" || trigger == "pull_request" {
+		if _, err := tx.ExecContext(ctx, "UPDATE git_build_jobs SET status = 'cancelled', result_message = 'Superseded by a newer commit.', finished_at = UTC_TIMESTAMP(6) WHERE service_id = ? AND status = 'queued' AND deploy_on_success", service.ID); err != nil {
 			return "", http.StatusInternalServerError, errors.New("could not replace queued builds")
 		}
 		activeStatuses = "'queued'"
