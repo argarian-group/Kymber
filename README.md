@@ -32,6 +32,7 @@ Knowing how a project is doing usually means checking one tool for tasks, anothe
 - **Team:** built-in owner, admin and member roles, custom roles with per-area permissions, and invite links.
 - **Projects:** create, edit and delete projects inside a workspace, each with an optional logo.
 - **Apps:** create MySQL and Redis apps from templates, or any public Docker Hub image, then deploy, start, stop and restart them in Docker. Image-based apps have deployment history, output and a re-deploy action for previous versions.
+- **Git deploys:** build apps from GitHub, GitLab, Bitbucket or any Git server over SSH, with a Dockerfile, Nixpacks or as a static site. Pushes deploy automatically and report a commit status, pull requests get their own preview app, and earlier builds can be redeployed to roll back.
 - **Environments:** add environments such as production and dev to a project. Apps in an environment share a private network, and apps can also stay outside any environment.
 - **Tasks:** boards with editable lists, draggable cards, a rich text editor for descriptions and comments, checklists, labels, multiple assignees and filters, across board, list and calendar views.
 - **Appearance:** theme, accent color and density, saved in the browser.
@@ -40,7 +41,7 @@ Knowing how a project is doing usually means checking one tool for tasks, anothe
 
 ### Production install
 
-On Debian, Ubuntu, Arch Linux, Fedora, RHEL 8–10, Rocky Linux, AlmaLinux, Oracle Linux, or CentOS Stream 9–10, the installer installs Docker Engine, Compose, OpenSSH, and Buildx, configures local SSH access, generates `.env` secrets without replacing an existing `.env`, and starts the stack:
+On Debian, Ubuntu, Arch Linux, Fedora, RHEL 8–10, Rocky Linux, AlmaLinux, Oracle Linux, or CentOS Stream 9–10, the installer installs Docker Engine, Compose, OpenSSH, Buildx and Nixpacks, configures local SSH access, generates `.env` secrets without replacing an existing `.env`, and starts the stack:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/argarian-group/Kymber/main/install.sh | sudo bash
@@ -65,10 +66,12 @@ cp .env.example .env
 
 | Variable | Purpose |
 | --- | --- |
-| `SERVER_PORT` | API port, `8080` when not set |
+| `SERVER_PORT` | API port, `8080` when not set. `make up` and the Vite proxy follow it |
 | `SECURE_ONBOARD` | When `true`, the API listens only on localhost until the root account exists |
 | `SERVICE_ENCRYPTION_KEY` | Encrypts app settings. Required to create apps. Generate it with `openssl rand -hex 32` |
 | `KYMBER_TRUST_PROXY` | When `true`, rate limits use the client address sent by the reverse proxy. Set it only when the API is reachable through that proxy alone |
+| `KYMBER_GIT_BUILDS_ENABLED` | Turns Git builds on when `true` |
+| `KYMBER_BUILD_WORKER_TOKEN` | Shared secret between the API and the build controller. Generate it with `openssl rand -hex 32` |
 | `DB_HOST`, `DB_PORT`, `DB_NAME` | MariaDB address and database |
 | `DB_USER`, `DB_PASSWORD` | MariaDB application user |
 | `DB_ROOT_PASSWORD` | MariaDB root password |
@@ -79,7 +82,7 @@ cp .env.example .env
 make up
 ```
 
-This starts MariaDB in Docker and waits until it is ready, then runs the API with live reload, the frontend and the Git build controller. Vite prints the local URL and forwards `/api` to the API on `SERVER_PORT`. Migrations run when the API starts.
+This starts MariaDB in Docker and waits until it is ready, then runs the API with live reload, the frontend and the Git build controller. Git builds need Docker Buildx on your machine. Vite prints the local URL and forwards `/api` to the API on `SERVER_PORT`. Migrations run when the API starts.
 
 The first visit asks you to create the root account. Registration starts off, and root can turn it on under **Settings > System**.
 
@@ -124,6 +127,23 @@ The root-account onboarding also offers an optional domain for the Kymber panel.
 
 Apps can alternatively publish an HTTP host port from their **Connection** settings. Choose an unused port, save, then deploy; access it at `http://<server-ipv4>:<port>`. This bypasses the Docker network, exposes the app to anyone who can reach that host port, and does not enable TLS. Domain and host-port publishing are mutually exclusive.
 
+### Deploy from Git
+
+1. Under **Settings › Git**, connect a provider. Public GitHub repositories need none.
+
+   | Provider | What it needs |
+   | --- | --- |
+   | GitHub App | Created from the panel; needs the panel on a public HTTPS domain |
+   | GitHub, GitLab, Bitbucket | An access token. GitLab can be self-hosted on a public address |
+   | Any Git server | A deploy key that Kymber generates; add it to the repository with read access |
+
+2. In the app's **Source** tab, choose the repository, branch, base directory and build type: Dockerfile, Nixpacks or static site. Build arguments are passed with `--build-arg` and stay in the image history, so keep secrets in environment variables.
+3. Save and build. A running app keeps running during the build and is redeployed when it succeeds.
+
+Each build checks out the commit resolved when it was queued. With **Deploy on every push**, add the webhook URL and secret shown in the Source tab to the repository; GitHub Apps register their own webhook. The build list redeploys an earlier build, or rebuilds its commit once the artifact has expired after 30 days.
+
+With **Preview deployments for pull requests** and a base domain that has a wildcard DNS record pointing to the server, each pull request to the app's branch gets its own app at `pr-<number>-<app>.<domain>`, rebuilt on every push and removed when the pull request closes. Pull requests from forks are never built.
+
 ### Monitoring
 
 Kymber collects server and app metrics with Prometheus, which `make up` and `docker compose up` start next to the API. Under **Servers**, choose **Enable monitoring** on a server: Kymber starts `node-exporter` and `cAdvisor` there over SSH, bound to `127.0.0.1`, so no new port is opened. Prometheus scrapes them through the API, which reaches each exporter over the server's SSH connection, and keeps 15 days of history. The SSH server must allow TCP forwarding (`AllowTcpForwarding yes`, the OpenSSH default).
@@ -142,22 +162,32 @@ apps/
 │   ├── cmd/
 │   │   ├── api/         # API entry point
 │   │   ├── server/      # Server that runs apps in Docker
+│   │   └── ssh-key-helper/
 │   └── internal/
 │       ├── agent/       # API used by servers
+│       ├── artifacts/   # OCI build artifacts
 │       ├── auth/        # Accounts, sessions, onboarding and invitations
 │       ├── database/    # Connection, migrations and IDs
 │       ├── logger/      # Colored log output
 │       ├── middleware/  # Rate limiting
-│       ├── projects/    # Workspaces, members, projects, apps and servers
+│       ├── monitoring/  # Prometheus metrics and alerts
+│       ├── permissions/ # Roles and permissions
+│       ├── project/     # Projects, environments and logos
+│       ├── projects/    # Registers the workspace, server, task, app and project routes
 │       ├── routes/      # HTTP routes
 │       ├── secrets/     # Encryption of app settings
 │       ├── server/      # HTTP server
-│       └── templates/   # MySQL, Redis and Docker Hub image templates
+│       ├── servers/     # Server registration and SSH access
+│       ├── services/    # Apps, deploys, Git builds, providers and webhooks
+│       ├── tasks/       # Task boards, lists, comments and labels
+│       ├── templates/   # MySQL, Redis and Docker Hub image templates
+│       └── workspaces/  # Workspaces, members, roles and invitations
 └── frontend/src/        # React app (Vite, Tailwind CSS)
     ├── components/      # Shared layout and UI components
     ├── features/        # One folder per product area, with pages and components
     └── lib/             # API client and shared hooks
 assets/                  # Logo, banner and background
+scripts/                 # Build controller, build runner and local SSH setup
 ```
 
 ## Roadmap
@@ -169,8 +199,10 @@ assets/                  # Logo, banner and background
 - [x] Connect accounts, workspaces and projects to the API
 - [x] Database apps deployed to local and remote servers
 - [x] Deployment history and output for image-based apps
-- [ ] Isolated build worker and bounded artifact transfer ([security boundary](BUILD_WORKER.md))
-- [ ] Git-based application builds and deploy history
+- [x] Bounded build artifact transfer
+- [x] Git-based application builds, deploy history and rollback
+- [x] Private repositories, push deploys and pull request previews
+- [ ] Isolated build worker on a separate host
 - [x] Tasks in the API
 - [ ] Collaboration and progress tracking
 
