@@ -27,7 +27,8 @@ type queryer interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-func recordActivity(ctx context.Context, db queryer, taskID string, actorID uint64, events ...activityEvent) error {
+// recordActivity stores events by actorID, or by nobody when it is nil.
+func recordActivity(ctx context.Context, db queryer, taskID string, actorID any, events ...activityEvent) error {
 	for _, event := range events {
 		payload, err := json.Marshal(event.payload)
 		if err != nil {

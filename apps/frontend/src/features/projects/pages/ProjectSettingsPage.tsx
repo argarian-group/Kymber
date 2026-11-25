@@ -2,6 +2,7 @@ import { useProjects } from "@/features/projects/ProjectsContext";
 import { DeleteProject } from "@/features/projects/components/settings/DeleteProject";
 import { EditProject } from "@/features/projects/components/settings/EditProject";
 import { ProjectEnvironments } from "@/features/projects/components/settings/ProjectEnvironments";
+import { GitHubWebhookForm } from "@/features/projects/components/settings/GitHubWebhookForm";
 import { StatusPageForm } from "@/features/projects/components/settings/StatusPageForm";
 import { ProjectLogoForm } from "@/features/projects/components/settings/ProjectLogoForm";
 import { useProjectOutlet } from "@/features/projects/useProjectOutlet";
@@ -17,6 +18,7 @@ export function ProjectSettingsPage() {
       <EditProject key={project.id} />
       {canWrite && <ProjectEnvironments key={`environments-${project.id}`} />}
       {canWrite && <StatusPageForm key={`status-${project.id}`} />}
+      {canWrite && <GitHubWebhookForm key={`github-${project.id}`} />}
       {canWrite && <DeleteProject />}
     </>
   );

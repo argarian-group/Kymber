@@ -55,6 +55,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	} {
 		mux.Handle(route.pattern, auth.Authenticate(h.db, route.handler))
 	}
+	mux.HandleFunc("POST /api/webhooks/github/{projectID}", h.githubWebhook)
 }
 
 var idPattern = regexp.MustCompile(`^[0-9a-f]{6}$`)

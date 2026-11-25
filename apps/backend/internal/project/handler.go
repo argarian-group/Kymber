@@ -34,6 +34,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/logo", h.uploadProjectLogo},
 		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/logo", h.deleteProjectLogo},
 		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/status-page", h.setStatusPage},
+		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/github-webhook", h.setGitHubWebhook},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/environments", h.listEnvironments},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/environments", h.createEnvironment},
 		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/environments/{environmentID}", h.deleteEnvironment},
@@ -51,6 +52,7 @@ type Project struct {
 	LogoVersion string    `json:"logo_version,omitempty"`
 	StatusPage  string    `json:"status_page_token,omitempty"`
 	TaskPrefix  string    `json:"task_prefix"`
+	GitHubHook  bool      `json:"github_webhook"`
 }
 
 type projectPayload struct {

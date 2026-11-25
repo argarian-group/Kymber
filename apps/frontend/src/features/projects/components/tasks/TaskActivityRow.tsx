@@ -25,6 +25,7 @@ function describe({ kind, payload }: TaskActivity) {
     case "assignees": return changes("assigned {names}", "unassigned {names}");
     case "labels": return changes("added the label {names}", "removed the label {names}");
     case "moved": return t("moved it from {from} to {to}", { from, to });
+    case "referenced": return payload.source === "commit" ? t("mentioned it in a commit") : t("mentioned it in a pull request");
     case "archived": return t("archived this task");
     case "restored": return t("restored this task");
     default: return kind;
@@ -34,7 +35,13 @@ function describe({ kind, payload }: TaskActivity) {
 export function TaskActivityRow({ activity }: { activity: TaskActivity }) {
   return (
     <li className="text-meta text-ink-soft">
-      <span className="font-medium text-ink">{activity.actor?.username ?? t("Deleted user")}</span> {describe(activity)}
+      <span className="font-medium text-ink">{activity.actor?.username ?? (activity.payload.via === "github" ? "GitHub" : t("Deleted user"))}</span> {describe(activity)}
+      {activity.kind === "referenced" && typeof activity.payload.url === "string" && (
+        <>
+          {" "}
+          <a className="text-ink underline wrap-break-word" href={activity.payload.url} target="_blank" rel="noreferrer">{String(activity.payload.title)}</a>
+        </>
+      )}
       <span className="text-ink-faint"> · {formatRelative(activity.created_at)}</span>
     </li>
   );
