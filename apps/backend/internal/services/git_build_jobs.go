@@ -121,18 +121,24 @@ func (h *Handler) listGitHubBranches(w http.ResponseWriter, r *http.Request) {
 }
 
 type gitBuildClaim struct {
-	ID             string       `json:"id"`
-	RepositoryURL  string       `json:"repository_url"`
-	Ref            string       `json:"ref"`
-	ServiceID      string       `json:"service_id"`
-	ServerID       string       `json:"server_id"`
-	Attempt        int          `json:"attempt"`
-	BaseDirectory  string       `json:"base_directory"`
-	DockerfilePath string       `json:"dockerfile_path"`
-	BuildPack      string       `json:"build_pack"`
-	BuildArgs      []string     `json:"build_args"`
-	Commit         string       `json:"commit,omitempty"`
-	Auth           gitCloneAuth `json:"auth"`
+	ID             string   `json:"id"`
+	RepositoryURL  string   `json:"repository_url"`
+	Ref            string   `json:"ref"`
+	ServiceID      string   `json:"service_id"`
+	ServerID       string   `json:"server_id"`
+	Attempt        int      `json:"attempt"`
+	BaseDirectory  string   `json:"base_directory"`
+	DockerfilePath string   `json:"dockerfile_path"`
+	BuildPack      string   `json:"build_pack"`
+	BuildArgs      []string `json:"build_args"`
+	Commands       struct {
+		Install string `json:"install"`
+		Build   string `json:"build"`
+		Start   string `json:"start"`
+	} `json:"commands"`
+	PublishDirectory string       `json:"publish_directory"`
+	Commit           string       `json:"commit,omitempty"`
+	Auth             gitCloneAuth `json:"auth"`
 }
 
 var gitRefPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$`)
@@ -238,6 +244,7 @@ func (h *Handler) claimGitBuild(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	job.BaseDirectory, job.DockerfilePath, job.BuildPack, job.BuildArgs = source.BaseDirectory, source.DockerfilePath, source.BuildPack, source.BuildArgs
+	job.Commands.Install, job.Commands.Build, job.Commands.Start, job.PublishDirectory = source.InstallCommand, source.BuildCommand, source.StartCommand, source.PublishDirectory
 	if job.BuildArgs == nil {
 		job.BuildArgs = []string{}
 	}

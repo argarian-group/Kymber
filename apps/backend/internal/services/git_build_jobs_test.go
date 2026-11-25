@@ -33,6 +33,14 @@ func TestGitBuildConfiguration(t *testing.T) {
 	if source.BuildPack != "dockerfile" || source.BaseDirectory != "apps/web" || source.DockerfilePath != "Dockerfile" {
 		t.Fatalf("defaults not applied: %+v", source)
 	}
+	for _, valid := range []gitSource{
+		{BuildPack: "nixpacks", InstallCommand: "npm ci", BuildCommand: "npm run build", StartCommand: "npm start"},
+		{BuildPack: "static", PublishDirectory: "/dist/"},
+	} {
+		if err := validateGitBuildConfiguration(&valid); err != nil {
+			t.Errorf("valid configuration rejected: %+v: %v", valid, err)
+		}
+	}
 	for _, invalid := range []gitSource{
 		{BaseDirectory: "../outside"},
 		{BaseDirectory: "a/../../b"},
@@ -41,7 +49,12 @@ func TestGitBuildConfiguration(t *testing.T) {
 		{BuildArgs: []string{"NO_VALUE"}},
 		{BuildArgs: []string{"1BAD=x"}},
 		{BuildArgs: []string{"MULTI=a\nb"}},
-		{BuildPack: "nixpacks", StartCommand: "npm start"},
+		{BuildPack: "dockerfile", StartCommand: "npm start"},
+		{BuildPack: "nixpacks", StartCommand: "npm start\nrm -rf /"},
+		{BuildPack: "nixpacks", PublishDirectory: "dist"},
+		{BuildPack: "static", BuildCommand: "npm run build"},
+		{BuildPack: "static", PublishDirectory: "../dist"},
+		{BuildPack: "buildpacks"},
 	} {
 		if err := validateGitBuildConfiguration(&invalid); err == nil {
 			t.Errorf("invalid configuration accepted: %+v", invalid)

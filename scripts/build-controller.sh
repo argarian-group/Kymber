@@ -47,9 +47,39 @@ if [ "${1:-}" = --run-job ]; then
 	root=$(readlink -f "$dir/source") || exit 1
 	context=$(readlink -f "$root/$base") || { printf 'base directory not found\n' >&2; exit 1; }
 	case "$context/" in "$root"/*) ;; *) printf 'base directory escapes the repository\n' >&2; exit 1 ;; esac
-	file=$(readlink -f "$context/$dockerfile") || { printf 'Dockerfile not found\n' >&2; exit 1; }
-	case "$file" in "$root"/*) ;; *) printf 'Dockerfile escapes the repository\n' >&2; exit 1 ;; esac
-	[ -f "$file" ] || { printf 'Dockerfile not found: %s\n' "$dockerfile" >&2; exit 1; }
+	pack=$(jq -r '.build_pack // "dockerfile"' "$dir/job.json")
+	case "$pack" in
+		nixpacks)
+			command -v nixpacks >/dev/null 2>&1 || { printf 'nixpacks is not installed on the build host\n' >&2; exit 1; }
+			set --
+			for option in install build start; do
+				value=$(jq -r --arg option "$option" '.commands[$option] // ""' "$dir/job.json")
+				[ -n "$value" ] && set -- "$@" "--$option-cmd" "$value"
+			done
+			while IFS= read -r arg; do
+				set -- "$@" --env "$arg"
+			done < "$dir/build-args"
+			rm -rf "$context/.nixpacks"
+			nixpacks build "$context" --out "$context" "$@" || exit 1
+			file="$context/.nixpacks/Dockerfile"
+			;;
+		static)
+			publish=$(jq -r '.publish_directory // ""' "$dir/job.json")
+			case "/$publish/" in */../*|*/./*) printf 'invalid publish directory\n' >&2; exit 1 ;; esac
+			site=$(readlink -f "$context/$publish") || { printf 'publish directory not found\n' >&2; exit 1; }
+			case "$site/" in "$context"/*) ;; *) printf 'publish directory escapes the base directory\n' >&2; exit 1 ;; esac
+			[ -d "$site" ] || { printf 'publish directory not found: %s\n' "$publish" >&2; exit 1; }
+			relative=.${site#"$context"}
+			case "$relative" in *[!A-Za-z0-9._/@+-]*) printf 'unsupported characters in publish directory\n' >&2; exit 1 ;; esac
+			file="$dir/Dockerfile.static"
+			printf 'FROM nginx:stable-alpine\nCOPY ["%s/", "/usr/share/nginx/html/"]\n' "$relative" > "$file"
+			;;
+		*)
+			file=$(readlink -f "$context/$dockerfile") || { printf 'Dockerfile not found\n' >&2; exit 1; }
+			case "$file" in "$root"/*) ;; *) printf 'Dockerfile escapes the repository\n' >&2; exit 1 ;; esac
+			[ -f "$file" ] || { printf 'Dockerfile not found: %s\n' "$dockerfile" >&2; exit 1; }
+			;;
+	esac
 	exec "$KYMBER_BUILD_RUNNER" "$context" "$dir/artifact.oci.tar" "$server" "$file" "$dir/build-args"
 fi
 
@@ -118,6 +148,7 @@ while :; do
 	jq -r '.auth.ssh_key // ""' "$response" > "$dir/ssh_key"
 	jq -r '.auth.known_hosts // ""' "$response" > "$dir/known_hosts"
 	[ -s "$dir/known_hosts" ] && [ "$(wc -c < "$dir/ssh_key")" -gt 1 ] || rm -f "$dir/ssh_key"
+	jq 'del(.auth)' "$response" > "$dir/job.json.tmp" && mv "$dir/job.json.tmp" "$response"
 	jq -r '.build_args // [] | .[] | select(type == "string" and test("^[A-Za-z_][A-Za-z0-9_]*=[^\\n\\r]*$"))' "$response" > "$dir/build-args"
 	if [ "$server" != "$KYMBER_BUILD_SERVER_ID" ]; then
 		rm -rf "$dir"

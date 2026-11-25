@@ -70,8 +70,31 @@ func validateGitBuildConfiguration(source *gitSource) error {
 	if !validRepositoryPath(source.DockerfilePath) {
 		return errors.New("Dockerfile path must be a relative path inside the base directory")
 	}
-	if source.BuildPack != "dockerfile" || source.InstallCommand != "" || source.BuildCommand != "" || source.StartCommand != "" || source.PublishDirectory != "" {
-		return errors.New("only Dockerfile builds are supported")
+	source.PublishDirectory = strings.Trim(strings.TrimSpace(source.PublishDirectory), "/")
+	commands := []string{source.InstallCommand, source.BuildCommand, source.StartCommand}
+	switch source.BuildPack {
+	case "dockerfile":
+		if strings.Join(commands, "") != "" || source.PublishDirectory != "" {
+			return errors.New("Dockerfile builds take their commands from the Dockerfile")
+		}
+	case "nixpacks":
+		if source.PublishDirectory != "" {
+			return errors.New("publish directory only applies to static sites")
+		}
+		for _, command := range commands {
+			if len(command) > 512 || strings.ContainsAny(command, "\x00\r\n") {
+				return errors.New("commands must be a single line of up to 512 characters")
+			}
+		}
+	case "static":
+		if strings.Join(commands, "") != "" {
+			return errors.New("static sites are served as-is; use Nixpacks to run build commands")
+		}
+		if source.PublishDirectory != "" && !validRepositoryPath(source.PublishDirectory) {
+			return errors.New("publish directory must be a relative path inside the base directory")
+		}
+	default:
+		return errors.New("build pack must be dockerfile, nixpacks or static")
 	}
 	if len(source.BuildArgs) > maxBuildArgs {
 		return fmt.Errorf("at most %d build arguments are allowed", maxBuildArgs)

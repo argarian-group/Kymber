@@ -5,7 +5,7 @@ repo="https://github.com/argarian-group/Kymber.git"
 install_dir="${KYMBER_INSTALL_DIR:-/opt/kymber}"
 logfile=$(mktemp /tmp/kymber-install.XXXXXX)
 step_number=0
-total_steps=8
+total_steps=9
 spinner=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
 green=''
 red=''
@@ -162,6 +162,36 @@ EOF
 	fi
 }
 
+install_nixpacks() {
+	local version=1.41.0 arch checksum archive
+	case "$(uname -m)" in
+		x86_64 | amd64)
+			arch=x86_64
+			checksum=0f55de7874507b9cf7502113120bd96f2ab6979f78d10eaf2eb2ade9207b3af6
+			;;
+		aarch64 | arm64)
+			arch=aarch64
+			checksum=912bd02dd2bb6f9c3a9ed965fe8a68b4aa318dc7a2546e2eca6f2806a894ba39
+			;;
+		*)
+			printf 'Nixpacks não tem build para %s; builds Nixpacks ficam indisponíveis.\n' "$(uname -m)"
+			return 0
+			;;
+	esac
+	if [[ "$(nixpacks --version 2>/dev/null)" == *"$version"* ]]; then
+		return 0
+	fi
+	archive=$(mktemp /tmp/nixpacks.XXXXXX)
+	curl -fsSL -o "$archive" "https://github.com/railwayapp/nixpacks/releases/download/v$version/nixpacks-v$version-$arch-unknown-linux-musl.tar.gz" || { rm -f "$archive"; return 1; }
+	if ! printf '%s  %s\n' "$checksum" "$archive" | sha256sum -c - >/dev/null; then
+		printf 'Checksum do Nixpacks não confere.\n' >&2
+		rm -f "$archive"
+		return 1
+	fi
+	tar -xzf "$archive" -C /usr/local/bin nixpacks && chmod 755 /usr/local/bin/nixpacks
+	rm -f "$archive"
+}
+
 start_build_controller() {
 	local port
 	port=$(compose_port KYMBER_BUILD_API_PORT 8081)
@@ -286,6 +316,7 @@ run_step "Gerando configuração segura" prepare_configuration
 run_step "Verificando portas HTTP/HTTPS" check_ports
 run_step "Configurando SSH local" env -u SUDO_UID -u SUDO_GID ./scripts/setup-local-ssh.sh
 run_step "Construindo e iniciando os containers" docker compose up -d --build --wait --wait-timeout 180
+run_step "Instalando Nixpacks" install_nixpacks
 run_step "Iniciando controlador de builds Git" start_build_controller
 printf '\nAcesse o Kymber pelos endereços detectados:\n'
 print_addresses

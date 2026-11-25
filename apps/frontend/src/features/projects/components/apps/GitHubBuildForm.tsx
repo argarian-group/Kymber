@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
 
 type GitBuildJob = { id: string; status: string; result_message?: string; repository_url?: string; ref?: string; artifact_expires_at?: string };
-type GitSource = { provider_id: string; installation_id: number; repository_url: string; ref: string; base_directory: string; dockerfile_path: string; build_args: string[]; auto_deploy: boolean; webhook_url?: string; webhook_secret?: string };
+type GitSource = { provider_id: string; installation_id: number; repository_url: string; ref: string; base_directory: string; dockerfile_path: string; build_pack: string; install_command: string; build_command: string; start_command: string; publish_directory: string; build_args: string[]; auto_deploy: boolean; webhook_url?: string; webhook_secret?: string };
 type GitHubBranch = { name: string; commit: { sha: string } };
 
 function validRepositoryURL(value: string, provider?: GitProvider) {
@@ -41,6 +41,9 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
   const [dockerfilePath, setDockerfilePath] = useState("Dockerfile");
   const [buildArgs, setBuildArgs] = useState("");
   const [autoDeploy, setAutoDeploy] = useState(true);
+  const [buildPack, setBuildPack] = useState("dockerfile");
+  const [commands, setCommands] = useState({ install: "", build: "", start: "" });
+  const [publishDirectory, setPublishDirectory] = useState("");
   const [savedSource, setSavedSource] = useState<GitSource | null>(null);
   const [branches, setBranches] = useState<GitHubBranch[]>([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
@@ -120,6 +123,9 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
         setDockerfilePath(source.dockerfile_path);
         setBuildArgs(source.build_args.join("\n"));
         setAutoDeploy(source.auto_deploy);
+        setBuildPack(source.build_pack);
+        setCommands({ install: source.install_command, build: source.build_command, start: source.start_command });
+        setPublishDirectory(source.publish_directory);
       })
       .catch(() => { if (active) setError(t("Could not load the Git source")); });
     return () => { active = false; };
@@ -185,7 +191,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
     try {
       const source = await api<GitSource>(`${path}/${service.id}/git-source`, {
         method: "PUT",
-        body: { provider_id: providerId, installation_id: installationId, repository_url: repositoryURL, ref, base_directory: baseDirectory, dockerfile_path: dockerfilePath, build_args: buildArgs.split("\n").map((line) => line.trim()).filter(Boolean), auto_deploy: autoDeploy },
+        body: { provider_id: providerId, installation_id: installationId, repository_url: repositoryURL, ref, base_directory: baseDirectory, dockerfile_path: dockerfilePath, build_pack: buildPack, install_command: buildPack === "nixpacks" ? commands.install : "", build_command: buildPack === "nixpacks" ? commands.build : "", start_command: buildPack === "nixpacks" ? commands.start : "", publish_directory: buildPack === "static" ? publishDirectory : "", build_args: buildArgs.split("\n").map((line) => line.trim()).filter(Boolean), auto_deploy: autoDeploy },
       });
       setSavedSource(source);
       if (service.status === "draft") {
@@ -204,7 +210,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
   if (!gitBuildsEnabled) return <p className="mx-auto w-full max-w-xl rounded-panel bg-raised p-4 text-meta text-ink-soft">{t("GitHub builds are disabled in this environment")}</p>;
   return (
     <div className="mx-auto grid w-full max-w-xl gap-5">
-      <div className="rounded-panel bg-raised p-4 text-meta text-ink-soft">{service ? t("Select a branch and start its Dockerfile build. Configure environment variables and port on the app draft.") : t("Create the app draft first, then configure its GitHub repository and branch.")}</div>
+      <div className="rounded-panel bg-raised p-4 text-meta text-ink-soft">{service ? t("Choose the repository, branch and how to build it. Environment variables and the port are set on the app.") : t("Create the app draft first, then configure its GitHub repository and branch.")}</div>
       {!service ? <>
         <form className="grid gap-5" onSubmit={createDraft} aria-label={t("Create draft")}>
           <Field label={t("App name")} required maxLength={63} pattern="[a-z][a-z0-9\-]{1,62}" title={t("Lowercase letters, numbers and hyphens, starting with a letter")} value={name} onChange={(event) => setName(event.target.value)} />
@@ -229,8 +235,17 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
         {branchesError && <div><FormError message={branchesError} /><button className="text-button text-meta" type="button" disabled={branchesLoading} onClick={() => setBranchRequest((value) => value + 1)}>{t("Retry loading branches")}</button></div>}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("Base directory")} hint={t("Folder used as the build context. Leave empty for the repository root.")} maxLength={255} placeholder="apps/web" value={baseDirectory} onChange={(event) => setBaseDirectory(event.target.value)} />
-          <Field label={t("Dockerfile path")} hint={t("Relative to the base directory.")} required maxLength={255} value={dockerfilePath} onChange={(event) => setDockerfilePath(event.target.value)} />
+          <SelectField label={t("Build pack")} value={buildPack} onChange={(event) => setBuildPack(event.target.value)}>
+            <option value="dockerfile">Dockerfile</option>
+            <option value="nixpacks">{t("Nixpacks (detects the language)")}</option>
+            <option value="static">{t("Static site")}</option>
+          </SelectField>
+          {buildPack === "dockerfile" && <Field label={t("Dockerfile path")} hint={t("Relative to the base directory.")} required maxLength={255} value={dockerfilePath} onChange={(event) => setDockerfilePath(event.target.value)} />}
+          {buildPack === "static" && <Field label={t("Publish directory")} hint={t("Folder with the built files, served by nginx on port 80.")} maxLength={255} placeholder="dist" value={publishDirectory} onChange={(event) => setPublishDirectory(event.target.value)} />}
         </div>
+        {buildPack === "nixpacks" && <div className="grid gap-4 sm:grid-cols-3">
+          {(["install", "build", "start"] as const).map((step) => <Field key={step} label={{ install: t("Install command"), build: t("Build command"), start: t("Start command") }[step]} maxLength={512} placeholder={t("Detected")} value={commands[step]} onChange={(event) => setCommands({ ...commands, [step]: event.target.value })} />)}
+        </div>}
         <label className="block"><span className="mb-1 block text-meta font-medium">{t("Build arguments")}</span><textarea className="field min-h-24 font-mono text-xs" spellCheck={false} placeholder="NODE_ENV=production" value={buildArgs} onChange={(event) => setBuildArgs(event.target.value)} /><span className="mt-1 block text-xs text-ink-soft">{t("One KEY=VALUE per line, passed as --build-arg. They are kept in the image history, so use environment variables for secrets.")}</span></label>
         <label className="flex items-start gap-2 text-meta"><input className="mt-0.5 size-4 flex-none cursor-pointer accent-seafoam" type="checkbox" checked={autoDeploy} onChange={(event) => setAutoDeploy(event.target.checked)} /><span><span className="font-medium">{t("Deploy automatically on push")}</span><span className="block text-xs text-ink-soft">{provider?.kind === "github_app" ? t("The GitHub App already sends pushes to Kymber.") : t("Add the webhook below to the repository so pushes reach Kymber.")}</span></span></label>
         {provider?.kind !== "github_app" && savedSource && (savedSource.webhook_secret ? <div className="grid gap-3 rounded-panel bg-raised p-4">
