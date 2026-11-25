@@ -6,6 +6,8 @@ export type TaskPerson = { id: string; username: string };
 
 export type Task = {
   id: string;
+  number: number;
+  key: string;
   project_id: string;
   list_id: string;
   position: number;
@@ -100,7 +102,8 @@ export function dueLabel(task: Task, done: boolean) {
 }
 
 export function matchesFilters(task: Task, filters: TaskFilters, done: boolean) {
-  if (filters.search && !task.title.toLocaleLowerCase().includes(filters.search.trim().toLocaleLowerCase())) return false;
+  const search = filters.search.trim().toLocaleLowerCase();
+  if (search && !task.title.toLocaleLowerCase().includes(search) && task.key.toLocaleLowerCase() !== search) return false;
   if (filters.assignee === "none" && task.assignees.length > 0) return false;
   if (filters.assignee && filters.assignee !== "none" && !task.assignees.some(({ id }) => id === filters.assignee)) return false;
   if (filters.label && !task.label_ids.includes(filters.label)) return false;

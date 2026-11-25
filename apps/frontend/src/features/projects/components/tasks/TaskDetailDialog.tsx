@@ -132,6 +132,7 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 p-4">
+          <p className="-mb-3 font-mono text-xs text-ink-faint">{detail.key}</p>
           <div className="flex items-start gap-2">
             <textarea
               className="focus-ring min-w-0 flex-1 resize-none rounded-sm bg-transparent page-title field-sizing-content"

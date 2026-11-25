@@ -1,4 +1,7 @@
 export const ptBR = {
+  "Task prefix": "Prefixo das tarefas",
+  "Letters and numbers, starting with a letter": "Letras e números, começando por uma letra",
+  "Tasks are numbered like {key}.": "As tarefas são numeradas como {key}.",
   "Open page": "Abrir página",
   "Status page": "Página de status",
   "A public page, without sign-in, that shows whether this project's apps are up.": "Uma página pública, sem login, que mostra se os apps deste projeto estão no ar.",

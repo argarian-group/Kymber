@@ -19,6 +19,7 @@ export function TaskList({ board, visible, onOpen }: { board: Board; visible: Ta
               {section.map((task) => (
                 <li className="border-b border-line" key={task.id}>
                   <button className="focus-ring flex min-h-11 w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-left transition-colors duration-100 hover:bg-white/5" type="button" onClick={() => onOpen(task)}>
+                    <span className="font-mono text-xs text-ink-faint">{task.key}</span>
                     <span className="min-w-40 flex-1 wrap-break-word">{task.title}</span>
                     {board.labels
                       .filter(({ id }) => task.label_ids.includes(id))

@@ -40,6 +40,7 @@ export function TaskCard({ task, labels, done, dragging, onOpen, onDragStart, on
           ))}
         </div>
       )}
+      <p className="mb-0.5 font-mono text-xs text-ink-faint">{task.key}</p>
       <button className={`focus-ring block w-full cursor-pointer rounded-sm text-left font-medium wrap-break-word ${done ? "text-ink-soft" : ""}`} type="button">
         {task.title}
       </button>

@@ -21,6 +21,9 @@ func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if input.TaskPrefix == "" {
+		input.TaskPrefix = defaultTaskPrefix(input.Name)
+	}
 	id, err := database.NewShortID()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not generate project id")
@@ -32,7 +35,7 @@ func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
-	_, err = tx.ExecContext(r.Context(), "INSERT INTO projects (id, workspace_id, name, slug) VALUES (?, ?, ?, ?)", id, workspaceID, input.Name, input.Slug)
+	_, err = tx.ExecContext(r.Context(), "INSERT INTO projects (id, workspace_id, name, slug, task_prefix) VALUES (?, ?, ?, ?, ?)", id, workspaceID, input.Name, input.Slug, input.TaskPrefix)
 	if err != nil {
 		writeProjectError(w, err)
 		return
@@ -68,7 +71,7 @@ func (h *Handler) updateProject(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := h.db.ExecContext(r.Context(), "UPDATE projects SET name = ?, slug = ? WHERE id = ? AND workspace_id = ?", input.Name, input.Slug, projectID, workspaceID)
+	result, err := h.db.ExecContext(r.Context(), "UPDATE projects SET name = ?, slug = ?, task_prefix = COALESCE(NULLIF(?, ''), task_prefix) WHERE id = ? AND workspace_id = ?", input.Name, input.Slug, input.TaskPrefix, projectID, workspaceID)
 	if err != nil {
 		writeProjectError(w, err)
 		return

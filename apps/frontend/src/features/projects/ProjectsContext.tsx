@@ -7,7 +7,7 @@ export const permissionList = ["workspace.manage", "members.invite", "members.ma
 export type Permission = (typeof permissionList)[number];
 
 export type Workspace = { id: string; name: string; role: string; permissions: Permission[]; created_at: string; created_by: { id: string; username: string; email: string } | null };
-export type Project = { id: string; workspace_id: string; name: string; slug: string; created_at: string; logo_version?: string; status_page_token?: string };
+export type Project = { id: string; workspace_id: string; name: string; slug: string; created_at: string; logo_version?: string; status_page_token?: string; task_prefix: string };
 
 type ProjectsState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; workspace: Workspace | null; projects: Project[] };
 
@@ -23,7 +23,7 @@ type ProjectsContextValue = {
   renameWorkspace: (name: string) => Promise<void>;
   deleteWorkspace: () => Promise<void>;
   createProject: (input: { name: string; slug: string }) => Promise<void>;
-  updateProject: (id: string, input: { name: string; slug: string }) => Promise<void>;
+  updateProject: (id: string, input: { name: string; slug: string; task_prefix?: string }) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   uploadProjectLogo: (id: string, file: File) => Promise<void>;
   removeProjectLogo: (id: string) => Promise<void>;
@@ -143,7 +143,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   );
 
   const updateProject = useCallback(
-    async (id: string, input: { name: string; slug: string }) => {
+    async (id: string, input: { name: string; slug: string; task_prefix?: string }) => {
       const { project } = await api<{ project: Project }>(`/workspaces/${workspaceId}/projects/${id}`, { method: "PUT", body: input });
       setState((previous) => (previous.status === "ready" ? { ...previous, projects: previous.projects.map((item) => (item.id === project.id ? project : item)) } : previous));
     },

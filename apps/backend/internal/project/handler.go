@@ -50,11 +50,32 @@ type Project struct {
 	CreatedAt   time.Time `json:"created_at"`
 	LogoVersion string    `json:"logo_version,omitempty"`
 	StatusPage  string    `json:"status_page_token,omitempty"`
+	TaskPrefix  string    `json:"task_prefix"`
 }
 
 type projectPayload struct {
-	Name string `json:"name"`
-	Slug string `json:"slug"`
+	Name       string `json:"name"`
+	Slug       string `json:"slug"`
+	TaskPrefix string `json:"task_prefix"`
+}
+
+var taskPrefixPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]{0,9}$`)
+
+// defaultTaskPrefix turns "My App 2" into "MYAP".
+func defaultTaskPrefix(name string) string {
+	prefix := ""
+	for _, c := range strings.ToUpper(name) {
+		if len(prefix) == 4 {
+			break
+		}
+		if c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' && prefix != "" {
+			prefix += string(c)
+		}
+	}
+	if prefix == "" {
+		return "TASK"
+	}
+	return prefix
 }
 
 var entityIDPattern = regexp.MustCompile(`^[0-9a-f]{6}$`)
@@ -98,6 +119,11 @@ func projectInput(w http.ResponseWriter, r *http.Request) (projectPayload, bool)
 	}
 	if len(input.Slug) < 1 || len(input.Slug) > 120 {
 		writeError(w, http.StatusBadRequest, "slug must be 1 to 120 characters")
+		return input, false
+	}
+	input.TaskPrefix = strings.ToUpper(strings.TrimSpace(input.TaskPrefix))
+	if input.TaskPrefix != "" && !taskPrefixPattern.MatchString(input.TaskPrefix) {
+		writeError(w, http.StatusBadRequest, "task prefix must be 1 to 10 letters or numbers, starting with a letter")
 		return input, false
 	}
 	for _, c := range []byte(input.Slug) {

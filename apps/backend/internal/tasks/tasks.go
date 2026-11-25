@@ -18,6 +18,8 @@ const maxTaskRelations = 50
 
 type Task struct {
 	ID             string     `json:"id"`
+	Number         int        `json:"number"`
+	Key            string     `json:"key"`
 	ProjectID      string     `json:"project_id"`
 	ListID         string     `json:"list_id"`
 	Position       int        `json:"position"`
@@ -102,12 +104,12 @@ func (h *Handler) loadTasks(ctx context.Context, projectID, taskID string) ([]Ta
 	if taskID != "" {
 		filter, args = filter+" AND t.id = ?", append(args, taskID)
 	}
-	rows, err := h.db.QueryContext(ctx, `SELECT t.id, t.project_id, t.list_id, t.position, t.title, t.description <> '', t.priority, DATE_FORMAT(t.due_date, '%Y-%m-%d'),
+	rows, err := h.db.QueryContext(ctx, `SELECT t.id, t.number, CONCAT(p.task_prefix, '-', t.number), t.project_id, t.list_id, t.position, t.title, t.description <> '', t.priority, DATE_FORMAT(t.due_date, '%Y-%m-%d'),
 		(SELECT COUNT(*) FROM task_checklist_items i JOIN task_checklists c ON c.id = i.checklist_id WHERE c.task_id = t.id AND i.done),
 		(SELECT COUNT(*) FROM task_checklist_items i JOIN task_checklists c ON c.id = i.checklist_id WHERE c.task_id = t.id),
 		(SELECT COUNT(*) FROM task_comments m WHERE m.task_id = t.id),
 		t.created_at, t.updated_at
-		FROM project_tasks t WHERE `+filter+` ORDER BY t.position, t.id`, args...)
+		FROM project_tasks t JOIN projects p ON p.id = t.project_id WHERE `+filter+` ORDER BY t.position, t.id`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +119,7 @@ func (h *Handler) loadTasks(ctx context.Context, projectID, taskID string) ([]Ta
 	for rows.Next() {
 		task := Task{Assignees: []TaskUser{}, LabelIDs: []string{}}
 		var dueDate sql.NullString
-		if err := rows.Scan(&task.ID, &task.ProjectID, &task.ListID, &task.Position, &task.Title, &task.HasDescription, &task.Priority, &dueDate, &task.ChecklistDone, &task.ChecklistTotal, &task.CommentCount, &task.CreatedAt, &task.UpdatedAt); err != nil {
+		if err := rows.Scan(&task.ID, &task.Number, &task.Key, &task.ProjectID, &task.ListID, &task.Position, &task.Title, &task.HasDescription, &task.Priority, &dueDate, &task.ChecklistDone, &task.ChecklistTotal, &task.CommentCount, &task.CreatedAt, &task.UpdatedAt); err != nil {
 			return nil, err
 		}
 		if dueDate.Valid {
@@ -242,8 +244,18 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not generate task id")
 		return
 	}
-	result, err := h.db.ExecContext(r.Context(), `INSERT INTO project_tasks (id, project_id, list_id, position, title, priority)
-		SELECT ?, l.project_id, l.id, COALESCE((SELECT MAX(t.position) FROM project_tasks t WHERE t.list_id = l.id), 0) + 1, ?, 'normal'
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create task")
+		return
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(r.Context(), "UPDATE projects SET task_counter = LAST_INSERT_ID(task_counter + 1) WHERE id = ?", projectID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not number task")
+		return
+	}
+	result, err := tx.ExecContext(r.Context(), `INSERT INTO project_tasks (id, project_id, list_id, number, position, title, priority)
+		SELECT ?, l.project_id, l.id, LAST_INSERT_ID(), COALESCE((SELECT MAX(t.position) FROM project_tasks t WHERE t.list_id = l.id), 0) + 1, ?, 'normal'
 		FROM task_lists l WHERE l.id = ? AND l.project_id = ?`, id, input.Title, input.ListID, projectID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not create task")
@@ -251,6 +263,10 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 	}
 	if created, err := result.RowsAffected(); err != nil || created == 0 {
 		writeError(w, http.StatusBadRequest, "list not found in this project")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create task")
 		return
 	}
 	h.writeTaskDetail(w, r, http.StatusCreated, projectID, id)
