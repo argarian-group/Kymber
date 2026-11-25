@@ -52,6 +52,7 @@ type TaskDetail struct {
 	Comments    []TaskComment   `json:"comments"`
 	Activity    []TaskActivity  `json:"activity"`
 	TimeEntries []TaskTimeEntry `json:"time_entries"`
+	DeployedAt  *time.Time      `json:"deployed_at"`
 }
 
 type taskCreatePayload struct {
@@ -252,6 +253,10 @@ func (h *Handler) writeTaskDetail(w http.ResponseWriter, r *http.Request, status
 	}
 	if detail.TimeEntries, err = h.loadTimeEntries(r.Context(), taskID); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read time entries")
+		return
+	}
+	if detail.DeployedAt, err = h.deployedAt(r.Context(), taskID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read task deploys")
 		return
 	}
 	writeJSON(w, status, map[string]TaskDetail{"task": detail})

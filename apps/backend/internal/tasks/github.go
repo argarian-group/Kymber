@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"database/sql"
@@ -12,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type githubReference struct {
@@ -169,4 +171,20 @@ func (h *Handler) applyGitHubReference(r *http.Request, projectID string, mentio
 		}
 	}
 	return tx.Commit()
+}
+
+// deployedAt is when the first build started after GitHub closed the task finished deploying any of the project's apps.
+// shortcut: matches by time, not by commit ancestry, so a build of another branch started after the merge counts too.
+func (h *Handler) deployedAt(ctx context.Context, taskID string) (*time.Time, error) {
+	var deployed sql.NullTime
+	err := h.db.QueryRowContext(ctx, `SELECT MIN(d.finished_at) FROM task_activity a
+		JOIN project_tasks t ON t.id = a.task_id
+		JOIN database_services s ON s.project_id = t.project_id
+		JOIN git_build_jobs b ON b.service_id = s.id AND b.created_at >= a.created_at
+		JOIN service_deployments d ON d.service_id = s.id AND d.image_version = b.id AND d.status = 'succeeded'
+		WHERE a.task_id = ? AND a.kind = 'referenced' AND JSON_EXTRACT(a.payload, '$.closes') = 'true'`, taskID).Scan(&deployed)
+	if err != nil || !deployed.Valid {
+		return nil, err
+	}
+	return &deployed.Time, nil
 }

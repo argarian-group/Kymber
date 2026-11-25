@@ -18,7 +18,7 @@ import { type Member } from "@/features/workspaces/types";
 import { api, errorMessage } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
-import { t } from "@/lib/i18n";
+import { language, t } from "@/lib/i18n";
 
 type TaskDetailDialogProps = {
   taskId: string;
@@ -135,7 +135,10 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 p-4">
-          <p className="-mb-3 font-mono text-xs text-ink-faint">{detail.key}</p>
+          <p className="-mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <span className="font-mono text-ink-faint">{detail.key}</span>
+            {detail.deployed_at && <span className="rounded-full bg-ok/15 px-2 py-0.5 font-medium text-ok">{t("In production since {date}", { date: new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(detail.deployed_at)) })}</span>}
+          </p>
           <div className="flex items-start gap-2">
             <textarea
               className="focus-ring min-w-0 flex-1 resize-none rounded-sm bg-transparent page-title field-sizing-content"

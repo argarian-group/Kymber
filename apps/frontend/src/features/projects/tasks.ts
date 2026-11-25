@@ -40,7 +40,7 @@ export type TaskComment = { id: string; author: TaskPerson | null; body: string;
 
 export type TaskActivity = { id: string; actor: TaskPerson | null; kind: string; payload: Record<string, unknown>; created_at: string };
 
-export type TaskDetail = Task & { description: string; checklists: Checklist[]; comments: TaskComment[]; activity: TaskActivity[]; time_entries: { id: string; user: TaskPerson; started_at: string; ended_at: string | null }[] };
+export type TaskDetail = Task & { description: string; checklists: Checklist[]; comments: TaskComment[]; activity: TaskActivity[]; time_entries: { id: string; user: TaskPerson; started_at: string; ended_at: string | null }[]; deployed_at: string | null };
 
 export type TaskFilters = { search: string; assignee: string; label: string; priority: string; due: string };
 

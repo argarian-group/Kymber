@@ -1,4 +1,5 @@
 export const ptBR = {
+  "In production since {date}": "Em produção desde {date}",
   "Turn off the webhook? GitHub deliveries will be rejected until a new secret is set.": "Desligar o webhook? As entregas do GitHub serão recusadas até gerar um novo segredo.",
   "GitHub webhook": "Webhook do GitHub",
   "Commits and pull requests that mention {key} show up on the task. “Fixes {key}” moves it to the first done list once merged or pushed to the default branch.": "Commits e pull requests que citam {key} aparecem na tarefa. “Fixes {key}” move a tarefa para a primeira lista de concluídas quando for mesclado ou enviado ao branch padrão.",
