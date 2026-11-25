@@ -78,6 +78,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	} {
 		mux.Handle(route.pattern, auth.Authenticate(h.db, route.handler))
 	}
+	mux.HandleFunc("POST /api/webhooks/github", h.gitHubAppWebhook)
+	mux.HandleFunc("POST /api/webhooks/git/{serviceID}", h.sourceWebhook)
 	mux.HandleFunc("GET /api/git-providers/github-app/callback", h.gitHubAppCallback)
 	mux.HandleFunc("GET /api/git-providers/github-app/setup", h.gitHubAppSetup)
 	mux.HandleFunc("POST /internal/build-worker/claim", h.claimGitBuild)

@@ -212,6 +212,7 @@ func (h *Handler) claimGitBuild(w http.ResponseWriter, r *http.Request) {
 		FROM git_build_jobs b JOIN database_services s ON s.id = b.service_id
 		WHERE (b.status = 'queued' OR (b.status = 'running' AND b.lease_expires_at < UTC_TIMESTAMP(6) AND b.attempts < 5))
 		AND (s.status IN ('queued', 'failed', 'draft') OR (b.deploy_on_success AND s.status <> 'deleted')) AND (s.server_id = ? OR s.server_id IS NULL)
+		AND NOT EXISTS (SELECT 1 FROM git_build_jobs o WHERE o.service_id = b.service_id AND o.id <> b.id AND o.status = 'running' AND o.lease_expires_at > UTC_TIMESTAMP(6))
 		ORDER BY b.created_at LIMIT 1 FOR UPDATE SKIP LOCKED`, job.ServerID).Scan(&job.ID, &job.RepositoryURL, &job.Ref, &job.ServiceID, &job.Attempt, &encryptedConfig, &workspaceID, &commit)
 	if errors.Is(err, sql.ErrNoRows) {
 		if err := tx.Commit(); err != nil {
@@ -271,6 +272,7 @@ func (h *Handler) claimGitBuild(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not claim build job")
 		return
 	}
+	h.reportCommitStatus(job.ID, "running", "Building")
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(job)
 }
@@ -392,6 +394,7 @@ func (h *Handler) failGitBuild(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not record build failure")
 		return
 	}
+	h.reportCommitStatus(jobID, "failure", "Build failed")
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -603,7 +606,10 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 	}
 	keep = true
 	if deployOnSuccess {
+		h.reportCommitStatus(jobID, "running", "Built, deploying")
 		go h.deployGitBuild(jobID)
+	} else {
+		h.reportCommitStatus(jobID, "success", "Built, ready to deploy")
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -745,8 +751,15 @@ func (h *Handler) queueGitBuild(ctx context.Context, service databaseService, tr
 	if image != "docker.io/kymber/build-artifacts" && status != "draft" {
 		return "", http.StatusConflict, errors.New("only draft apps can be converted to Git builds")
 	}
+	activeStatuses := "'queued', 'running'"
+	if trigger == "push" {
+		if _, err := tx.ExecContext(ctx, "UPDATE git_build_jobs SET status = 'cancelled', result_message = 'Superseded by a newer push.', finished_at = UTC_TIMESTAMP(6) WHERE service_id = ? AND status = 'queued' AND deploy_on_success", service.ID); err != nil {
+			return "", http.StatusInternalServerError, errors.New("could not replace queued builds")
+		}
+		activeStatuses = "'queued'"
+	}
 	var active bool
-	if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM git_build_jobs WHERE service_id = ? AND status IN ('queued', 'running'))", service.ID).Scan(&active); err != nil {
+	if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM git_build_jobs WHERE service_id = ? AND status IN ("+activeStatuses+"))", service.ID).Scan(&active); err != nil {
 		return "", http.StatusInternalServerError, errors.New("could not check running builds")
 	}
 	if active {
@@ -765,6 +778,7 @@ func (h *Handler) queueGitBuild(ctx context.Context, service databaseService, tr
 	if err := tx.Commit(); err != nil {
 		return "", http.StatusInternalServerError, errors.New("could not queue build job")
 	}
+	h.reportCommitStatus(id, "pending", "Queued in Kymber")
 	return id, http.StatusAccepted, nil
 }
 

@@ -1293,4 +1293,12 @@ export const ptBR = {
   "Select an account": "Selecione uma conta",
   "Repository URL": "URL do repositório",
   "Pick one of your repositories or paste its URL.": "Escolha um dos seus repositórios ou cole a URL.",
+  "Deploy automatically on push": "Fazer deploy automático a cada push",
+  "The GitHub App already sends pushes to Kymber.": "O GitHub App já envia os pushes para o Kymber.",
+  "Add the webhook below to the repository so pushes reach Kymber.": "Adicione o webhook abaixo no repositório para os pushes chegarem ao Kymber.",
+  "Webhook URL": "URL do webhook",
+  "Webhook secret": "Secret do webhook",
+  "Set the panel domain in System settings to get a public webhook URL.": "Defina o domínio do painel em Configurações › Sistema para ter uma URL pública de webhook.",
+  "Use content type application/json and the push event. GitLab takes the secret as the token; GitHub, Gitea and Bitbucket sign with it.": "Use o content type application/json e o evento push. No GitLab o secret vai como token; GitHub, Gitea e Bitbucket assinam com ele.",
+  "Save the source to create its webhook.": "Salve a origem para criar o webhook dela.",
 } satisfies Record<string, string>;

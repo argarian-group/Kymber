@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,6 +34,8 @@ type gitSource struct {
 	PublishDirectory string   `json:"publish_directory"`
 	BuildArgs        []string `json:"build_args"`
 	AutoDeploy       bool     `json:"auto_deploy"`
+	WebhookURL       string   `json:"webhook_url,omitempty"`
+	WebhookSecret    string   `json:"webhook_secret,omitempty"`
 }
 
 var repositoryPathPattern = regexp.MustCompile(`^[A-Za-z0-9._@+-]+(/[A-Za-z0-9._@+-]+)*$`)
@@ -141,7 +145,29 @@ func (h *Handler) getGitSource(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not read Git source")
 		return
 	}
+	if err := h.addWebhookDetails(r.Context(), service.ID, &source); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read webhook secret")
+		return
+	}
 	writeJSON(w, http.StatusOK, source)
+}
+
+func (h *Handler) addWebhookDetails(ctx context.Context, serviceID string, source *gitSource) error {
+	var kind sql.NullString
+	var encrypted []byte
+	if err := h.db.QueryRowContext(ctx, "SELECT p.kind, s.encrypted_webhook_secret FROM service_git_sources s LEFT JOIN git_providers p ON p.id = s.provider_id WHERE s.service_id = ?", serviceID).Scan(&kind, &encrypted); err != nil {
+		return err
+	}
+	if kind.String == "github_app" || encrypted == nil {
+		return nil
+	}
+	secret, err := secrets.Decrypt(encrypted)
+	if err != nil {
+		return err
+	}
+	source.WebhookSecret = string(secret)
+	source.WebhookURL = h.webhookURL(ctx, serviceID)
+	return nil
 }
 
 func (h *Handler) updateGitSource(w http.ResponseWriter, r *http.Request) {
@@ -182,18 +208,33 @@ func (h *Handler) updateGitSource(w http.ResponseWriter, r *http.Request) {
 	if source.BuildArgs == nil {
 		source.BuildArgs = []string{}
 	}
+	source.WebhookURL, source.WebhookSecret = "", ""
+	webhookSecret := make([]byte, 24)
+	if _, err := rand.Read(webhookSecret); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create webhook secret")
+		return
+	}
+	encryptedWebhookSecret, err := secrets.Encrypt([]byte(hex.EncodeToString(webhookSecret)))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "service encryption is not configured")
+		return
+	}
 	plainArgs, _ := json.Marshal(source.BuildArgs)
 	encryptedArgs, err := secrets.Encrypt(plainArgs)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "service encryption is not configured")
 		return
 	}
-	if _, err := h.db.ExecContext(r.Context(), `INSERT INTO service_git_sources (service_id, provider_id, installation_id, repository_url, git_ref, base_directory, dockerfile_path, build_pack, install_command, build_command, start_command, publish_directory, encrypted_build_args, auto_deploy)
-		VALUES (?, NULLIF(?, ''), NULLIF(?, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE provider_id = VALUES(provider_id), installation_id = VALUES(installation_id), repository_url = VALUES(repository_url), git_ref = VALUES(git_ref), base_directory = VALUES(base_directory),
+	if _, err := h.db.ExecContext(r.Context(), `INSERT INTO service_git_sources (service_id, provider_id, installation_id, repository_url, git_ref, base_directory, dockerfile_path, build_pack, install_command, build_command, start_command, publish_directory, encrypted_build_args, auto_deploy, encrypted_webhook_secret)
+		VALUES (?, NULLIF(?, ''), NULLIF(?, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE encrypted_webhook_secret = COALESCE(encrypted_webhook_secret, VALUES(encrypted_webhook_secret)), provider_id = VALUES(provider_id), installation_id = VALUES(installation_id), repository_url = VALUES(repository_url), git_ref = VALUES(git_ref), base_directory = VALUES(base_directory),
 		dockerfile_path = VALUES(dockerfile_path), build_pack = VALUES(build_pack), install_command = VALUES(install_command), build_command = VALUES(build_command), start_command = VALUES(start_command),
 		publish_directory = VALUES(publish_directory), encrypted_build_args = VALUES(encrypted_build_args), auto_deploy = VALUES(auto_deploy)`,
-		service.ID, source.ProviderID, source.InstallationID, source.RepositoryURL, source.Ref, source.BaseDirectory, source.DockerfilePath, source.BuildPack, source.InstallCommand, source.BuildCommand, source.StartCommand, source.PublishDirectory, encryptedArgs, source.AutoDeploy); err != nil {
+		service.ID, source.ProviderID, source.InstallationID, source.RepositoryURL, source.Ref, source.BaseDirectory, source.DockerfilePath, source.BuildPack, source.InstallCommand, source.BuildCommand, source.StartCommand, source.PublishDirectory, encryptedArgs, source.AutoDeploy, encryptedWebhookSecret); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save Git source")
+		return
+	}
+	if err := h.addWebhookDetails(r.Context(), service.ID, &source); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read webhook secret")
 		return
 	}
 	writeJSON(w, http.StatusOK, source)
@@ -219,5 +260,8 @@ func (h *Handler) deployGitBuild(jobID string) {
 		message := "Automatic deploy after the Git build failed: " + strings.TrimSpace(failure.Error)
 		_, _ = h.db.ExecContext(ctx, "UPDATE git_build_jobs SET result_message = ? WHERE id = ?", message, jobID)
 		_, _ = h.db.ExecContext(ctx, "UPDATE database_services SET last_error = ? WHERE id = ?", message, serviceID)
+		h.reportCommitStatus(jobID, "failure", "Deploy failed")
+		return
 	}
+	h.reportCommitStatus(jobID, "success", "Deployed")
 }
