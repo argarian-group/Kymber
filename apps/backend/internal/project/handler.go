@@ -33,6 +33,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/logo", h.getProjectLogo},
 		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/logo", h.uploadProjectLogo},
 		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/logo", h.deleteProjectLogo},
+		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/status-page", h.setStatusPage},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/environments", h.listEnvironments},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/environments", h.createEnvironment},
 		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/environments/{environmentID}", h.deleteEnvironment},
@@ -48,6 +49,7 @@ type Project struct {
 	Slug        string    `json:"slug"`
 	CreatedAt   time.Time `json:"created_at"`
 	LogoVersion string    `json:"logo_version,omitempty"`
+	StatusPage  string    `json:"status_page_token,omitempty"`
 }
 
 type projectPayload struct {

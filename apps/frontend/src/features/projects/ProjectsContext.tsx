@@ -7,7 +7,7 @@ export const permissionList = ["workspace.manage", "members.invite", "members.ma
 export type Permission = (typeof permissionList)[number];
 
 export type Workspace = { id: string; name: string; role: string; permissions: Permission[]; created_at: string; created_by: { id: string; username: string; email: string } | null };
-export type Project = { id: string; workspace_id: string; name: string; slug: string; created_at: string; logo_version?: string };
+export type Project = { id: string; workspace_id: string; name: string; slug: string; created_at: string; logo_version?: string; status_page_token?: string };
 
 type ProjectsState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; workspace: Workspace | null; projects: Project[] };
 

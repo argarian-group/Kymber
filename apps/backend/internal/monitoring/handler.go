@@ -56,6 +56,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	} {
 		mux.Handle(route.pattern, auth.Authenticate(h.db, route.handler))
 	}
+	mux.HandleFunc("GET /api/public/status/{token}", h.statusPage)
 	mux.HandleFunc("GET /internal/metrics/targets", h.targets)
 	mux.HandleFunc("GET /internal/metrics/servers/{serverID}/{exporter}", h.scrape)
 }
