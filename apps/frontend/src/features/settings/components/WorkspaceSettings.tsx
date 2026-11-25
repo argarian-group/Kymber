@@ -3,6 +3,7 @@ import { LoadError } from "@/components/ui/LoadError";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { useCurrentUser } from "@/features/auth/AuthContext";
 import { useProjects } from "@/features/projects/ProjectsContext";
+import { AuditLog } from "@/features/settings/components/AuditLog";
 import { CreateWorkspace } from "@/features/settings/components/CreateWorkspace";
 import { DeleteWorkspace } from "@/features/settings/components/DeleteWorkspace";
 import { RenameWorkspace } from "@/features/settings/components/RenameWorkspace";
@@ -10,7 +11,7 @@ import { t } from "@/lib/i18n";
 
 export function WorkspaceSettings() {
   const user = useCurrentUser();
-  const { state, canDelete, retry } = useProjects();
+  const { state, can, canDelete, retry } = useProjects();
 
   if (state.status === "loading") return <PageSkeleton />;
   if (state.status === "error") {
@@ -24,6 +25,7 @@ export function WorkspaceSettings() {
       {state.workspace ? (
         <>
           <RenameWorkspace workspace={state.workspace} key={`rename-${state.workspace.id}`} />
+          {can("workspace.manage") && <AuditLog workspaceId={state.workspace.id} key={`audit-${state.workspace.id}`} />}
           {canDelete && <DeleteWorkspace workspace={state.workspace} key={`delete-${state.workspace.id}`} />}
         </>
       ) : (

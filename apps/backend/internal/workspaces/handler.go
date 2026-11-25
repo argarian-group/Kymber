@@ -28,6 +28,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"PUT", "/api/workspaces/{workspaceID}/members/{userID}", h.updateMember},
 		{"DELETE", "/api/workspaces/{workspaceID}/members/{userID}", h.deleteMember},
 		{"POST", "/api/workspaces/{workspaceID}/invitations", h.createInvitation},
+		{"GET", "/api/workspaces/{workspaceID}/audit", h.listAuditEvents},
 		{"GET", "/api/workspaces/{workspaceID}/roles", h.listRoles},
 		{"POST", "/api/workspaces/{workspaceID}/roles", h.createRole},
 		{"PUT", "/api/workspaces/{workspaceID}/roles/{roleName}", h.updateRole},

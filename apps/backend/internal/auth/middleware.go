@@ -24,7 +24,16 @@ func Authenticate(db *sql.DB, next http.Handler) http.Handler {
 			writeError(w, http.StatusInternalServerError, "could not verify session")
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), contextKey{}, user)))
+		r = r.WithContext(context.WithValue(r.Context(), contextKey{}, user))
+		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			next.ServeHTTP(w, r)
+			return
+		}
+		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(recorder, r)
+		if recorder.status < 400 {
+			recordAudit(db, r, user, recorder.status)
+		}
 	})
 }
 

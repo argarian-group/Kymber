@@ -1,4 +1,12 @@
 export const ptBR = {
+  "Audit log": "Log de auditoria",
+  "Every change made in this workspace, newest first.": "Cada mudança feita neste workspace, da mais recente para a mais antiga.",
+  "No changes recorded yet.": "Nenhuma mudança registrada ainda.",
+  "created or ran": "criou ou executou",
+  "changed": "alterou",
+  "deleted": "excluiu",
+  "Server-wide": "Servidor inteiro",
+  "Load older": "Carregar anteriores",
   "Resources and health": "Recursos e saúde",
   "Leave a limit empty for no limit. Changes apply on the next deploy.": "Deixe um limite vazio para não limitar. As mudanças valem a partir do próximo deploy.",
   "CPU limit (cores)": "Limite de CPU (núcleos)",
