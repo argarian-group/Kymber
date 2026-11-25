@@ -1,4 +1,5 @@
 export const ptBR = {
+  "Start date": "Início",
   "Archived": "Arquivadas",
   "No archived tasks.": "Nenhuma tarefa arquivada.",
   "Archived {when}": "Arquivada {when}",

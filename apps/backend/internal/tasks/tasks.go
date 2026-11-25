@@ -27,6 +27,7 @@ type Task struct {
 	Title          string     `json:"title"`
 	HasDescription bool       `json:"has_description"`
 	Priority       string     `json:"priority"`
+	StartDate      *string    `json:"start_date"`
 	DueDate        *string    `json:"due_date"`
 	Assignees      []TaskUser `json:"assignees"`
 	LabelIDs       []string   `json:"label_ids"`
@@ -60,6 +61,7 @@ type taskPayload struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
 	Priority    string   `json:"priority"`
+	StartDate   *string  `json:"start_date"`
 	DueDate     *string  `json:"due_date"`
 	AssigneeIDs []string `json:"assignee_ids"`
 	LabelIDs    []string `json:"label_ids"`
@@ -88,6 +90,14 @@ func normalizeTask(input *taskPayload) string {
 			return "due_date must be a valid date in YYYY-MM-DD format"
 		}
 	}
+	if input.StartDate != nil {
+		if _, err := time.Parse(time.DateOnly, *input.StartDate); err != nil {
+			return "start_date must be a valid date in YYYY-MM-DD format"
+		}
+		if input.DueDate != nil && *input.StartDate > *input.DueDate {
+			return "start_date must be on or before due_date"
+		}
+	}
 	if len(input.AssigneeIDs) > maxTaskRelations || len(input.LabelIDs) > maxTaskRelations {
 		return "too many assignees or labels"
 	}
@@ -113,7 +123,7 @@ func (h *Handler) loadTasks(ctx context.Context, projectID, taskID string, archi
 	default:
 		filter += " AND t.archived_at IS NULL"
 	}
-	rows, err := h.db.QueryContext(ctx, `SELECT t.id, t.number, CONCAT(p.task_prefix, '-', t.number), t.project_id, t.list_id, t.position, t.title, t.description <> '', t.priority, DATE_FORMAT(t.due_date, '%Y-%m-%d'),
+	rows, err := h.db.QueryContext(ctx, `SELECT t.id, t.number, CONCAT(p.task_prefix, '-', t.number), t.project_id, t.list_id, t.position, t.title, t.description <> '', t.priority, DATE_FORMAT(t.start_date, '%Y-%m-%d'), DATE_FORMAT(t.due_date, '%Y-%m-%d'),
 		(SELECT COUNT(*) FROM task_checklist_items i JOIN task_checklists c ON c.id = i.checklist_id WHERE c.task_id = t.id AND i.done),
 		(SELECT COUNT(*) FROM task_checklist_items i JOIN task_checklists c ON c.id = i.checklist_id WHERE c.task_id = t.id),
 		(SELECT COUNT(*) FROM task_comments m WHERE m.task_id = t.id),
@@ -127,9 +137,12 @@ func (h *Handler) loadTasks(ctx context.Context, projectID, taskID string, archi
 	index := make(map[string]int)
 	for rows.Next() {
 		task := Task{Assignees: []TaskUser{}, LabelIDs: []string{}}
-		var dueDate sql.NullString
-		if err := rows.Scan(&task.ID, &task.Number, &task.Key, &task.ProjectID, &task.ListID, &task.Position, &task.Title, &task.HasDescription, &task.Priority, &dueDate, &task.ChecklistDone, &task.ChecklistTotal, &task.CommentCount, &task.CreatedAt, &task.UpdatedAt, &task.ArchivedAt); err != nil {
+		var startDate, dueDate sql.NullString
+		if err := rows.Scan(&task.ID, &task.Number, &task.Key, &task.ProjectID, &task.ListID, &task.Position, &task.Title, &task.HasDescription, &task.Priority, &startDate, &dueDate, &task.ChecklistDone, &task.ChecklistTotal, &task.CommentCount, &task.CreatedAt, &task.UpdatedAt, &task.ArchivedAt); err != nil {
 			return nil, err
+		}
+		if startDate.Valid {
+			task.StartDate = &startDate.String
 		}
 		if dueDate.Valid {
 			task.DueDate = &dueDate.String
@@ -364,7 +377,7 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func saveTask(ctx context.Context, tx *sql.Tx, taskID string, input taskPayload, assigneeIDs []uint64) error {
-	if _, err := tx.ExecContext(ctx, "UPDATE project_tasks SET title = ?, description = ?, priority = ?, due_date = ? WHERE id = ?", input.Title, input.Description, input.Priority, input.DueDate, taskID); err != nil {
+	if _, err := tx.ExecContext(ctx, "UPDATE project_tasks SET title = ?, description = ?, priority = ?, start_date = ?, due_date = ? WHERE id = ?", input.Title, input.Description, input.Priority, input.StartDate, input.DueDate, taskID); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, "DELETE FROM task_assignees WHERE task_id = ?", taskID); err != nil {

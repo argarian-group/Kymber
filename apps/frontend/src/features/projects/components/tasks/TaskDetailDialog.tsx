@@ -28,10 +28,10 @@ type TaskDetailDialogProps = {
   onClose: () => void;
 };
 
-type TaskEdit = Pick<TaskDetail, "title" | "description" | "priority" | "due_date"> & { assignee_ids: string[]; label_ids: string[] };
+type TaskEdit = Pick<TaskDetail, "title" | "description" | "priority" | "start_date" | "due_date"> & { assignee_ids: string[]; label_ids: string[] };
 
 function editOf(task: TaskDetail): TaskEdit {
-  return { title: task.title, description: task.description, priority: task.priority, due_date: task.due_date, assignee_ids: task.assignees.map(({ id }) => id), label_ids: task.label_ids };
+  return { title: task.title, description: task.description, priority: task.priority, start_date: task.start_date, due_date: task.due_date, assignee_ids: task.assignees.map(({ id }) => id), label_ids: task.label_ids };
 }
 
 export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClose }: TaskDetailDialogProps) {
@@ -202,8 +202,20 @@ export function TaskDetailDialog({ taskId, board, path, onMove, onChanged, onClo
                 ))}
               </SelectField>
               <Field
+                label={t("Start date")}
+                type="date"
+                max={edit.due_date ?? undefined}
+                defaultValue={edit.start_date ?? ""}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (!value) save({ start_date: null });
+                  else if (Number(value.slice(0, 4)) >= 1000) save({ start_date: value });
+                }}
+              />
+              <Field
                 label={t("Due date")}
                 type="date"
+                min={edit.start_date ?? undefined}
                 defaultValue={edit.due_date ?? ""}
                 onChange={(event) => {
                   const value = event.target.value;

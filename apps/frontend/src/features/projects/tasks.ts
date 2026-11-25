@@ -14,6 +14,7 @@ export type Task = {
   title: string;
   has_description: boolean;
   priority: Priority;
+  start_date: string | null;
   due_date: string | null;
   assignees: TaskPerson[];
   label_ids: string[];

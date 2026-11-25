@@ -18,9 +18,12 @@ export function TaskCalendar({ tasks, isDone, onOpen }: { tasks: Task[]; isDone:
   const weekdays = Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(language, { weekday: "short" }).format(new Date(2023, 0, 1 + index)));
   const tasksOn = (day: Date) => tasks.filter((task) => {
     const due = dueDay(task);
-    return due !== null && sameDay(due, day);
+    const start = task.start_date ? dueDay({ due_date: task.start_date }) : null;
+    if (start && due) return day >= start && day <= due;
+    const only = due ?? start;
+    return only !== null && sameDay(only, day);
   });
-  const undated = tasks.filter(({ due_date }) => !due_date).length;
+  const undated = tasks.filter(({ start_date, due_date }) => !start_date && !due_date).length;
   const daysWithTasks = days.filter((day) => tasksOn(day).length > 0);
   const step = (offset: number) => setMonth(new Date(year, month.getMonth() + offset, 1));
 

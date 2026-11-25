@@ -41,13 +41,13 @@ func recordActivity(ctx context.Context, db queryer, taskID string, actorID uint
 }
 
 type taskSnapshot struct {
-	title, priority, dueDate, description string
-	assignees, labels                     []string
+	title, priority, startDate, dueDate, description string
+	assignees, labels                                []string
 }
 
 func loadSnapshot(ctx context.Context, db queryer, taskID string) (taskSnapshot, error) {
 	var s taskSnapshot
-	err := db.QueryRowContext(ctx, "SELECT title, priority, COALESCE(DATE_FORMAT(due_date, '%Y-%m-%d'), ''), description FROM project_tasks WHERE id = ?", taskID).Scan(&s.title, &s.priority, &s.dueDate, &s.description)
+	err := db.QueryRowContext(ctx, "SELECT title, priority, COALESCE(DATE_FORMAT(start_date, '%Y-%m-%d'), ''), COALESCE(DATE_FORMAT(due_date, '%Y-%m-%d'), ''), description FROM project_tasks WHERE id = ?", taskID).Scan(&s.title, &s.priority, &s.startDate, &s.dueDate, &s.description)
 	if err != nil {
 		return s, err
 	}
@@ -84,6 +84,7 @@ func diffSnapshots(before, after taskSnapshot) []activityEvent {
 	}
 	change("title", before.title, after.title)
 	change("priority", before.priority, after.priority)
+	change("start_date", before.startDate, after.startDate)
 	change("due_date", before.dueDate, after.dueDate)
 	if before.description != after.description {
 		events = append(events, activityEvent{"description", map[string]any{}})
