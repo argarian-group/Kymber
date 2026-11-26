@@ -2,7 +2,6 @@ import { Plus, X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Navigate } from "react-router";
 import { CopyField } from "@/components/ui/CopyField";
-import { Field } from "@/components/ui/Field";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
 import { FormFooter } from "@/features/settings/components/FormFooter";
@@ -15,9 +14,9 @@ import { t } from "@/lib/i18n";
 
 type DomainRow = { id: number; host: string; port: string };
 
-function parseDomains(value: string | undefined): DomainRow[] {
+function parseDomains(value: string | undefined, appPort?: number): DomainRow[] {
   return (value ?? "").split(",").filter(Boolean).map((entry, id) => {
-    const [host, port = ""] = entry.split(":");
+    const [host, port = appPort ? String(appPort) : ""] = entry.split(":");
     return { id, host, port };
   });
 }
@@ -29,13 +28,11 @@ function formatDomains(rows: DomainRow[]) {
 export function AppConnectionPage() {
   const { detail, template, canWrite, path, onChanged, deployOutput } = useAppOutlet();
   const [domains, setDomains] = useState<DomainRow[]>([]);
-  const [port, setPort] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
   const [deploying, setDeploying] = useState(false);
   const { pending, error, run } = useAction();
 
-  useEffect(() => setDomains(parseDomains(detail?.domain)), [detail?.id, detail?.domain]);
-  useEffect(() => setPort(detail?.port ? String(detail.port) : ""), [detail?.id, detail?.port]);
+  useEffect(() => setDomains(parseDomains(detail?.domain, detail?.compose ? undefined : detail?.port)), [detail?.id, detail?.domain, detail?.port, detail?.compose]);
 
   if (!canWrite) return <Navigate to=".." replace />;
   if (!detail) return <PageSkeleton />;
@@ -43,15 +40,11 @@ export function AppConnectionPage() {
   const portEditable = template?.custom === true;
   const domain = formatDomains(domains);
   const routedDomains = parseDomains(service.domain);
-  const changed = domain !== (service.domain ?? "") || (portEditable && Number(port) !== (service.port ?? 0));
+  const changed = domain !== formatDomains(parseDomains(service.domain, service.compose ? undefined : service.port));
 
   async function saveDomain(deploy = false) {
     setSaved(null);
     await run(async () => {
-      if (portEditable && Number(port) !== (service.port ?? 0)) {
-        await api(`${path}/${service.id}`, { method: "PUT", body: { port: Number(port) } });
-        setSaved(t("Saved. Applies on the next deploy."));
-      }
       if (domain !== (service.domain ?? "")) {
         await api(`${path}/${service.id}/domain`, { method: "PUT", body: { domain } });
         setSaved(t("Domain saved."));
@@ -72,29 +65,25 @@ export function AppConnectionPage() {
   return (
     <div className="grid gap-5">
       {service.category === "application" && (
-        <AppSection title={portEditable ? t("Domain and port") : t("Public domain")} description={t("Optional. Point DNS to this machine. Traefik reaches the app over Docker networking, so no host port needs to be published.")}>
+        <AppSection title={t("Domains")} description={t("Optional. Point DNS to this machine. Traefik reaches the app over Docker networking, so no host port needs to be published.")}>
           {service.domain_pending && <p className="border-b border-line p-4 text-meta text-seafoam" role="status">{t("Deploy the app to apply this domain change.")}</p>}
           <form onSubmit={submit}>
-            <div className="grid items-start gap-4 p-4 sm:grid-cols-[1fr_12rem]">
-              <div className="grid gap-2">
-                <span className="text-meta font-medium">{t("Domains")}</span>
+            <div className="grid gap-2 p-4">
                 {domains.map((row) => (
                   <div className={`grid items-center gap-2 ${service.compose ? "grid-cols-[1fr_auto]" : "grid-cols-[1fr_6.5rem_auto]"}`} key={row.id}>
                     <input className="field" aria-label={t("Domain")} placeholder="app.example.com" autoCapitalize="none" autoCorrect="off" spellCheck={false} required value={row.host} onChange={(event) => setDomains(domains.map((item) => (item.id === row.id ? { ...item, host: event.target.value } : item)))} />
-                    {!service.compose && <input className="field" type="number" min={1} max={65535} aria-label={t("Port for {domain}", { domain: row.host || t("domain") })} placeholder={port || t("Port")} value={row.port} onChange={(event) => setDomains(domains.map((item) => (item.id === row.id ? { ...item, port: event.target.value } : item)))} />}
+                    {!service.compose && <input className="field" type="number" min={1} max={65535} aria-label={t("Port for {domain}", { domain: row.host || t("domain") })} required placeholder="3000" value={row.port} onChange={(event) => setDomains(domains.map((item) => (item.id === row.id ? { ...item, port: event.target.value } : item)))} />}
                     <button className="btn px-2" type="button" aria-label={t("Remove {name}", { name: row.host || t("domain") })} onClick={() => setDomains(domains.filter((item) => item.id !== row.id))}>
                       <X aria-hidden="true" size={16} />
                     </button>
                   </div>
                 ))}
-                <button className="btn w-fit" type="button" onClick={() => setDomains([...domains, { id: Date.now(), host: "", port: "" }])}>
+                <button className="btn w-fit" type="button" onClick={() => setDomains([...domains, { id: Date.now(), host: "", port: service.compose ? "" : domains.at(-1)?.port ?? (service.port ? String(service.port) : "") }])}>
                   <Plus aria-hidden="true" size={16} />
                   {t("Add domain")}
                 </button>
-                {!service.compose && domains.length > 0 && <p className="text-xs text-ink-soft">{t("Leave a domain's port empty to use the app port.")}</p>}
+                {!service.compose && domains.length > 0 && <p className="text-xs text-ink-soft">{t("The port is where the app listens inside the container.")}</p>}
                 {routedDomains.length > 0 && <div className="flex flex-wrap gap-x-4 gap-y-1">{routedDomains.map(({ host }) => <a className="text-meta text-seafoam underline" key={host} href={`https://${host}`} target="_blank" rel="noreferrer">https://{host}</a>)}</div>}
-              </div>
-              {portEditable && <Field label={t("App port")} type="number" min={1} max={65535} required={domains.some((row) => row.host && !row.port)} placeholder="3000" value={port} onChange={(event) => setPort(event.target.value)} hint={t("Where the domains send traffic.")} />}
             </div>
             <FormFooter error={error} saved={saved}>
               {changed ? <>
