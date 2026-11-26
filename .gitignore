@@ -1,6 +1,7 @@
 # Global
 .env
 /.local/
+/docker-compose.override.yml
 
 # Build Files
 apps/backend/build/
