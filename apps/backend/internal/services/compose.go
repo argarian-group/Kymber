@@ -316,7 +316,7 @@ func (h *Handler) composeSSHCommand(ctx context.Context, service databaseService
 	case "stop":
 		return "docker ps -q --filter label=com.docker.compose.project=" + shellQuote(project) + " | xargs -r docker stop", nil
 	case "delete":
-		return baseCompose + " down --remove-orphans && rm -f " + shellQuote(path) + " " + shellQuote(portsPath), nil
+		return baseCompose + " down --remove-orphans && rm -rf " + shellQuote(path) + " " + shellQuote(portsPath) + " " + backupDir + service.ID, nil
 	case "validate":
 		return "set -eu; path=$(mktemp /tmp/kymber-compose-check-XXXXXX.yaml); trap 'rm -f \"$path\"' EXIT; printf %s " + shellQuote(base64.StdEncoding.EncodeToString([]byte(file))) + " | base64 -d > \"$path\"; docker compose -f \"$path\" config --quiet", nil
 	default:

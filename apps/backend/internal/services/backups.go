@@ -116,11 +116,15 @@ func backupCommand(t backupTarget, backupID string) string {
 		prepare = composeVolumeMounts(t.service.ComposeProject)
 		source = "docker run --rm $mounts " + backupImage + " tar -cf - -C /v ."
 	}
-	base := backupDir + t.service.ID + "/" + backupID
-	part, code, stderr := base+".part", base+".code", base+".err"
-	return "set -u; " + prepare + "mkdir -p " + backupDir + t.service.ID + " || exit 1; { " + source + " 2>" + stderr + "; echo $? >" + code + "; } | gzip >" + part +
+	return archiveCommand(prepare, source, backupDir+t.service.ID, backupFile(t.service.ID, backupID))
+}
+
+// archiveCommand gzips source's output into file and prints its size, failing without leaving a partial file.
+func archiveCommand(prepare, source, dir, file string) string {
+	part, code, stderr := file+".part", file+".code", file+".err"
+	return "set -u; " + prepare + "mkdir -p " + dir + " || exit 1; { " + source + " 2>" + stderr + "; echo $? >" + code + "; } | gzip >" + part +
 		"; if [ \"$(cat " + code + " 2>/dev/null)\" != 0 ]; then cat " + stderr + " >&2; rm -f " + part + " " + code + " " + stderr + "; exit 1; fi; rm -f " + code + " " + stderr +
-		"; mv " + part + " " + backupFile(t.service.ID, backupID) + " && wc -c <" + backupFile(t.service.ID, backupID)
+		"; mv " + part + " " + file + " && wc -c <" + file
 }
 
 func restoreCommand(t backupTarget, backupID, format string) string {
@@ -355,6 +359,27 @@ func (h *Handler) fetchBackup(ctx context.Context, serverID, dir, file, remoteKe
 	return err
 }
 
+func (h *Handler) deleteRemoteAppBackups(ctx context.Context, serviceID string) {
+	rows, err := h.db.QueryContext(ctx, "SELECT remote_key FROM service_backups WHERE service_id = ? AND remote_key IS NOT NULL", serviceID)
+	if err != nil {
+		logger.Warn("could not list S3 backups of %s: %v", serviceID, err)
+		return
+	}
+	var keys []string
+	for rows.Next() {
+		var key string
+		if rows.Scan(&key) == nil {
+			keys = append(keys, key)
+		}
+	}
+	rows.Close()
+	for _, key := range keys {
+		if err := h.deleteRemoteBackup(ctx, key); err != nil {
+			logger.Warn("could not delete S3 backup %s: %v", key, err)
+		}
+	}
+}
+
 func (h *Handler) deleteRemoteBackup(ctx context.Context, remoteKey string) error {
 	if remoteKey == "" {
 		return nil
@@ -533,9 +558,14 @@ func (h *Handler) downloadBackup(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/gzip")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+"-"+backup.ID+extension+`"`)
-	if backup.remoteKey != "" {
-		if _, err := h.executeSSH(r.Context(), serverID, "test -f "+backupFile(serviceID, backup.ID)); err != nil {
-			h.downloadRemoteBackup(w, r, backup.remoteKey)
+	h.streamBackupFile(w, r, serverID, backupFile(serviceID, backup.ID), backup.remoteKey)
+}
+
+// streamBackupFile sends a backup from its server, or from S3 when the server no longer has it.
+func (h *Handler) streamBackupFile(w http.ResponseWriter, r *http.Request, serverID, file, remoteKey string) {
+	if remoteKey != "" {
+		if _, err := h.executeSSH(r.Context(), serverID, "test -f "+file); err != nil {
+			h.downloadRemoteBackup(w, r, remoteKey)
 			return
 		}
 	}
@@ -551,11 +581,10 @@ func (h *Handler) downloadBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer session.Close()
-	controller := http.NewResponseController(w)
-	_ = controller.SetWriteDeadline(time.Now().Add(2 * time.Hour))
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(2 * time.Hour))
 	session.Stdout = w
-	if err := session.Run("cat " + backupFile(serviceID, backup.ID)); err != nil {
-		logger.Warn("backup download %s failed: %v", backup.ID, err)
+	if err := session.Run("cat " + file); err != nil {
+		logger.Warn("backup download from %s failed: %v", file, err)
 	}
 }
 

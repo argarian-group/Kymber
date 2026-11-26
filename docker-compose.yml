@@ -87,6 +87,7 @@ services:
       KYMBER_BUILD_WORKER_TOKEN: ${KYMBER_BUILD_WORKER_TOKEN:-}
       KYMBER_GIT_BUILDS_ENABLED: ${KYMBER_GIT_BUILDS_ENABLED:-true}
       KYMBER_BUILD_ARTIFACT_DIR: /var/lib/kymber/build-artifacts
+      KYMBER_COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME:-kymber}
       DB_HOST: mariadb
       DB_PORT: "3306"
       DB_NAME: ${DB_NAME:-kymber}

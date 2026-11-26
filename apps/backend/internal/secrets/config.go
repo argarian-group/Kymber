@@ -51,6 +51,12 @@ func Decrypt(ciphertext []byte) ([]byte, error) {
 	return aead.Open(nil, nonce, ciphertext, nil)
 }
 
+// Key returns the encryption key in the hex form it is stored in, for keeping a recovery copy.
+func Key() (string, error) {
+	key, err := encryptionKey()
+	return hex.EncodeToString(key), err
+}
+
 func encryptionKey() ([]byte, error) {
 	value := os.Getenv("SERVICE_ENCRYPTION_KEY")
 	if path := os.Getenv("SERVICE_ENCRYPTION_KEY_FILE"); path != "" {

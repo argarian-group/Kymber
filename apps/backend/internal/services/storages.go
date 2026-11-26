@@ -85,7 +85,7 @@ func storageDeployCommand(serviceID string, storages []serviceStorage) (prepare,
 
 // Matching by name also catches volumes whose mount was removed while keeping their data; the main "-data" volume has no 6-hex suffix.
 func storageDeleteCommand(serviceID string) string {
-	return "rm -rf " + storageFilesDir(serviceID) + "; docker volume ls -q --filter " + shellQuote("name=^kymber-service-"+serviceID+"-[0-9a-f]{6}$") + " | xargs -r docker volume rm >/dev/null 2>&1 || true; "
+	return "rm -rf " + storageFilesDir(serviceID) + " " + backupDir + serviceID + "; docker volume ls -q --filter " + shellQuote("name=^kymber-service-"+serviceID+"-[0-9a-f]{6}$") + " | xargs -r docker volume rm >/dev/null 2>&1 || true; "
 }
 
 func (h *Handler) readStorages(ctx context.Context, serviceID string, withContent bool) ([]serviceStorage, error) {

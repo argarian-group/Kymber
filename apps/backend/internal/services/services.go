@@ -630,6 +630,7 @@ func (h *Handler) runDeleteService(w http.ResponseWriter, r *http.Request, works
 				writeError(w, http.StatusBadGateway, "Compose stack deletion failed: "+err.Error())
 				return
 			}
+			h.deleteRemoteAppBackups(r.Context(), serviceID)
 			if _, err := h.db.ExecContext(r.Context(), "DELETE FROM database_services WHERE id = ?", serviceID); err != nil {
 				writeError(w, http.StatusInternalServerError, "stack removed but could not delete its record")
 				return
@@ -641,6 +642,7 @@ func (h *Handler) runDeleteService(w http.ResponseWriter, r *http.Request, works
 			writeError(w, http.StatusBadGateway, "SSH app deletion failed: "+err.Error())
 			return
 		}
+		h.deleteRemoteAppBackups(r.Context(), serviceID)
 		if _, err := h.db.ExecContext(r.Context(), "DELETE FROM database_services WHERE id = ?", serviceID); err != nil {
 			writeError(w, http.StatusInternalServerError, "container removed but could not delete app record")
 			return
