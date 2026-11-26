@@ -706,7 +706,13 @@ func (h *Handler) createGitBuild(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "Git builds require a Docker application")
 		return
 	}
-	id, status, err := h.queueGitBuild(r.Context(), service, "manual", "")
+	var input struct {
+		Deploy bool `json:"deploy"`
+	}
+	if r.ContentLength != 0 && !decodeJSON(w, r, &input) {
+		return
+	}
+	id, status, err := h.queueGitBuild(r.Context(), service, "manual", "", input.Deploy)
 	if err != nil {
 		writeError(w, status, err.Error())
 		return
@@ -736,7 +742,7 @@ func (h *Handler) rebuildGitCommit(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "this build has no recorded commit")
 		return
 	}
-	id, status, err := h.queueGitBuild(r.Context(), service, "rollback", commit.String)
+	id, status, err := h.queueGitBuild(r.Context(), service, "rollback", commit.String, false)
 	if err != nil {
 		writeError(w, status, err.Error())
 		return
@@ -744,7 +750,7 @@ func (h *Handler) rebuildGitCommit(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]string{"id": id, "status": "queued"})
 }
 
-func (h *Handler) queueGitBuild(ctx context.Context, service databaseService, trigger, commit string) (string, int, error) {
+func (h *Handler) queueGitBuild(ctx context.Context, service databaseService, trigger, commit string, deploy bool) (string, int, error) {
 	source, err := h.readGitSource(ctx, service.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", http.StatusConflict, errors.New("configure the app's Git source first")
@@ -803,7 +809,7 @@ func (h *Handler) queueGitBuild(ctx context.Context, service databaseService, tr
 	if active {
 		return "", http.StatusConflict, errors.New("a build is already queued or running for this app")
 	}
-	deployOnSuccess := serverID.Valid && status != "draft"
+	deployOnSuccess := deploy || (serverID.Valid && status != "draft")
 	if !deployOnSuccess {
 		if _, err := tx.ExecContext(ctx, `UPDATE database_services SET image='docker.io/kymber/build-artifacts', image_version=?, status='queued', last_error=NULL WHERE id=?`, id, service.ID); err != nil {
 			return "", http.StatusInternalServerError, errors.New("could not prepare application for build")

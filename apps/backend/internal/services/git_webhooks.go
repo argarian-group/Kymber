@@ -293,7 +293,7 @@ func (h *Handler) buildPushedService(ctx context.Context, serviceID string, push
 	if err := h.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM git_build_jobs WHERE service_id = ? AND commit_sha = ? AND status IN ('queued', 'running'))", serviceID, push.commit).Scan(&duplicate); err != nil || duplicate {
 		return "commit is already building"
 	}
-	id, _, err := h.queueGitBuild(ctx, databaseService{ID: serviceID, WorkspaceID: workspaceID}, "push", push.commit)
+	id, _, err := h.queueGitBuild(ctx, databaseService{ID: serviceID, WorkspaceID: workspaceID}, "push", push.commit, false)
 	if err != nil {
 		return err.Error()
 	}

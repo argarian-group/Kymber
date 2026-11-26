@@ -186,7 +186,7 @@ func (h *Handler) handlePullRequest(ctx context.Context, parentID string, reques
 	} else if _, err := h.db.ExecContext(ctx, "UPDATE service_git_sources SET git_ref = ? WHERE service_id = ?", request.ref, previewID); err != nil {
 		return "could not update preview"
 	}
-	id, _, err := h.queueGitBuild(ctx, databaseService{ID: previewID, WorkspaceID: workspaceID}, "pull_request", request.commit)
+	id, _, err := h.queueGitBuild(ctx, databaseService{ID: previewID, WorkspaceID: workspaceID}, "pull_request", request.commit, false)
 	if err != nil {
 		return err.Error()
 	}

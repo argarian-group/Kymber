@@ -580,9 +580,6 @@ func (h *Handler) readServiceByID(r *http.Request, id string) (databaseService, 
 	if service.Compose {
 		return service, nil
 	}
-	if service.Image == "docker.io/kymber/build-artifacts" {
-		return service, nil
-	}
 	plain, err := secrets.Decrypt(encrypted)
 	if err != nil {
 		return service, err

@@ -28,7 +28,7 @@ function validGitRef(value: string) {
   return /^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/.test(value) && !value.includes("..") && !value.includes("//") && !value.includes("@{") && value.split("/").every((part) => part && !part.startsWith(".") && !part.endsWith(".") && !part.endsWith(".lock"));
 }
 
-export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingService }: { path: string; gitBuildsEnabled: boolean; service?: Service }) {
+export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingService, onSaved }: { path: string; gitBuildsEnabled: boolean; service?: Service; onSaved?: () => void }) {
   const projectId = path.split("/")[4];
   const workspaceId = path.split("/")[2];
   const [providers, setProviders] = useState<GitProvider[]>([]);
@@ -45,6 +45,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
   const [buildPack, setBuildPack] = useState("dockerfile");
   const [commands, setCommands] = useState({ install: "", build: "", start: "" });
   const [publishDirectory, setPublishDirectory] = useState("");
+  const [port, setPort] = useState(existingService?.port ? String(existingService.port) : "3000");
   const [savedSource, setSavedSource] = useState<GitSource | null>(null);
   const [branches, setBranches] = useState<GitHubBranch[]>([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
@@ -144,7 +145,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
         const current = jobs.find(({ id }) => id === job.id);
         if (current) {
           setJob(current);
-          if (current.status === "succeeded" || current.status === "failed") return;
+          if (current.status === "succeeded" || current.status === "failed") return onSaved?.();
         }
       } catch {
         if (active) setError(t("Could not check GitHub build status"));
@@ -169,7 +170,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
         body: { name, environment_id: environmentId },
       });
       setCreatedService(target);
-      navigate(`/projects/${projectId}/apps/${target.id}/source`);
+      navigate(`/projects/${projectId}/apps/${target.id}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("Could not create app draft"));
     } finally {
@@ -177,7 +178,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
     }
   }
 
-  async function saveSource(event: FormEvent, build: boolean) {
+  async function saveSource(event: FormEvent, deploy: boolean) {
     event.preventDefault();
     if (!gitBuildsEnabled || pending || !service) return;
     if (!validRepositoryURL(repositoryURL, provider)) {
@@ -196,12 +197,10 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
         body: { provider_id: providerId, installation_id: installationId, repository_url: repositoryURL, ref, base_directory: baseDirectory, dockerfile_path: dockerfilePath, build_pack: buildPack, install_command: buildPack === "nixpacks" ? commands.install : "", build_command: buildPack === "nixpacks" ? commands.build : "", start_command: buildPack === "nixpacks" ? commands.start : "", publish_directory: buildPack === "static" ? publishDirectory : "", build_args: buildArgs.split("\n").map((line) => line.trim()).filter(Boolean), auto_deploy: autoDeploy, previews_enabled: previews.enabled, preview_domain: previews.enabled ? previews.domain : "" },
       });
       setSavedSource(source);
-      if (service.status === "draft") {
-        navigate(`/projects/${projectId}/apps/${service.id}?build=1`);
-      } else if (build) {
-        const queued = await api<{ id: string; status: string }>(`${path}/${service.id}/git-builds`, { method: "POST" });
-        setJob(queued);
-      }
+      const appPort = buildPack === "static" ? 80 : Number(port);
+      if (appPort !== service.port) await api(`${path}/${service.id}`, { method: "PUT", body: { port: appPort } });
+      if (deploy) setJob(await api<GitBuildJob>(`${path}/${service.id}/git-builds`, { method: "POST", body: { deploy: true } }));
+      onSaved?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("Could not save the Git source"));
     } finally {
@@ -211,9 +210,9 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
 
   if (!gitBuildsEnabled) return <p className="mx-auto w-full max-w-xl rounded-panel bg-raised p-4 text-meta text-ink-soft">{t("GitHub builds are disabled in this environment")}</p>;
   return (
-    <div className="mx-auto grid w-full max-w-xl gap-5">
-      <div className="rounded-panel bg-raised p-4 text-meta text-ink-soft">{service ? t("Choose the repository, branch and how to build it. Environment variables and the port are set on the app.") : t("Create the app draft first, then configure its GitHub repository and branch.")}</div>
+    <div className={service ? "grid gap-5 p-4" : "mx-auto grid w-full max-w-xl gap-5"}>
       {!service ? <>
+        <div className="rounded-panel bg-raised p-4 text-meta text-ink-soft">{t("Name the app. Next you pick the repository, set variables and deploy.")}</div>
         <form className="grid gap-5" onSubmit={createDraft} aria-label={t("Create draft")}>
           <Field label={t("App name")} required maxLength={63} pattern="[a-z][a-z0-9\-]{1,62}" title={t("Lowercase letters, numbers and hyphens, starting with a letter")} value={name} onChange={(event) => setName(event.target.value)} />
           <EnvironmentField value={environmentId} onChange={setEnvironmentId} />
@@ -246,6 +245,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
             <option value="static">{t("Static site")}</option>
           </SelectField>
           {buildPack === "dockerfile" && <Field label={t("Dockerfile path")} hint={t("Relative to the base directory.")} required maxLength={255} value={dockerfilePath} onChange={(event) => setDockerfilePath(event.target.value)} />}
+          {buildPack !== "static" && <Field label={t("Port")} hint={t("Port the app listens on inside the container.")} type="number" required min={1} max={65535} value={port} onChange={(event) => setPort(event.target.value)} />}
           {buildPack === "static" && <Field label={t("Publish directory")} hint={t("Folder with the built files, served by nginx on port 80.")} maxLength={255} placeholder="dist" value={publishDirectory} onChange={(event) => setPublishDirectory(event.target.value)} />}
         </div>
         {buildPack === "nixpacks" && <div className="grid gap-4 sm:grid-cols-3">
@@ -264,11 +264,11 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
         </div> : <p className="text-meta text-ink-soft">{t("Save the source to create its webhook.")}</p>)}
         <FormError message={error} />
         {job && (job.status === "running" || job.status === "queued") && <p className="text-meta text-ink-soft" aria-live="polite">{t("Building from GitHub…")}</p>}
-        {job?.status === "succeeded" && <p className="text-meta text-ink-soft" aria-live="polite">{t("Build finished. The app is being redeployed.")}</p>}
+        {job?.status === "succeeded" && <p className="text-meta text-ink-soft" aria-live="polite">{t("Build finished. Deploying…")}</p>}
         {job?.status === "failed" && <p className="text-meta text-ember" role="alert">{job.result_message || t("Could not queue GitHub build")}</p>}
         <form onSubmit={(event) => void saveSource(event, true)} className="flex flex-wrap justify-end gap-2">
-          {service.status !== "draft" && <button className="btn" type="button" disabled={pending || !ref} onClick={(event) => void saveSource(event, false)}>{t("Save")}</button>}
-          <button className="btn btn-primary" type="submit" disabled={pending || !ref || (!manualRef && !branches.some(({ name }) => name === ref)) || job?.status === "queued" || job?.status === "running"}>{pending ? t("Saving…") : service.status === "draft" ? t("Continue") : t("Save and rebuild")}</button>
+          <button className="btn" type="button" disabled={pending || !ref} onClick={(event) => void saveSource(event, false)}>{t("Save")}</button>
+          <button className="btn btn-primary" type="submit" disabled={pending || !ref || (!manualRef && !branches.some(({ name }) => name === ref)) || job?.status === "queued" || job?.status === "running"}>{pending ? t("Saving…") : t("Save and deploy")}</button>
         </form>
       </>}
     </div>

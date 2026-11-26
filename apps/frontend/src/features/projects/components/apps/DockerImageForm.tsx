@@ -1,10 +1,11 @@
-import { Plus, Search, Star, X } from "lucide-react";
+import { Search, Star } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { EngineMark } from "@/features/projects/components/apps/EngineMark";
 import { EnvironmentField } from "@/features/projects/components/apps/EnvironmentField";
+import { VariableRows, type Variable } from "@/features/projects/components/apps/VariableRows";
 import { appCategories, type AppCategory } from "@/features/projects/engines";
 import type { Service } from "@/features/projects/services";
 import { api } from "@/lib/api";
@@ -14,7 +15,6 @@ import { t } from "@/lib/i18n";
 
 type HubImage = { repository: string; description: string; official: boolean; stars: number; logo_url?: string; category: AppCategory };
 type ImageDetails = { tags: string[]; default_version: string; port: number; data_path: string };
-type Variable = { id: number; name: string; value: string };
 
 function ImageSearch({ onPick }: { onPick: (image: HubImage) => void }) {
   const [text, setText] = useState("");
@@ -116,9 +116,6 @@ function ImageSettings({ image, path, onChange }: { image: HubImage; path: strin
     [repository],
   );
 
-  function updateVariable(id: number, change: Partial<Variable>) {
-    setVariables(variables.map((variable) => (variable.id === id ? { ...variable, ...change } : variable)));
-  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -157,19 +154,7 @@ function ImageSettings({ image, path, onChange }: { image: HubImage; path: strin
       <fieldset className="grid gap-3">
         <legend className="mb-1 text-meta font-medium">{t("Environment variables")}</legend>
         <p className="text-xs text-ink-soft">{t("Docker Hub does not list the variables an image needs. Check the image's documentation.")}</p>
-        {variables.map(({ id, name, value }) => (
-          <div className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_1fr_auto]" key={id}>
-            <input className="field font-mono" aria-label={t("Variable name")} autoComplete="off" pattern="[A-Za-z_][A-Za-z0-9_]*" title={t("Letters, numbers and underscores, not starting with a number")} required placeholder="NAME" value={name} onChange={(event) => updateVariable(id, { name: event.target.value })} />
-            <button className="btn order-none px-2 sm:order-last" type="button" aria-label={t("Remove {name}", { name: name || t("variable") })} onClick={() => setVariables(variables.filter((variable) => variable.id !== id))}>
-              <X aria-hidden="true" size={16} />
-            </button>
-            <input className="field col-span-2 sm:col-span-1" type="password" aria-label={t("Value of {name}", { name: name || t("variable") })} autoComplete="off" placeholder={t("Value")} value={value} onChange={(event) => updateVariable(id, { value: event.target.value })} />
-          </div>
-        ))}
-        <button className="btn w-fit" type="button" onClick={() => setVariables([...variables, { id: Date.now(), name: "", value: "" }])}>
-          <Plus aria-hidden="true" size={16} />
-          {t("Add variable")}
-        </button>
+        <VariableRows variables={variables} onChange={setVariables} />
       </fieldset>
       <FormError message={error} />
       <div className="flex flex-wrap justify-end gap-2">

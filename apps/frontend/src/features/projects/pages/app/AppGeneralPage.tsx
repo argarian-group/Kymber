@@ -1,52 +1,46 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { Modal } from "@/components/ui/Modal";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
 import { RuntimeSettings } from "@/features/projects/components/apps/RuntimeSettings";
 import { DeploymentDialog } from "@/features/projects/components/apps/DeploymentDialog";
+import { GitBuildHistory } from "@/features/projects/components/apps/GitBuildHistory";
+import { GitHubBuildForm } from "@/features/projects/components/apps/GitHubBuildForm";
 import { ProjectDetail } from "@/features/projects/components/overview/ProjectDetail";
 import { isServiceBusy } from "@/features/projects/services";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { FormFooter } from "@/features/settings/components/FormFooter";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
+import { useLoadEffect } from "@/lib/useLoadEffect";
 import { t } from "@/lib/i18n";
 import { ComposeContainersPage } from "@/features/projects/pages/app/ComposeContainersPage";
 
 const CodeEditor = lazy(() => import("@/features/projects/components/files/CodeEditor"));
 
-function GitBuildSelector({ path, serviceId, value, onChange }: { path: string; serviceId: string; value: string; onChange: (value: string) => void }) {
-  const [jobs, setJobs] = useState<{ id: string; status: string; repository_url: string; ref: string; artifact_expires_at?: string }[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let active = true;
-    api<{ id: string; status: string; repository_url: string; ref: string; artifact_expires_at?: string }[]>(`${path}/${serviceId}/git-builds`)
-      .then((items) => { if (active) { const available = items.filter((item) => item.status === "succeeded" && item.artifact_expires_at && Date.parse(item.artifact_expires_at) > Date.now()); setJobs(available); if (available.length && !value) onChange(available[0].id); } })
-      .catch((cause) => { if (active) { setError(cause instanceof Error ? cause.message : t("Could not check GitHub build status")); setJobs([]); } });
-    return () => { active = false; };
-  }, [path, serviceId]);
-  return <label className="block"><span className="mb-1 block text-meta font-medium">{t("Successful GitHub build")}</span><select className="field" required value={value} onChange={(event) => onChange(event.target.value)}><option value="">{t("Select a build")}</option>{jobs.map((job) => <option value={job.id} key={job.id}>{job.repository_url} · {job.ref}</option>)}</select>{error && <FormError message={error} />}</label>;
-}
-
 export function AppGeneralPage() {
   const { service, detail, path, canWrite, onChanged, deployOutput } = useAppOutlet();
-  const [searchParams] = useSearchParams();
   const [name, setName] = useState(service.name);
   const [version, setVersion] = useState(service.image_version);
   const [saved, setSaved] = useState<string | null>(null);
   const [deploying, setDeploying] = useState<string | null>(null);
   const [editingCompose, setEditingCompose] = useState(false);
   const [composeDraft, setComposeDraft] = useState(service.compose_file ?? "");
-  const [githubBuildId, setGithubBuildId] = useState("");
+  const [gitBuildsEnabled, setGitBuildsEnabled] = useState(false);
   const { pending, error, run } = useAction();
   const draft = service.status === "draft";
   const busy = isServiceBusy(service.status);
   const gitBuild = service.image === "docker.io/kymber/build-artifacts";
-  const changed = name !== service.name || (gitBuild ? githubBuildId !== service.image_version : version !== service.image_version);
+  const changed = name !== service.name || (!gitBuild && version !== service.image_version);
 
   useEffect(() => setVersion(service.image_version), [service.image_version]);
+  useLoadEffect(
+    () => (gitBuild ? api<{ git_builds_enabled?: boolean }>("/database-templates") : Promise.resolve({ git_builds_enabled: false })),
+    (response) => setGitBuildsEnabled(response.git_builds_enabled === true),
+    () => setGitBuildsEnabled(false),
+    [gitBuild],
+  );
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -54,16 +48,11 @@ export function AppGeneralPage() {
     await run(async () => {
       if (draft) {
         await api(`${path}/${service.id}`, { method: "PUT", body: { name, image_version: version } });
-        if (gitBuild && searchParams.has("build") && !githubBuildId) {
-          await api(`${path}/${service.id}/git-builds`, { method: "POST" });
-        }
-        if (gitBuild && githubBuildId) await api(`${path}/${service.id}/deploy`, { method: "POST", body: { image_version: githubBuildId } });
         setSaved(t("Saved."));
       } else {
-        const deployVersion = gitBuild ? githubBuildId : version;
-        setDeploying(deployVersion);
-        await api(`${path}/${service.id}/deploy`, { method: "POST", body: { image_version: deployVersion } });
-        setSaved(t("Deploying {version}.", { version: deployVersion }));
+        setDeploying(version);
+        await api(`${path}/${service.id}/deploy`, { method: "POST", body: { image_version: version } });
+        setSaved(t("Deploying {version}.", { version }));
       }
       onChanged();
     });
@@ -79,13 +68,6 @@ export function AppGeneralPage() {
     }
   }
 
-  async function queueGitBuild() {
-    await run(async () => {
-      await api(`${path}/${service.id}/git-builds`, { method: "POST" });
-      onChanged();
-    });
-  }
-
   return (
     <div className="grid gap-6">
       {service.compose ? <>
@@ -99,26 +81,25 @@ export function AppGeneralPage() {
           </div>
         </Modal>}
       </> : <>
-      <AppSection title={t("Configuration")} description={canWrite && !draft ? t("The name can only change before the first deploy. Changing the version deploys it again and keeps the data.") : undefined}>
+      {(!gitBuild || draft) && <AppSection title={t("Configuration")} description={canWrite && !draft ? t("The name can only change before the first deploy. Changing the version deploys it again and keeps the data.") : undefined}>
         <form onSubmit={submit}>
           <div className="grid items-start gap-4 p-4 sm:grid-cols-2">
             <Field label={t("App name")} required maxLength={63} pattern="[a-z][a-z0-9\-]{1,62}" title={t("Lowercase letters, numbers and hyphens, starting with a letter")} disabled={!canWrite || !draft} value={name} onChange={(event) => setName(event.target.value)} />
             {!gitBuild && <Field label={t("Image version")} required maxLength={128} disabled={!canWrite || busy} value={version} onChange={(event) => setVersion(event.target.value)} />}
-              {gitBuild && <>
-              {gitBuild && <GitBuildSelector path={path} serviceId={service.id} value={githubBuildId} onChange={setGithubBuildId} />}
-            </>}
           </div>
           {canWrite && (
             <FormFooter error={error} saved={saved}>
-              {draft && gitBuild && searchParams.has("build") && !githubBuildId && <button className="btn" type="button" disabled={pending} onClick={() => void queueGitBuild()}>{pending ? t("Creating build…") : t("Create build")}</button>}
-              {draft && gitBuild && !searchParams.has("build") && <Link className="btn" to="source">{t("Configure GitHub build")}</Link>}
-              <button className="btn btn-primary" type="submit" disabled={pending || busy || !changed || (gitBuild && !draft && !githubBuildId)}>
-                {pending ? t("Saving…") : draft && !githubBuildId ? t("Save") : gitBuild ? t("Deploy selected GitHub build") : t("Deploy this version")}
+              <button className="btn btn-primary" type="submit" disabled={pending || busy || !changed}>
+                {pending ? t("Saving…") : draft ? t("Save") : t("Deploy this version")}
               </button>
             </FormFooter>
           )}
         </form>
-      </AppSection>
+      </AppSection>}
+      {gitBuild && canWrite && <AppSection title={t("Source")} description={t("Repository, branch and how to build it. Save and deploy builds the code and puts it live.")}>
+        <GitHubBuildForm path={path} gitBuildsEnabled={gitBuildsEnabled} service={service} onSaved={onChanged} />
+      </AppSection>}
+      {gitBuild && <GitBuildHistory path={path} service={service} canWrite={canWrite} onChanged={onChanged} />}
       {canWrite && detail && <RuntimeSettings key={detail.id} service={detail} path={path} onChanged={onChanged} />}
       <AppSection title={t("Details")}>
         <dl className="grid gap-4 p-4 sm:grid-cols-2">

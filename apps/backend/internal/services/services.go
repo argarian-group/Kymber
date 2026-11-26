@@ -349,9 +349,19 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, service)
 		return
 	}
+	template := serviceTemplate(service)
 	if service.Status != "draft" {
-		writeError(w, http.StatusConflict, "only draft services can be configured")
-		return
+		// Custom apps keep their variables and port editable after the first deploy; changes apply on the next deploy.
+		renamed := input.Name != "" && strings.ToLower(strings.TrimSpace(input.Name)) != service.Name
+		retagged := input.ImageVersion != "" && input.ImageVersion != service.ImageVersion
+		if !template.Custom || renamed || retagged || input.DataPath != nil {
+			writeError(w, http.StatusConflict, "only draft services can be configured")
+			return
+		}
+		if service.Status == "queued" || service.Status == "deploying" {
+			writeError(w, http.StatusConflict, "service is being deployed")
+			return
+		}
 	}
 	if service.Image == "docker.io/kymber/build-artifacts" && input.Port != nil && (*input.Port < 0 || *input.Port > 65535) {
 		writeError(w, http.StatusBadRequest, "port must be between 0 and 65535")
@@ -364,7 +374,6 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 	if input.Name != "" {
 		service.Name = strings.ToLower(strings.TrimSpace(input.Name))
 	}
-	template := serviceTemplate(service)
 	if input.ImageVersion != "" {
 		if service.Image == "docker.io/kymber/build-artifacts" {
 			if input.ImageVersion != service.ImageVersion {
@@ -398,7 +407,7 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 	if input.DataPath != nil && service.Image == "docker.io/kymber/build-artifacts" {
 		service.DataPath = *input.DataPath
 	}
-	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET name = ?, image_version = ?, port = ?, data_path = ?, database_name = ?, database_user = ?, encrypted_config = ? WHERE id = ? AND status = 'draft'", service.Name, service.ImageVersion, service.Port, service.DataPath, service.DatabaseName, service.DatabaseUser, config, serviceID); err != nil {
+	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET name = ?, image_version = ?, port = ?, data_path = ?, database_name = ?, database_user = ?, encrypted_config = ? WHERE id = ? AND status = ?", service.Name, service.ImageVersion, service.Port, service.DataPath, service.DatabaseName, service.DatabaseUser, config, serviceID, service.Status); err != nil {
 		writeError(w, http.StatusConflict, "could not update service configuration")
 		return
 	}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { FormError } from "@/components/ui/FormError";
 import { useCurrentUser } from "@/features/auth/AuthContext";
@@ -39,9 +39,12 @@ export function ServiceActions({ service, path, workspaceId, deployOutput, onCha
   const [servers, setServers] = useState<DeployTarget[]>([]);
   const [serverId, setServerId] = useState("");
   const [showDeployment, setShowDeployment] = useState(false);
+  const [building, setBuilding] = useState(false);
   const choosing = !service.server_id && !busy;
   const target = serverId || servers[0]?.id;
   const gitBuild = service.image === "docker.io/kymber/build-artifacts";
+
+  useEffect(() => setBuilding(false), [service.status]);
 
   useLoadEffect(
     () => (choosing ? api<{ servers: DeployTarget[] }>(`/workspaces/${workspaceId}/servers`) : Promise.resolve({ servers: [] })),
@@ -51,6 +54,13 @@ export function ServiceActions({ service, path, workspaceId, deployOutput, onCha
   );
 
   function act(action: ServiceAction) {
+    if (gitBuild && action === "deploy") {
+      return run(async () => {
+        await api(`${path}/${service.id}/git-builds`, { method: "POST", body: { deploy: true } });
+        setBuilding(true);
+        onChanged();
+      });
+    }
     if (action === "deploy" || (service.compose && (action === "start" || action === "restart"))) setShowDeployment(true);
     return run(async () => {
       const body = action === "deploy" && choosing && target ? { server_id: target } : undefined;
@@ -62,7 +72,7 @@ export function ServiceActions({ service, path, workspaceId, deployOutput, onCha
   return (
     <div className="grid justify-items-start gap-2 sm:justify-items-end">
       <div className="flex flex-wrap items-center gap-2">
-        {choosing && servers.length > 1 && (
+        {choosing && servers.length > 1 && !gitBuild && (
           <label className="flex items-center gap-2 text-meta text-ink-soft">
             {t("Deploy to")}
             <select className="field w-auto cursor-pointer" value={target} onChange={(event) => setServerId(event.target.value)}>
@@ -74,12 +84,13 @@ export function ServiceActions({ service, path, workspaceId, deployOutput, onCha
             </select>
           </label>
         )}
-        {(gitBuild ? service.status === "failed" ? [{ action: "deploy" as const, label: t("Deploy"), primary: true }] : [] : service.compose ? composeAvailable[service.status] : available[service.status])?.map(({ action, label, primary }) => (
+        {(service.compose ? composeAvailable[service.status] : available[service.status])?.map(({ action, label, primary }) => (
           <button className={`btn ${primary ? "btn-primary" : ""}`} type="button" disabled={pending || busy} onClick={() => act(action)} key={action}>
             {pending && action === "restart" ? t("Restarting…") : label}
           </button>
         ))}
       </div>
+      {building && !error && <p className="text-meta text-ink-soft" role="status">{t("Building. It deploys when the build finishes.")}</p>}
       {!showDeployment && <FormError message={error} />}
       {error === t("no online server is available") && user.is_root && (
         <Link className="text-button text-meta" to="/servers">
