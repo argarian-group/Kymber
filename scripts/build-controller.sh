@@ -78,6 +78,18 @@ if [ "${1:-}" = --run-job ]; then
 			file=$(readlink -f "$context/$dockerfile") || { printf 'Dockerfile not found\n' >&2; exit 1; }
 			case "$file" in "$root"/*) ;; *) printf 'Dockerfile escapes the repository\n' >&2; exit 1 ;; esac
 			[ -f "$file" ] || { printf 'Dockerfile not found: %s\n' "$dockerfile" >&2; exit 1; }
+			if [ -s "$dir/build-args" ]; then
+				# Like Coolify: declare every build argument in each stage, so Dockerfiles without ARG lines still receive them.
+				names=$(cut -d= -f1 "$dir/build-args" | tr '\n' ' ')
+				awk -v names="$names" '
+					BEGIN { count = split(names, arg, " ") }
+					{ print }
+					toupper($1) == "FROM" { pending = 1 }
+					pending && !/\\[ \t]*$/ { for (i = 1; i <= count; i++) print "ARG " arg[i]; pending = 0 }
+				' "$file" > "$dir/Dockerfile.args" || exit 1
+				[ -f "$file.dockerignore" ] && cp "$file.dockerignore" "$dir/Dockerfile.args.dockerignore"
+				file="$dir/Dockerfile.args"
+			fi
 			;;
 	esac
 	exec "$KYMBER_BUILD_RUNNER" "$context" "$dir/artifact.oci.tar" "$server" "$file" "$dir/build-args"
