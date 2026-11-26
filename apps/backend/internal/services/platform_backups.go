@@ -56,7 +56,7 @@ func (h *Handler) listPlatformBackups(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not read backup settings")
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), "SELECT id, status, scheduled, size_bytes, COALESCE(error, ''), created_at, finished_at, remote_key IS NOT NULL FROM platform_backups ORDER BY created_at DESC LIMIT 100")
+	rows, err := h.db.QueryContext(r.Context(), "SELECT id, status, scheduled, size_bytes, COALESCE(error, ''), created_at, finished_at, remote_key IS NOT NULL, uploaded FROM platform_backups ORDER BY created_at DESC LIMIT 100")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list backups")
 		return
@@ -65,7 +65,7 @@ func (h *Handler) listPlatformBackups(w http.ResponseWriter, r *http.Request) {
 	backups := make([]serviceBackup, 0)
 	for rows.Next() {
 		var backup serviceBackup
-		if err := rows.Scan(&backup.ID, &backup.Status, &backup.Scheduled, &backup.SizeBytes, &backup.Error, &backup.CreatedAt, &backup.FinishedAt, &backup.Remote); err != nil {
+		if err := rows.Scan(&backup.ID, &backup.Status, &backup.Scheduled, &backup.SizeBytes, &backup.Error, &backup.CreatedAt, &backup.FinishedAt, &backup.Remote, &backup.Uploaded); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read backups")
 			return
 		}

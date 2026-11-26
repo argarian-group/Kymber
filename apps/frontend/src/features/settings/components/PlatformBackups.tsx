@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FormError } from "@/components/ui/FormError";
 import { LoadError } from "@/components/ui/LoadError";
-import { BackupRow, ScheduleForm, type Backup, type BackupSettings } from "@/features/projects/components/apps/Backups";
+import { BackupRow, ScheduleForm, UploadBackupButton, type Backup, type BackupSettings } from "@/features/projects/components/apps/Backups";
 import { api } from "@/lib/api";
 import { downloadText } from "@/lib/downloadText";
 import { useAction } from "@/lib/useAction";
@@ -26,6 +26,13 @@ export function PlatformBackups() {
     return () => window.clearTimeout(timer);
   }, [busy, data]);
 
+  async function restore(backup: Backup) {
+    const key = backup.uploaded ? window.prompt(t("Paste the recovery key of the installation this backup came from. Leave it empty if it came from this one.")) : "";
+    if (key === null) throw new Error(t("Restore cancelled."));
+    await api(`${url}/${backup.id}/restore`, { method: "POST", body: { key } });
+    window.location.reload();
+  }
+
   if (loadError && !data) return <LoadError title={t("Could not load backups")} message={loadError} onRetry={reload} />;
   if (!data) return null;
 
@@ -34,12 +41,13 @@ export function PlatformBackups() {
       <div className="grid gap-3 border-b border-line p-4">
         <div className="flex flex-wrap items-center gap-2">
           <button className="btn btn-primary" type="button" disabled={pending || busy} onClick={() => void run(async () => { await api(url, { method: "POST" }); reload(); })}>{t("Back up now")}</button>
+          <UploadBackupButton url={url} disabled={busy} onUploaded={reload} />
           <button className="btn" type="button" disabled={pending} onClick={() => void run(async () => { const { key } = await api<{ key: string }>("/settings/encryption-key", { method: "POST" }); downloadText("kymber-encryption-key.txt", `${key}\n`); })}>{t("Download recovery key")}</button>
         </div>
-        <p className="text-meta text-ink-soft">{t("The recovery key decrypts the passwords and variables inside every backup. It is never stored with them: keep it somewhere safe, away from this server. To restore, run scripts/restore-platform.sh with the backup and the key.")}</p>
+        <p className="text-meta text-ink-soft">{t("The recovery key decrypts the passwords and variables inside every backup. It is never stored with them: keep it somewhere safe, away from this server. Restoring replaces every project, app, user and setting with the backup's; you may need to sign in again.")}</p>
         <FormError message={error} />
       </div>
-      {data.backups.length === 0 ? <p className="p-4 text-meta text-ink-soft">{t("No backups yet.")}</p> : <ul>{data.backups.map((backup) => <BackupRow backup={backup} url={url} restorable={false} onChanged={reload} key={backup.id} />)}</ul>}
+      {data.backups.length === 0 ? <p className="p-4 text-meta text-ink-soft">{t("No backups yet.")}</p> : <ul>{data.backups.map((backup) => <BackupRow backup={backup} url={url} restore={() => restore(backup)} onChanged={reload} key={backup.id} />)}</ul>}
       <div className="border-t border-line">
         <ScheduleForm settings={data.settings} url={url} onSaved={reload} key={`${data.settings.schedule}-${data.settings.keep}`} />
       </div>

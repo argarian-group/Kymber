@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { FormError } from "@/components/ui/FormError";
 import { LoadError } from "@/components/ui/LoadError";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
-import { BackupRow, ScheduleForm, type Backup, type BackupSettings } from "@/features/projects/components/apps/Backups";
+import { BackupRow, ScheduleForm, UploadBackupButton, type Backup, type BackupSettings } from "@/features/projects/components/apps/Backups";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
@@ -14,13 +14,13 @@ type Settings = BackupSettings & { supported: boolean; logical: boolean; reason?
 export function AppBackupsPage() {
   const { service, path } = useAppOutlet();
   const url = `${path}/${service.id}/backups`;
-  const [data, setData] = useState<{ settings: Settings; backups: Backup[] } | null>(null);
+  const [data, setData] = useState<{ settings: Settings; backups: Backup[]; paths: string[] | null } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const { pending, error, run } = useAction();
   const reload = () => setRevision((value) => value + 1);
 
-  useLoadEffect(() => api<{ settings: Settings; backups: Backup[] }>(url), (response) => { setData(response); setLoadError(null); }, setLoadError, [url, revision]);
+  useLoadEffect(() => api<{ settings: Settings; backups: Backup[]; paths: string[] | null }>(url), (response) => { setData(response); setLoadError(null); }, setLoadError, [url, revision]);
 
   const busy = data?.backups.some((backup) => backup.status === "running" || backup.status === "restoring");
   useEffect(() => {
@@ -43,6 +43,7 @@ export function AppBackupsPage() {
         {settings.supported && (
           <div className="flex flex-wrap items-center gap-3 border-b border-line p-4">
             <button className="btn btn-primary" type="button" disabled={pending || busy} onClick={() => void run(async () => { await api(url, { method: "POST" }); reload(); })}>{t("Back up now")}</button>
+            <UploadBackupButton url={url} paths={data.paths ?? []} disabled={busy} onUploaded={reload} />
             <FormError message={error} />
           </div>
         )}

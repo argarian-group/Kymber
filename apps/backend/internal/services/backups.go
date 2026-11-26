@@ -19,16 +19,18 @@ import (
 )
 
 type serviceBackup struct {
-	ID         string     `json:"id"`
-	Status     string     `json:"status"`
-	Scheduled  bool       `json:"scheduled"`
-	SizeBytes  int64      `json:"size_bytes"`
-	Error      string     `json:"error,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-	FinishedAt *time.Time `json:"finished_at"`
-	Remote     bool       `json:"remote"`
-	format     string
-	remoteKey  string
+	ID          string     `json:"id"`
+	Status      string     `json:"status"`
+	Scheduled   bool       `json:"scheduled"`
+	SizeBytes   int64      `json:"size_bytes"`
+	Error       string     `json:"error,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	FinishedAt  *time.Time `json:"finished_at"`
+	Remote      bool       `json:"remote"`
+	Uploaded    bool       `json:"uploaded"`
+	format      string
+	remoteKey   string
+	restorePath string
 }
 
 // backupMethod says how an engine is dumped and restored. Engines without one fall back to copying the data directory.
@@ -127,10 +129,14 @@ func archiveCommand(prepare, source, dir, file string) string {
 		"; mv " + part + " " + file + " && wc -c <" + file
 }
 
-func restoreCommand(t backupTarget, backupID, format string) string {
-	file := backupFile(t.service.ID, backupID)
+func restoreCommand(t backupTarget, backup serviceBackup) string {
+	file := backupFile(t.service.ID, backup.ID)
 	if method, ok := backupMethods[t.service.Engine]; ok {
-		return "set -eu; test -f " + file + "; gunzip -c " + file + " | docker exec -i " + shellQuote(t.container) + " sh -c " + shellQuote(method.restore)
+		restore := method.restore
+		if backup.format == "pgdmp" {
+			restore = `pg_restore -U "$POSTGRES_USER" -d postgres --clean --if-exists --create`
+		}
+		return "set -eu; test -f " + file + "; gunzip -c " + file + " | docker exec -i " + shellQuote(t.container) + " sh -c " + shellQuote(restore)
 	}
 	if t.service.Compose {
 		project := "label=com.docker.compose.project=" + shellQuote(t.service.ComposeProject)
@@ -138,7 +144,10 @@ func restoreCommand(t backupTarget, backupID, format string) string {
 	}
 	container := shellQuote(t.container)
 	extract := "docker run --rm -i --volumes-from " + container + " " + backupImage + " tar -xf - -C /"
-	if format == "cp" {
+	switch backup.format {
+	case "dir":
+		extract = "docker run --rm -i --volumes-from " + container + " " + backupImage + " tar -xf - -C " + shellQuote(backup.restorePath)
+	case "cp":
 		extract = "docker cp - " + shellQuote(t.container+":"+path.Dir(t.dataPath))
 	}
 	return "set -eu; test -f " + file + "; docker stop " + container + " >/dev/null; status=0; gunzip -c " + file + " | " + extract + " || status=$?; docker start " + container + " >/dev/null; exit $status"
@@ -193,7 +202,7 @@ func (h *Handler) listBackups(w http.ResponseWriter, r *http.Request) {
 		settings.Reason = err.Error()
 	}
 	_, settings.Logical = backupMethods[target.service.Engine]
-	rows, err := h.db.QueryContext(r.Context(), "SELECT id, status, scheduled, size_bytes, COALESCE(error, ''), created_at, finished_at, remote_key IS NOT NULL FROM service_backups WHERE service_id = ? ORDER BY created_at DESC LIMIT 100", serviceID)
+	rows, err := h.db.QueryContext(r.Context(), "SELECT id, status, scheduled, size_bytes, COALESCE(error, ''), created_at, finished_at, remote_key IS NOT NULL, uploaded FROM service_backups WHERE service_id = ? ORDER BY created_at DESC LIMIT 100", serviceID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list backups")
 		return
@@ -202,7 +211,7 @@ func (h *Handler) listBackups(w http.ResponseWriter, r *http.Request) {
 	backups := make([]serviceBackup, 0)
 	for rows.Next() {
 		var backup serviceBackup
-		if err := rows.Scan(&backup.ID, &backup.Status, &backup.Scheduled, &backup.SizeBytes, &backup.Error, &backup.CreatedAt, &backup.FinishedAt, &backup.Remote); err != nil {
+		if err := rows.Scan(&backup.ID, &backup.Status, &backup.Scheduled, &backup.SizeBytes, &backup.Error, &backup.CreatedAt, &backup.FinishedAt, &backup.Remote, &backup.Uploaded); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read backups")
 			return
 		}
@@ -212,7 +221,7 @@ func (h *Handler) listBackups(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not read backups")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"settings": settings, "backups": backups})
+	writeJSON(w, http.StatusOK, map[string]any{"settings": settings, "backups": backups, "paths": target.paths})
 }
 
 func (h *Handler) updateBackupSettings(w http.ResponseWriter, r *http.Request) {
@@ -446,7 +455,7 @@ func (h *Handler) removeBackup(ctx context.Context, serviceID, serverID, backupI
 func (h *Handler) readBackup(w http.ResponseWriter, r *http.Request, serviceID string) (serviceBackup, string, bool) {
 	var backup serviceBackup
 	var serverID string
-	err := h.db.QueryRowContext(r.Context(), "SELECT id, status, server_id, format, COALESCE(remote_key, '') FROM service_backups WHERE id = ? AND service_id = ?", r.PathValue("backupID"), serviceID).Scan(&backup.ID, &backup.Status, &serverID, &backup.format, &backup.remoteKey)
+	err := h.db.QueryRowContext(r.Context(), "SELECT id, status, server_id, format, COALESCE(remote_key, ''), COALESCE(restore_path, '') FROM service_backups WHERE id = ? AND service_id = ?", r.PathValue("backupID"), serviceID).Scan(&backup.ID, &backup.Status, &serverID, &backup.format, &backup.remoteKey, &backup.restorePath)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "backup not found")
 		return backup, "", false
@@ -517,7 +526,7 @@ func (h *Handler) restoreBackup(w http.ResponseWriter, r *http.Request) {
 		serverID := target.service.ServerID
 		if err := h.fetchBackup(ctx, serverID, backupDir+serviceID, backupFile(serviceID, backup.ID), backup.remoteKey); err != nil {
 			message = "Could not copy the backup from S3: " + err.Error()
-		} else if _, err := h.executeSSH(ctx, serverID, restoreCommand(target, backup.ID, backup.format)); err != nil {
+		} else if _, err := h.executeSSH(ctx, serverID, restoreCommand(target, backup)); err != nil {
 			message = "Restore failed: " + err.Error()
 		}
 		var errorText any
