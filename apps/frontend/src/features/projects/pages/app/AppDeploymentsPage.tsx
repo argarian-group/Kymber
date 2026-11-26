@@ -139,7 +139,7 @@ export function AppDeploymentsPage() {
       <FormError message={error} />
       <FormError message={actionError} />
       {items?.length === 0 && <EmptyState title={t("No deployments yet")} description={t("Deploy this app to start its history.")} />}
-      <div className="grid gap-3 p-4">
+      <div>
         {items?.map((item) => {
           const open = shown === item.key;
           const build = item.kind === "build" ? item.build : null;
@@ -147,8 +147,8 @@ export function AppDeploymentsPage() {
           const available = build?.status === "succeeded" && build.artifact_expires_at && Date.parse(build.artifact_expires_at) > Date.now();
           const finishedBuild = build && build.status !== "queued" && build.status !== "running";
           return (
-            <div className="grid gap-2" key={item.key}>
-              <article className="grid gap-2 rounded-control border border-line-subtle p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+            <div className="grid gap-3 border-t border-line p-4 first:border-t-0" key={item.key}>
+              <article className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div className="min-w-0">
                   <p className="font-medium">
                     {build ? buildTitle(build) : deploymentTitle(deployment!)}
