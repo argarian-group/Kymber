@@ -5,14 +5,12 @@ import { Modal } from "@/components/ui/Modal";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
 import { RuntimeSettings } from "@/features/projects/components/apps/RuntimeSettings";
 import { DeploymentDialog } from "@/features/projects/components/apps/DeploymentDialog";
-import { GitHubBuildForm } from "@/features/projects/components/apps/GitHubBuildForm";
 import { ProjectDetail } from "@/features/projects/components/overview/ProjectDetail";
 import { isServiceBusy } from "@/features/projects/services";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { FormFooter } from "@/features/settings/components/FormFooter";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
-import { useLoadEffect } from "@/lib/useLoadEffect";
 import { t } from "@/lib/i18n";
 import { ComposeContainersPage } from "@/features/projects/pages/app/ComposeContainersPage";
 
@@ -26,7 +24,6 @@ export function AppGeneralPage() {
   const [deploying, setDeploying] = useState<string | null>(null);
   const [editingCompose, setEditingCompose] = useState(false);
   const [composeDraft, setComposeDraft] = useState(service.compose_file ?? "");
-  const [gitBuildsEnabled, setGitBuildsEnabled] = useState(false);
   const { pending, error, run } = useAction();
   const draft = service.status === "draft";
   const busy = isServiceBusy(service.status);
@@ -34,12 +31,6 @@ export function AppGeneralPage() {
   const changed = name !== service.name || (!gitBuild && version !== service.image_version);
 
   useEffect(() => setVersion(service.image_version), [service.image_version]);
-  useLoadEffect(
-    () => (gitBuild ? api<{ git_builds_enabled?: boolean }>("/database-templates") : Promise.resolve({ git_builds_enabled: false })),
-    (response) => setGitBuildsEnabled(response.git_builds_enabled === true),
-    () => setGitBuildsEnabled(false),
-    [gitBuild],
-  );
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -94,9 +85,6 @@ export function AppGeneralPage() {
             </FormFooter>
           )}
         </form>
-      </AppSection>}
-      {gitBuild && canWrite && <AppSection title={t("Source")} description={t("Repository, branch and how to build it. Save and deploy builds the code and puts it live.")}>
-        <GitHubBuildForm path={path} gitBuildsEnabled={gitBuildsEnabled} service={service} onSaved={onChanged} />
       </AppSection>}
       {canWrite && detail && <RuntimeSettings key={detail.id} service={detail} path={path} onChanged={onChanged} />}
       <AppSection title={t("Details")}>

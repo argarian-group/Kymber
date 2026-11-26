@@ -20,6 +20,7 @@ import { AppBackupsPage } from "@/features/projects/pages/app/AppBackupsPage";
 import { AppJobsPage } from "@/features/projects/pages/app/AppJobsPage";
 import { AppLogsPage } from "@/features/projects/pages/app/AppLogsPage";
 import { AppMetricsPage } from "@/features/projects/pages/app/AppMetricsPage";
+import { AppSourcePage } from "@/features/projects/pages/app/AppSourcePage";
 import { AppStoragePage } from "@/features/projects/pages/app/AppStoragePage";
 import { AppTerminalPage } from "@/features/projects/pages/app/AppTerminalPage";
 import { ProjectNewAppPage } from "@/features/projects/pages/ProjectNewAppPage";
@@ -49,7 +50,7 @@ const router = createBrowserRouter(createRoutesFromElements(
       <Route path="apps/new" element={<ProjectNewAppPage />} />
       <Route path="apps/:appId" element={<AppLayout />}>
         <Route index element={<AppGeneralPage />} />
-        <Route path="source" element={<Navigate to=".." replace />} />
+        <Route path="source" element={<AppSourcePage />} />
         <Route path="environment" element={<AppEnvironmentPage />} />
         <Route path="connection" element={<AppConnectionPage />} />
         <Route path="files" element={<AppFilesPage />} />

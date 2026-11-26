@@ -500,6 +500,7 @@ export const ptBR = {
   "Deploy from Git": "Deploy do Git",
   ".env file": "Arquivo .env",
   "Add domain": "Adicionar domínio",
+  "Origin": "Origem",
   "The port is where the app listens inside the container.": "A porta é onde o app escuta dentro do container.",
   "domain": "domínio",
   "Domains": "Domínios",
