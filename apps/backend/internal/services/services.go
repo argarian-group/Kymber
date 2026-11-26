@@ -354,9 +354,15 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 	if service.Status != "draft" {
 		renamed := input.Name != "" && strings.ToLower(strings.TrimSpace(input.Name)) != service.Name
 		retagged := input.ImageVersion != "" && input.ImageVersion != service.ImageVersion
-		if !template.Custom || renamed || retagged || input.DataPath != nil {
+		if renamed || retagged || input.DataPath != nil {
 			writeError(w, http.StatusConflict, "only draft services can be configured")
 			return
+		}
+		for _, field := range template.Fields {
+			if value, ok := input.Environment[field.Name]; ok && value != service.Environment[field.Name] {
+				writeError(w, http.StatusConflict, "template variables can only change before the first deploy")
+				return
+			}
 		}
 		if service.Status == "queued" || service.Status == "deploying" {
 			writeError(w, http.StatusConflict, "service is being deployed")
@@ -394,7 +400,11 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 		service.Environment[key] = value
 	}
 	service.Environment, err = templates.Normalize(template, service.Environment)
-	if err != nil || !serviceNamePattern.MatchString(service.Name) {
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !serviceNamePattern.MatchString(service.Name) {
 		writeError(w, http.StatusBadRequest, "invalid service configuration")
 		return
 	}

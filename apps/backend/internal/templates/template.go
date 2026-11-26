@@ -118,7 +118,6 @@ func Normalize(t Template, config Config) (Config, error) {
 	if t.Custom {
 		return normalizeCustom(config)
 	}
-	values := make(Config, len(t.Fields))
 	known := make(map[string]Field, len(t.Fields))
 	for _, field := range t.Fields {
 		if !environmentNamePattern.MatchString(field.Name) {
@@ -126,10 +125,15 @@ func Normalize(t Template, config Config) (Config, error) {
 		}
 		known[field.Name] = field
 	}
-	for key := range config {
+	extra := Config{}
+	for key, value := range config {
 		if _, ok := known[key]; !ok {
-			return nil, fmt.Errorf("unsupported configuration field %q", key)
+			extra[key] = value
 		}
+	}
+	values, err := normalizeCustom(extra)
+	if err != nil {
+		return nil, err
 	}
 	for _, field := range t.Fields {
 		value := config[field.Name]

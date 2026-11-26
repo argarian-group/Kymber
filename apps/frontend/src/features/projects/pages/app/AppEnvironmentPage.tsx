@@ -1,9 +1,6 @@
 import { Code, Eye, EyeOff } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { Navigate } from "react-router";
-import { CopyField } from "@/components/ui/CopyField";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Field } from "@/components/ui/Field";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
 import { ComposeEnvironmentEditor } from "@/features/projects/components/apps/ComposeForm";
@@ -13,12 +10,10 @@ import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { FormFooter } from "@/features/settings/components/FormFooter";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
-import { t, translate } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
 
 export function AppEnvironmentPage() {
   const { service, detail, template, path, canWrite, onChanged } = useAppOutlet();
-  const [edits, setEdits] = useState<Record<string, string>>({});
-  const [saved, setSaved] = useState<string | null>(null);
   const { pending, error, run } = useAction();
 
   if (!canWrite) return <Navigate to=".." replace />;
@@ -28,7 +23,6 @@ export function AppEnvironmentPage() {
       return run(async () => {
         await api(`${path}/${service.id}`, { method: "PUT", body: { compose_file: file } });
         if (deploy && service.status !== "draft") await api(`${path}/${service.id}/deploy`, { method: "POST", body: {} });
-        setSaved(t("Saved."));
         onChanged();
       });
     }
@@ -37,66 +31,16 @@ export function AppEnvironmentPage() {
     </AppSection>;
   }
   if (!detail || !template) return <PageSkeleton />;
-  if (template.custom) return <CustomEnvironment key={detail.id} service={service} environment={detail.environment ?? {}} path={path} onChanged={onChanged} />;
-
-  const environment = detail.environment ?? {};
-  const draft = service.status === "draft";
-  const changed = Object.entries(edits).some(([name, value]) => value !== environment[name]);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setSaved(null);
-    await run(async () => {
-      await api(`${path}/${service.id}`, { method: "PUT", body: { environment: edits } });
-      setEdits({});
-      setSaved(t("Saved."));
-      onChanged();
-    });
-  }
-
-  const fields = template.fields ?? [];
-  if (fields.length === 0) return <EmptyState title={t("No environment variables")} />;
-
-  return (
-    <AppSection title={t("Environment variables")} description={draft ? t("These go into the container at deploy.") : t("Variables can only change before the first deploy.")}>
-      {draft ? (
-        <form onSubmit={submit}>
-          <div className="grid items-start gap-4 p-4 sm:grid-cols-2">
-            {fields.map((field) => (
-              <Field
-                label={translate(field.label)}
-                type={field.secret ? "password" : "text"}
-                autoComplete="off"
-                required={field.required}
-                minLength={field.min || undefined}
-                maxLength={field.max || undefined}
-                pattern={field.pattern?.replace(/^\^|\$$/g, "")}
-                hint={field.name}
-                value={edits[field.name] ?? environment[field.name] ?? ""}
-                onChange={(event) => setEdits({ ...edits, [field.name]: event.target.value })}
-                key={field.name}
-              />
-            ))}
-          </div>
-          <FormFooter error={error} saved={saved}>
-            <button className="btn btn-primary" type="submit" disabled={pending || !changed}>
-              {pending ? t("Saving…") : t("Save variables")}
-            </button>
-          </FormFooter>
-        </form>
-      ) : (
-        <div className="grid gap-4 p-4">
-          {fields.map((field) => (
-            <CopyField label={field.name} value={environment[field.name] ?? ""} secret={field.secret} key={field.name} />
-          ))}
-        </div>
-      )}
-    </AppSection>
-  );
+  return <CustomEnvironment key={detail.id} service={service} environment={detail.environment ?? {}} fields={template.custom ? [] : (template.fields ?? []).map(({ name }) => name)} path={path} onChanged={onChanged} />;
 }
 
-function CustomEnvironment({ service, environment, path, onChanged }: { service: Service; environment: Record<string, string>; path: string; onChanged: () => void }) {
-  const [variables, setVariables] = useState<Variable[]>(() => Object.entries(environment).sort(([a], [b]) => a.localeCompare(b)).map(([name, value], id) => ({ id, name, value })));
+function initialVariables(environment: Record<string, string>, fields: string[]): Variable[] {
+  const extra = Object.keys(environment).filter((name) => !fields.includes(name)).sort((a, b) => a.localeCompare(b));
+  return [...fields, ...extra].map((name, id) => ({ id, name, value: environment[name] ?? "" }));
+}
+
+function CustomEnvironment({ service, environment, fields, path, onChanged }: { service: Service; environment: Record<string, string>; fields: string[]; path: string; onChanged: () => void }) {
+  const [variables, setVariables] = useState<Variable[]>(() => initialVariables(environment, fields));
   const [developerView, setDeveloperView] = useState(false);
   const [text, setText] = useState("");
   const [revealed, setRevealed] = useState(false);
@@ -105,10 +49,15 @@ function CustomEnvironment({ service, environment, path, onChanged }: { service:
   const { pending, error, run } = useAction();
   const draft = service.status === "draft";
   const busy = isServiceBusy(service.status);
+  const fixed = new Set(fields);
 
   function toggleDeveloperView() {
     setInvalid(null);
-    if (developerView) setVariables(parseDotEnv(text).map((variable, id) => ({ id, ...variable })));
+    if (developerView) {
+      const parsed = parseDotEnv(text);
+      const missing = variables.filter(({ name }) => fixed.has(name) && !parsed.some((variable) => variable.name === name));
+      setVariables([...missing, ...parsed].map(({ name, value }, id) => ({ id, name, value })));
+    }
     else setText(formatDotEnv(variables));
     setDeveloperView(!developerView);
   }
@@ -123,7 +72,7 @@ function CustomEnvironment({ service, environment, path, onChanged }: { service:
     }
     const source = developerView ? parseDotEnv(text) : variables.filter(({ name }) => name);
     const next = Object.fromEntries(source.map(({ name, value }) => [name, value]));
-    const removed = Object.fromEntries(Object.keys(environment).filter((name) => !(name in next)).map((name) => [name, ""]));
+    const removed = Object.fromEntries(Object.keys(environment).filter((name) => !(name in next) && !fixed.has(name)).map((name) => [name, ""]));
     await run(async () => {
       await api(`${path}/${service.id}`, { method: "PUT", body: { environment: { ...removed, ...next } } });
       if (deploy) await api(`${path}/${service.id}/deploy`, { method: "POST", body: {} });
@@ -135,7 +84,8 @@ function CustomEnvironment({ service, environment, path, onChanged }: { service:
   return (
     <AppSection title={t("Environment variables")} description={draft ? t("These go into the container at deploy.") : t("Changes apply on the next deploy.")}>
       <form onSubmit={(event) => { event.preventDefault(); void save(false); }}>
-        <div className="flex flex-wrap justify-end gap-2 border-b border-line p-4">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-b border-line p-4">
+          {!draft && fields.length > 0 && <p className="mr-auto text-meta text-ink-soft">{t("The template's own variables can only change before the first deploy.")}</p>}
           {!developerView && <button className="btn" type="button" aria-pressed={revealed} onClick={() => setRevealed(!revealed)}>{revealed ? <EyeOff aria-hidden="true" size={16} /> : <Eye aria-hidden="true" size={16} />}{revealed ? t("Hide values") : t("Show values")}</button>}
           <button className="btn" type="button" aria-pressed={developerView} onClick={toggleDeveloperView}><Code aria-hidden="true" size={16} />{developerView ? t("Normal view") : t("Developer view")}</button>
         </div>
@@ -147,7 +97,7 @@ function CustomEnvironment({ service, environment, path, onChanged }: { service:
               <span className="mt-1 block text-xs text-ink-soft">{t("One KEY=value per line. Lines starting with # are ignored.")}</span>
             </label>
           ) : (
-            <VariableRows variables={variables} revealed={revealed} onChange={setVariables} />
+            <VariableRows variables={variables} revealed={revealed} fixed={fixed} readOnly={draft ? undefined : fixed} onChange={setVariables} />
           )}
         </div>
         <FormFooter error={invalid ?? error} saved={saved}>

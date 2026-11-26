@@ -32,7 +32,7 @@ export function formatDotEnv(variables: { name: string; value: string }[]) {
     .join("\n");
 }
 
-export function VariableRows({ variables, revealed = false, onChange }: { variables: Variable[]; revealed?: boolean; onChange: (variables: Variable[]) => void }) {
+export function VariableRows({ variables, revealed = false, fixed, readOnly, onChange }: { variables: Variable[]; revealed?: boolean; fixed?: Set<string>; readOnly?: Set<string>; onChange: (variables: Variable[]) => void }) {
   function update(id: number, change: Partial<Variable>) {
     onChange(variables.map((variable) => (variable.id === id ? { ...variable, ...change } : variable)));
   }
@@ -51,11 +51,11 @@ export function VariableRows({ variables, revealed = false, onChange }: { variab
     <>
       {variables.map(({ id, name, value }) => (
         <div className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_1fr_auto]" key={id}>
-          <input className="field font-mono" aria-label={t("Variable name")} autoComplete="off" pattern="[A-Za-z_][A-Za-z0-9_]*" title={t("Letters, numbers and underscores, not starting with a number")} required placeholder="NAME" value={name} onChange={(event) => update(id, { name: event.target.value })} onPaste={(event) => paste(id, event)} />
-          <button className="btn order-none px-2 sm:order-last" type="button" aria-label={t("Remove {name}", { name: name || t("variable") })} onClick={() => onChange(variables.filter((variable) => variable.id !== id))}>
+          <input className="field font-mono" aria-label={t("Variable name")} autoComplete="off" pattern="[A-Za-z_][A-Za-z0-9_]*" title={t("Letters, numbers and underscores, not starting with a number")} required readOnly={fixed?.has(name)} placeholder="NAME" value={name} onChange={(event) => update(id, { name: event.target.value })} onPaste={(event) => paste(id, event)} />
+          {fixed?.has(name) ? <span className="order-none w-9 sm:order-last" /> : <button className="btn order-none px-2 sm:order-last" type="button" aria-label={t("Remove {name}", { name: name || t("variable") })} onClick={() => onChange(variables.filter((variable) => variable.id !== id))}>
             <X aria-hidden="true" size={16} />
-          </button>
-          <input className="field col-span-2 font-mono sm:col-span-1" type={revealed ? "text" : "password"} aria-label={t("Value of {name}", { name: name || t("variable") })} autoComplete="off" placeholder={t("Value")} value={value} onChange={(event) => update(id, { value: event.target.value })} />
+          </button>}
+          <input className="field col-span-2 font-mono sm:col-span-1" readOnly={readOnly?.has(name)} type={revealed ? "text" : "password"} aria-label={t("Value of {name}", { name: name || t("variable") })} autoComplete="off" placeholder={t("Value")} value={value} onChange={(event) => update(id, { value: event.target.value })} />
         </div>
       ))}
       <button className="btn w-fit" type="button" onClick={() => onChange([...variables, { id: Date.now(), name: "", value: "" }])}>
