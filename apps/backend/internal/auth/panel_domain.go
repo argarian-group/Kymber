@@ -62,7 +62,7 @@ func (h *Handler) setPanelDomain(w http.ResponseWriter, r *http.Request) {
 	}
 	if domain != "" {
 		var used bool
-		if err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM database_services WHERE domain = ?) OR EXISTS(SELECT 1 FROM platform_settings WHERE panel_domain = ? AND id = 1)", domain, domain).Scan(&used); err != nil {
+		if err := h.db.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM database_services WHERE CONCAT(',', domain, ',') LIKE CONCAT('%,', ?, ',%') OR CONCAT(',', domain) LIKE CONCAT('%,', ?, ':%')) OR EXISTS(SELECT 1 FROM platform_settings WHERE panel_domain = ? AND id = 1)", domain, domain, domain).Scan(&used); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not check domain")
 			return
 		}

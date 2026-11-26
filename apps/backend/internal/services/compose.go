@@ -282,7 +282,7 @@ func (h *Handler) composeSSHCommand(ctx context.Context, service databaseService
 		}
 		if service.Domain != "" {
 			name := "kymber-" + service.ID
-			rule := "Host(`" + service.Domain + "`)"
+			rule := domainHostRule(parseServiceRoutes(service.Domain, 0))
 			labels := []string{
 				"traefik.enable=true",
 				"traefik.docker.network=kymber",

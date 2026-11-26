@@ -642,28 +642,16 @@ func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, imag
 	}
 	command := "set -eu; n=" + quote(name) + "; f=$(mktemp); trap 'rm -f \"$f\"' EXIT; " + portCheck + env.String() + prepare + imageLookup + "docker network inspect " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null 2>&1 || docker network create --label kymber.managed=true " + quote("kymber-workspace-"+s.WorkspaceID) + " >/dev/null; docker rm -f \"$n\" >/dev/null 2>&1 || true; docker run --pull=never -d --name \"$n\" --restart unless-stopped --network " + quote("kymber-workspace-"+s.WorkspaceID) + " --network-alias " + quote(t.InternalHost(s.ID)) + " --label kymber.managed=true --label " + quote("kymber.service="+s.ID)
 	if s.Domain != "" {
-		if t.Port < 1 || t.Port > 65535 {
-			return "", fmt.Errorf("public domain requires an HTTP port")
+		routes := parseServiceRoutes(s.Domain, t.Port)
+		for _, route := range routes {
+			if route.Port < 1 || route.Port > 65535 {
+				return "", fmt.Errorf("public domain %s requires an HTTP port", route.Host)
+			}
+			if len(route.Host) > 253 || !serviceDomainPattern.MatchString(route.Host) || net.ParseIP(route.Host) != nil {
+				return "", fmt.Errorf("invalid public domain")
+			}
 		}
-		if len(s.Domain) > 253 || !serviceDomainPattern.MatchString(s.Domain) || net.ParseIP(s.Domain) != nil {
-			return "", fmt.Errorf("invalid public domain")
-		}
-		name := "kymber-" + s.ID
-		host := "Host(`" + s.Domain + "`)"
-		for _, label := range []string{
-			"traefik.enable=true",
-			"traefik.docker.network=kymber",
-			"traefik.http.routers." + name + "-http.rule=" + host,
-			"traefik.http.routers." + name + "-http.entrypoints=web",
-			"traefik.http.routers." + name + "-http.middlewares=" + name + "-https",
-			"traefik.http.routers." + name + "-http.service=" + name,
-			"traefik.http.middlewares." + name + "-https.redirectscheme.scheme=https",
-			"traefik.http.routers." + name + ".rule=" + host,
-			"traefik.http.routers." + name + ".entrypoints=websecure",
-			"traefik.http.routers." + name + ".tls.certresolver=letsencrypt",
-			"traefik.http.routers." + name + ".service=" + name,
-			fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port=%d", name, t.Port),
-		} {
+		for _, label := range traefikRouteLabels(s.ID, routes) {
 			command += " --label " + quote(label)
 		}
 		command = strings.Replace(command, "; docker rm -f", "; docker network inspect kymber >/dev/null 2>&1 || { echo 'Traefik network kymber is missing; start the Kymber proxy first' >&2; exit 1; }; docker rm -f", 1)

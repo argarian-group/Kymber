@@ -1,12 +1,13 @@
 package services
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"net"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -439,23 +440,31 @@ func (h *Handler) updateServiceDomain(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &input) {
 		return
 	}
-	domain := strings.ToLower(strings.TrimSpace(input.Domain))
-	if domain != "" && (len(domain) > 253 || !serviceDomainPattern.MatchString(domain) || net.ParseIP(domain) != nil) {
-		writeError(w, http.StatusBadRequest, "enter a valid public domain name")
-		return
-	}
 	service, err := h.readService(r, workspaceID, projectID, serviceID, false)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "service not found")
+		return
+	}
+	domain, err := normalizeServiceDomains(input.Domain, !service.Compose)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if service.Status == "queued" || service.Status == "deploying" {
 		writeError(w, http.StatusConflict, "wait for the current action to finish")
 		return
 	}
-	if domain != "" && (service.Category != "application" || !service.Compose && (service.Port < 1 || service.Port > 65535)) {
-		writeError(w, http.StatusBadRequest, "public domains require an application with an HTTP port")
+	if domain != "" && service.Category != "application" {
+		writeError(w, http.StatusBadRequest, "public domains require an application")
 		return
+	}
+	if !service.Compose {
+		for _, route := range parseServiceRoutes(domain, service.Port) {
+			if route.Port < 1 || route.Port > 65535 {
+				writeError(w, http.StatusBadRequest, fmt.Sprintf("set the app port or a port for %s", route.Host))
+				return
+			}
+		}
 	}
 	if domain != "" && service.ServerID != "" {
 		var connectionType string
@@ -470,16 +479,24 @@ func (h *Handler) updateServiceDomain(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "could not check panel domain")
 			return
 		}
-		if domain == panelDomain {
-			writeError(w, http.StatusConflict, "domain is already assigned to the panel")
+		taken, err := h.domainsInUse(r.Context(), serviceID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not check domains")
 			return
+		}
+		taken[panelDomain] = "the panel"
+		for _, route := range parseServiceRoutes(domain, 0) {
+			if owner, found := taken[route.Host]; found && route.Host != "" {
+				writeError(w, http.StatusConflict, fmt.Sprintf("%s is already used by %s", route.Host, owner))
+				return
+			}
 		}
 	}
 	var savedDomain any
 	if domain != "" {
 		savedDomain = domain
 	}
-	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET domain = ? WHERE id = ? AND NOT EXISTS (SELECT 1 FROM platform_settings WHERE panel_domain = ? AND id = 1)", savedDomain, serviceID, domain); err != nil {
+	if _, err := h.db.ExecContext(r.Context(), "UPDATE database_services SET domain = ? WHERE id = ?", savedDomain, serviceID); err != nil {
 		writeError(w, http.StatusConflict, "could not save domain")
 		return
 	}
@@ -672,3 +689,22 @@ func randomNameSuffix() (string, error) {
 }
 
 func mustJSON(value any) []byte { data, _ := json.Marshal(value); return data }
+
+func (h *Handler) domainsInUse(ctx context.Context, exceptServiceID string) (map[string]string, error) {
+	rows, err := h.db.QueryContext(ctx, "SELECT name, domain FROM database_services WHERE id <> ? AND domain IS NOT NULL AND status <> 'deleted'", exceptServiceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	taken := map[string]string{}
+	for rows.Next() {
+		var name, domains string
+		if err := rows.Scan(&name, &domains); err != nil {
+			return nil, err
+		}
+		for _, route := range parseServiceRoutes(domains, 0) {
+			taken[route.Host] = name
+		}
+	}
+	return taken, rows.Err()
+}
