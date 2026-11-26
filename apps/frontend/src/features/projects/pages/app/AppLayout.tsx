@@ -102,7 +102,7 @@ export function AppLayout() {
               ]),
             ]
           : []),
-        ...(service.image === "docker.io/kymber/build-artifacts" ? [] : [{ label: t("Storage"), to: "storage", end: false, icon: HardDrive }]),
+        { label: t("Storage"), to: "storage", end: false, icon: HardDrive },
         ...(canWrite ? [{ label: t("Danger zone"), to: "danger", end: false, icon: TriangleAlert }] : []),
       ];
   const context: AppOutlet = {
