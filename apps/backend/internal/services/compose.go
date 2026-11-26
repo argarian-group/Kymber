@@ -21,7 +21,7 @@ func (h *Handler) readComposeContainers(r *http.Request, service databaseService
 	if service.ServerID == "" {
 		return nil, nil
 	}
-	command := "docker compose -p " + shellQuote(service.Name) + " -f " + shellQuote("/tmp/kymber-compose-"+service.ID+".yaml") + " ps --all --format json"
+	command := "docker compose -p " + shellQuote(service.ComposeProject) + " -f " + shellQuote("/tmp/kymber-compose-"+service.ID+".yaml") + " ps --all --format json"
 	output, err := h.executeSSH(r.Context(), service.ServerID, command)
 	if err != nil {
 		return nil, err
@@ -132,7 +132,7 @@ func (h *Handler) composeContainerAction(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusConflict, "stack has not been deployed")
 		return
 	}
-	command := "docker compose -p " + shellQuote(service.Name) + " -f " + shellQuote("/tmp/kymber-compose-"+service.ID+".yaml") + " " + action + " " + shellQuote(container)
+	command := "docker compose -p " + shellQuote(service.ComposeProject) + " -f " + shellQuote("/tmp/kymber-compose-"+service.ID+".yaml") + " " + action + " " + shellQuote(container)
 	if _, err := h.executeSSH(r.Context(), service.ServerID, command); err != nil {
 		writeError(w, http.StatusBadGateway, "could not "+action+" Compose service: "+err.Error())
 		return
@@ -244,7 +244,7 @@ func (h *Handler) createComposeService(w http.ResponseWriter, r *http.Request, u
 		writeError(w, http.StatusInternalServerError, "could not generate stack id")
 		return
 	}
-	_, err = h.db.ExecContext(r.Context(), `INSERT INTO database_services (id, workspace_id, project_id, engine, name, image_version, image, category, environment_id, encrypted_config, compose_file, compose_project, created_by) VALUES (?, ?, ?, 'compose', ?, 'latest', 'docker.io/library/compose', 'application', ?, '{}', ?, ?, ?)`, id, workspaceID, projectID, name, environmentID, file, name, user.ID)
+	_, err = h.db.ExecContext(r.Context(), `INSERT INTO database_services (id, workspace_id, project_id, engine, name, image_version, image, category, environment_id, encrypted_config, compose_file, compose_project, created_by) VALUES (?, ?, ?, 'compose', ?, 'latest', 'docker.io/library/compose', 'application', ?, '{}', ?, ?, ?)`, id, workspaceID, projectID, name, environmentID, file, nil, user.ID)
 	if err != nil {
 		writeError(w, http.StatusConflict, "could not create stack; its name may already be used")
 		return
@@ -258,7 +258,7 @@ func (h *Handler) composeSSHCommand(ctx context.Context, service databaseService
 		return "", err
 	}
 	path := "/tmp/kymber-compose-" + service.ID + ".yaml"
-	project := service.Name
+	project := service.ComposeProject
 	compose := "docker compose -p " + shellQuote(project) + " -f " + shellQuote(path)
 	baseCompose := compose
 	ports, err := h.readPorts(ctx, service.ID)
@@ -327,7 +327,7 @@ func (h *Handler) composeSSHCommand(ctx context.Context, service databaseService
 func (h *Handler) validateComposeOnServer(r *http.Request, serverID string, service databaseService, file string) error {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	command := "set -eu; path=$(mktemp /tmp/kymber-compose-check-XXXXXX.yaml); trap 'rm -f \"$path\"' EXIT; printf %s " + shellQuote(base64.StdEncoding.EncodeToString([]byte(file))) + " | base64 -d > \"$path\"; docker compose -p " + shellQuote(service.Name) + " -f \"$path\" config --quiet"
+	command := "set -eu; path=$(mktemp /tmp/kymber-compose-check-XXXXXX.yaml); trap 'rm -f \"$path\"' EXIT; printf %s " + shellQuote(base64.StdEncoding.EncodeToString([]byte(file))) + " | base64 -d > \"$path\"; docker compose -p " + shellQuote(service.ComposeProject) + " -f \"$path\" config --quiet"
 	_, err := h.executeSSH(ctx, serverID, command)
 	return err
 }

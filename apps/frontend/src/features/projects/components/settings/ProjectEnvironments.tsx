@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Copy, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
@@ -12,6 +12,7 @@ import { t } from "@/lib/i18n";
 export function ProjectEnvironments() {
   const { environments, error: loadError, path, reload } = useEnvironments();
   const [name, setName] = useState("");
+  const [cloning, setCloning] = useState<{ id: string; name: string } | null>(null);
   const { pending, error, run } = useAction();
 
   async function create(event: FormEvent) {
@@ -19,6 +20,16 @@ export function ProjectEnvironments() {
     await run(async () => {
       await api(path, { method: "POST", body: { name } });
       setName("");
+      reload();
+    });
+  }
+
+  async function clone(event: FormEvent) {
+    event.preventDefault();
+    if (!cloning) return;
+    await run(async () => {
+      await api(`${path}/${cloning.id}/clone`, { method: "POST", body: { name: cloning.name } });
+      setCloning(null);
       reload();
     });
   }
@@ -38,11 +49,34 @@ export function ProjectEnvironments() {
         {environments && environments.length > 0 && (
           <ul className="grid gap-2">
             {environments.map(({ id, name }) => (
-              <li className="flex items-center justify-between gap-3 rounded-panel border border-line p-2 pl-3" key={id}>
-                <span className="min-w-0 break-words font-medium">{name}</span>
-                <button className="btn flex-none px-2" type="button" disabled={pending} aria-label={t("Delete {name}", { name })} onClick={() => remove(id)}>
-                  <Trash2 aria-hidden="true" size={16} />
-                </button>
+              <li className="grid gap-3 rounded-panel border border-line p-2 pl-3" key={id}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 break-words font-medium">{name}</span>
+                  <div className="flex flex-none gap-1">
+                    <button className="btn px-2" type="button" disabled={pending} aria-label={t("Clone {name}", { name })} title={t("Clone")} onClick={() => setCloning(cloning?.id === id ? null : { id, name: `${name}-copy` })}>
+                      <Copy aria-hidden="true" size={16} />
+                    </button>
+                    <button className="btn px-2" type="button" disabled={pending} aria-label={t("Delete {name}", { name })} onClick={() => remove(id)}>
+                      <Trash2 aria-hidden="true" size={16} />
+                    </button>
+                  </div>
+                </div>
+                {cloning?.id === id && (
+                  <form className="grid gap-2 pb-1" onSubmit={clone}>
+                    <div className="flex flex-wrap items-end gap-2">
+                      <div className="min-w-48 flex-1">
+                        <Field label={t("New environment name")} required autoFocus maxLength={64} value={cloning.name} onChange={(event) => setCloning({ id, name: event.target.value })} />
+                      </div>
+                      <button className="btn btn-primary" type="submit" disabled={pending}>
+                        {t("Clone")}
+                      </button>
+                      <button className="btn" type="button" onClick={() => setCloning(null)}>
+                        {t("Cancel")}
+                      </button>
+                    </div>
+                    <p className="text-meta text-ink-soft">{t("Copies every app with its settings, variables, storage and schedules. The copies start as drafts without domains or published ports, and no data is copied.")}</p>
+                  </form>
+                )}
               </li>
             ))}
           </ul>

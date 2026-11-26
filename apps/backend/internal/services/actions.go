@@ -382,7 +382,7 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 		}
 		command := runtimeLogsCommand(service.Name+"-service-"+service.ID, tail)
 		if service.Compose {
-			composeLogs := "docker compose -p " + shellQuote(service.Name) + " -f " + shellQuote("/tmp/kymber-compose-"+service.ID+".yaml") + " logs --tail " + strconv.Itoa(tail)
+			composeLogs := "docker compose -p " + shellQuote(service.ComposeProject) + " -f " + shellQuote("/tmp/kymber-compose-"+service.ID+".yaml") + " logs --tail " + strconv.Itoa(tail)
 			if container := r.URL.Query().Get("container"); container != "" {
 				if !composeContainerExists(service.ComposeFile, container) {
 					writeError(w, http.StatusBadRequest, "unknown Compose service")
@@ -437,7 +437,7 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 	} else {
 		command := "if docker inspect " + shellQuote(name) + " >/dev/null 2>&1; then docker logs --tail 300 " + shellQuote(name) + " 2>&1; else printf 'Container is not running.'; fi"
 		if service.Compose {
-			composeLogs := "docker compose -p " + shellQuote(service.Name) + " -f " + shellQuote("/tmp/kymber-compose-"+service.ID+".yaml") + " logs --tail 300"
+			composeLogs := "docker compose -p " + shellQuote(service.ComposeProject) + " -f " + shellQuote("/tmp/kymber-compose-"+service.ID+".yaml") + " logs --tail 300"
 			if container := r.URL.Query().Get("container"); container != "" {
 				if !composeContainerExists(service.ComposeFile, container) {
 					writeError(w, http.StatusBadRequest, "unknown Compose service")
@@ -579,7 +579,7 @@ func shellQuote(value string) string {
 func (h *Handler) readServiceByID(r *http.Request, id string) (databaseService, error) {
 	var service databaseService
 	var encrypted []byte
-	err := h.db.QueryRowContext(r.Context(), "SELECT id, workspace_id, project_id, engine, name, image_version, image, port, COALESCE(domain, ''), data_path, COALESCE(server_id, ''), database_name, database_user, encrypted_config, compose_file IS NOT NULL, COALESCE(CAST(compose_file AS CHAR), ''), cpu_limit, memory_limit_mb, health_cmd FROM database_services WHERE id = ?", id).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.ServerID, &service.DatabaseName, &service.DatabaseUser, &encrypted, &service.Compose, &service.ComposeFile, &service.CPULimit, &service.MemoryLimitMB, &service.HealthCmd)
+	err := h.db.QueryRowContext(r.Context(), "SELECT id, workspace_id, project_id, engine, name, image_version, image, port, COALESCE(domain, ''), data_path, COALESCE(server_id, ''), database_name, database_user, encrypted_config, compose_file IS NOT NULL, COALESCE(CAST(compose_file AS CHAR), ''), cpu_limit, memory_limit_mb, health_cmd, COALESCE(compose_project, name) FROM database_services WHERE id = ?", id).Scan(&service.ID, &service.WorkspaceID, &service.ProjectID, &service.Engine, &service.Name, &service.ImageVersion, &service.Image, &service.Port, &service.Domain, &service.DataPath, &service.ServerID, &service.DatabaseName, &service.DatabaseUser, &encrypted, &service.Compose, &service.ComposeFile, &service.CPULimit, &service.MemoryLimitMB, &service.HealthCmd, &service.ComposeProject)
 	if err != nil {
 		return service, err
 	}

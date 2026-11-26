@@ -38,6 +38,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/environments", h.listEnvironments},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/environments", h.createEnvironment},
 		{"DELETE /api/workspaces/{workspaceID}/projects/{projectID}/environments/{environmentID}", h.deleteEnvironment},
+		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/environments/{environmentID}/clone", h.cloneEnvironment},
 	} {
 		mux.Handle(route.pattern, auth.Authenticate(h.db, route.handler))
 	}
