@@ -479,7 +479,7 @@ func (h *Handler) executeServiceSSH(r *http.Request, serverID, serviceID, action
 	if err != nil {
 		return err
 	}
-	if service.Image == "docker.io/kymber/build-artifacts" {
+	if action == "deploy" && service.Image == "docker.io/kymber/build-artifacts" {
 		return errors.New("GitHub build apps can only be deployed from a successful build")
 	}
 	if action != "deploy" {
