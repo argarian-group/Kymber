@@ -2,6 +2,7 @@ import { useState } from "react";
 import { FormError } from "@/components/ui/FormError";
 import { LoadError } from "@/components/ui/LoadError";
 import { SettingsSection } from "@/features/settings/components/SettingsSection";
+import { BackupDestinationForm } from "@/features/settings/components/BackupDestinationForm";
 import { PanelDomainForm } from "@/features/settings/components/PanelDomainForm";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/useAction";
@@ -77,6 +78,9 @@ export function SystemSettings({ usersOnly = false }: { usersOnly?: boolean }) {
             <FormError message={error} />
           </div>
         )}
+      </SettingsSection>}
+      {!usersOnly && <SettingsSection title={t("Backup destination")} description={t("Every backup is kept on the app's server and also sent to this S3 bucket, so it survives if the server is lost.")}>
+        <BackupDestinationForm />
       </SettingsSection>}
       {!usersOnly && <SettingsSection title={t("Panel domain")} description={t("Optional custom hostname for the Kymber dashboard. DNS must point to this server and ports 80 and 443 must be open.")}>
         <PanelDomainForm />

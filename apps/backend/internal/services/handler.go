@@ -32,6 +32,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		handler http.HandlerFunc
 	}{
 		{"GET /api/database-templates", h.listDatabaseTemplates},
+		{"GET /api/settings/backup-destination", h.getBackupDestination},
+		{"PUT /api/settings/backup-destination", h.setBackupDestination},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/git-build-drafts", h.createGitBuildDraft},
 		{"GET /api/docker-hub/search", h.searchDockerHub},
 		{"GET /api/docker-hub/image", h.dockerImageDetails},

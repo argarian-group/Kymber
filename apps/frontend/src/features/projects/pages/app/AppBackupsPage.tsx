@@ -10,7 +10,7 @@ import { useAction } from "@/lib/useAction";
 import { useLoadEffect } from "@/lib/useLoadEffect";
 import { language, t } from "@/lib/i18n";
 
-type Backup = { id: string; status: "running" | "restoring" | "succeeded" | "failed"; scheduled: boolean; size_bytes: number; error?: string; created_at: string; finished_at: string | null };
+type Backup = { id: string; status: "running" | "restoring" | "succeeded" | "failed"; scheduled: boolean; remote: boolean; size_bytes: number; error?: string; created_at: string; finished_at: string | null };
 type Settings = { schedule: string; keep: number; next_run_at: string | null; supported: boolean; logical: boolean; reason?: string };
 
 const timeFormat = new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" });
@@ -66,6 +66,7 @@ function BackupRow({ backup, url, onChanged }: { backup: Backup; url: string; on
             <span className={backup.status === "failed" ? "text-ember" : undefined}>{statusLabels[backup.status]}</span>
             {backup.status === "succeeded" && ` · ${formatSize(backup.size_bytes)}`}
             {` · ${backup.scheduled ? t("Scheduled") : t("Manual")}`}
+            {backup.remote && ` · ${t("Copied to S3")}`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

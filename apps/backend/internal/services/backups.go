@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"io"
 	"net/http"
 	"path"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"kymber/backend/internal/auth"
+	"kymber/backend/internal/backupstore"
 	"kymber/backend/internal/database"
 	"kymber/backend/internal/logger"
 	"kymber/backend/internal/permissions"
@@ -24,7 +26,9 @@ type serviceBackup struct {
 	Error      string     `json:"error,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
 	FinishedAt *time.Time `json:"finished_at"`
+	Remote     bool       `json:"remote"`
 	format     string
+	remoteKey  string
 }
 
 // backupMethod says how an engine is dumped and restored. Engines without one fall back to copying the data directory.
@@ -185,7 +189,7 @@ func (h *Handler) listBackups(w http.ResponseWriter, r *http.Request) {
 		settings.Reason = err.Error()
 	}
 	_, settings.Logical = backupMethods[target.service.Engine]
-	rows, err := h.db.QueryContext(r.Context(), "SELECT id, status, scheduled, size_bytes, COALESCE(error, ''), created_at, finished_at FROM service_backups WHERE service_id = ? ORDER BY created_at DESC LIMIT 100", serviceID)
+	rows, err := h.db.QueryContext(r.Context(), "SELECT id, status, scheduled, size_bytes, COALESCE(error, ''), created_at, finished_at, remote_key IS NOT NULL FROM service_backups WHERE service_id = ? ORDER BY created_at DESC LIMIT 100", serviceID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list backups")
 		return
@@ -194,7 +198,7 @@ func (h *Handler) listBackups(w http.ResponseWriter, r *http.Request) {
 	backups := make([]serviceBackup, 0)
 	for rows.Next() {
 		var backup serviceBackup
-		if err := rows.Scan(&backup.ID, &backup.Status, &backup.Scheduled, &backup.SizeBytes, &backup.Error, &backup.CreatedAt, &backup.FinishedAt); err != nil {
+		if err := rows.Scan(&backup.ID, &backup.Status, &backup.Scheduled, &backup.SizeBytes, &backup.Error, &backup.CreatedAt, &backup.FinishedAt, &backup.Remote); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not read backups")
 			return
 		}
@@ -287,8 +291,79 @@ func (h *Handler) runBackup(target backupTarget, backupID string) {
 		return
 	}
 	size, _ := strconv.ParseInt(strings.TrimSpace(string(output)), 10, 64)
-	h.finishBackup(backupID, "succeeded", size, "")
+	message := ""
+	key, err := h.uploadBackup(ctx, target.service.ServerID, backupFile(target.service.ID, backupID), size, "apps", target.service.ID, backupID+".gz")
+	if err != nil {
+		message = "Saved on the server, but the copy to S3 failed: " + err.Error()
+	} else if key != "" {
+		if _, err := h.db.ExecContext(ctx, "UPDATE service_backups SET remote_key = ? WHERE id = ?", key, backupID); err != nil {
+			logger.Warn("could not save remote key of backup %s: %v", backupID, err)
+		}
+	}
+	h.finishBackup(backupID, "succeeded", size, message)
 	h.pruneBackups(ctx, target.service.ID, target.service.ServerID)
+}
+
+// uploadBackup copies a finished backup from its server to the S3 destination and returns the object key, or "" when none is set.
+func (h *Handler) uploadBackup(ctx context.Context, serverID, file string, size int64, keyParts ...string) (string, error) {
+	store, err := backupstore.Load(ctx, h.db)
+	if store == nil || err != nil {
+		return "", err
+	}
+	connection, err := h.connectSSH(ctx, serverID)
+	if err != nil {
+		return "", err
+	}
+	defer connection.Close()
+	session, err := connection.NewSession()
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	if err := session.Start("cat " + file); err != nil {
+		return "", err
+	}
+	key := store.Key(keyParts...)
+	if err := store.Put(ctx, key, stdout, size); err != nil {
+		return "", err
+	}
+	return key, session.Wait()
+}
+
+// fetchBackup puts a backup back on the server from S3 when its local copy is gone, for example after moving to a new server.
+func (h *Handler) fetchBackup(ctx context.Context, serverID, dir, file, remoteKey string) error {
+	if _, err := h.executeSSH(ctx, serverID, "test -f "+file); err == nil || remoteKey == "" {
+		return nil
+	}
+	store, err := backupstore.Load(ctx, h.db)
+	if err != nil {
+		return err
+	}
+	if store == nil {
+		return errors.New("this backup is only in S3, which is no longer configured")
+	}
+	object, err := store.Get(ctx, remoteKey)
+	if err != nil {
+		return err
+	}
+	defer object.Close()
+	_, err = h.executeSSHStream(ctx, serverID, "mkdir -p "+dir+" && cat > "+file+".part && mv "+file+".part "+file, object)
+	return err
+}
+
+func (h *Handler) deleteRemoteBackup(ctx context.Context, remoteKey string) error {
+	if remoteKey == "" {
+		return nil
+	}
+	store, err := backupstore.Load(ctx, h.db)
+	if store == nil || err != nil {
+		return err
+	}
+	return store.Delete(ctx, remoteKey)
 }
 
 func (h *Handler) finishBackup(backupID, status string, size int64, message string) {
@@ -329,7 +404,14 @@ func (h *Handler) backupKeep(ctx context.Context, serviceID string) int {
 }
 
 func (h *Handler) removeBackup(ctx context.Context, serviceID, serverID, backupID string) error {
-	if _, err := h.executeSSH(ctx, serverID, "rm -f "+backupFile(serviceID, backupID)); err != nil {
+	var remoteKey string
+	if err := h.db.QueryRowContext(ctx, "SELECT COALESCE(remote_key, '') FROM service_backups WHERE id = ?", backupID).Scan(&remoteKey); err != nil {
+		return err
+	}
+	if _, err := h.executeSSH(ctx, serverID, "rm -f "+backupFile(serviceID, backupID)); err != nil && remoteKey == "" {
+		return err
+	}
+	if err := h.deleteRemoteBackup(ctx, remoteKey); err != nil {
 		return err
 	}
 	_, err := h.db.ExecContext(ctx, "DELETE FROM service_backups WHERE id = ?", backupID)
@@ -339,7 +421,7 @@ func (h *Handler) removeBackup(ctx context.Context, serviceID, serverID, backupI
 func (h *Handler) readBackup(w http.ResponseWriter, r *http.Request, serviceID string) (serviceBackup, string, bool) {
 	var backup serviceBackup
 	var serverID string
-	err := h.db.QueryRowContext(r.Context(), "SELECT id, status, server_id, format FROM service_backups WHERE id = ? AND service_id = ?", r.PathValue("backupID"), serviceID).Scan(&backup.ID, &backup.Status, &serverID, &backup.format)
+	err := h.db.QueryRowContext(r.Context(), "SELECT id, status, server_id, format, COALESCE(remote_key, '') FROM service_backups WHERE id = ? AND service_id = ?", r.PathValue("backupID"), serviceID).Scan(&backup.ID, &backup.Status, &serverID, &backup.format, &backup.remoteKey)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "backup not found")
 		return backup, "", false
@@ -385,7 +467,7 @@ func (h *Handler) restoreBackup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if target.service.ServerID != serverID {
+	if target.service.ServerID != serverID && backup.remoteKey == "" {
 		writeError(w, http.StatusConflict, "this backup is stored on another server")
 		return
 	}
@@ -407,14 +489,17 @@ func (h *Handler) restoreBackup(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), backupTimeout)
 		defer cancel()
 		message := ""
-		if _, err := h.executeSSH(ctx, serverID, restoreCommand(target, backup.ID, backup.format)); err != nil {
+		serverID := target.service.ServerID
+		if err := h.fetchBackup(ctx, serverID, backupDir+serviceID, backupFile(serviceID, backup.ID), backup.remoteKey); err != nil {
+			message = "Could not copy the backup from S3: " + err.Error()
+		} else if _, err := h.executeSSH(ctx, serverID, restoreCommand(target, backup.ID, backup.format)); err != nil {
 			message = "Restore failed: " + err.Error()
 		}
 		var errorText any
 		if message != "" {
 			errorText = message
 		}
-		if _, err := h.db.ExecContext(context.Background(), "UPDATE service_backups SET status = 'succeeded', error = ? WHERE id = ?", errorText, backup.ID); err != nil {
+		if _, err := h.db.ExecContext(context.Background(), "UPDATE service_backups SET status = 'succeeded', error = ?, server_id = IF(? = '', server_id, ?) WHERE id = ?", errorText, message, serverID, backup.ID); err != nil {
 			logger.Warn("could not save restore of backup %s: %v", backup.ID, err)
 		}
 	}()
@@ -446,6 +531,14 @@ func (h *Handler) downloadBackup(w http.ResponseWriter, r *http.Request) {
 			extension = ".archive.gz"
 		}
 	}
+	w.Header().Set("Content-Type", "application/gzip")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+"-"+backup.ID+extension+`"`)
+	if backup.remoteKey != "" {
+		if _, err := h.executeSSH(r.Context(), serverID, "test -f "+backupFile(serviceID, backup.ID)); err != nil {
+			h.downloadRemoteBackup(w, r, backup.remoteKey)
+			return
+		}
+	}
 	connection, err := h.connectSSH(r.Context(), serverID)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "could not reach the server")
@@ -460,11 +553,30 @@ func (h *Handler) downloadBackup(w http.ResponseWriter, r *http.Request) {
 	defer session.Close()
 	controller := http.NewResponseController(w)
 	_ = controller.SetWriteDeadline(time.Now().Add(2 * time.Hour))
-	w.Header().Set("Content-Type", "application/gzip")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+name+"-"+backup.ID+extension+`"`)
 	session.Stdout = w
 	if err := session.Run("cat " + backupFile(serviceID, backup.ID)); err != nil {
 		logger.Warn("backup download %s failed: %v", backup.ID, err)
+	}
+}
+
+func (h *Handler) downloadRemoteBackup(w http.ResponseWriter, r *http.Request, remoteKey string) {
+	store, err := backupstore.Load(r.Context(), h.db)
+	if err == nil && store == nil {
+		err = errors.New("S3 is no longer configured")
+	}
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "could not read the backup from S3")
+		return
+	}
+	object, err := store.Get(r.Context(), remoteKey)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "could not read the backup from S3")
+		return
+	}
+	defer object.Close()
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(2 * time.Hour))
+	if _, err := io.Copy(w, object); err != nil {
+		logger.Warn("backup download from S3 failed: %v", err)
 	}
 }
 
