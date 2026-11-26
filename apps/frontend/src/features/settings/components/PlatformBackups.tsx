@@ -27,7 +27,7 @@ export function PlatformBackups() {
   }, [busy, data]);
 
   async function restore(backup: Backup) {
-    const key = backup.uploaded ? window.prompt(t("Paste the recovery key of the installation this backup came from. Leave it empty if it came from this one.")) : "";
+    const key = backup.uploaded ? window.prompt(t("Recovery key of the installation this came from (empty if this one):")) : "";
     if (key === null) throw new Error(t("Restore cancelled."));
     await api(`${url}/${backup.id}/restore`, { method: "POST", body: { key } });
     window.location.reload();
@@ -44,7 +44,7 @@ export function PlatformBackups() {
           <UploadBackupButton url={url} disabled={busy} onUploaded={reload} />
           <button className="btn" type="button" disabled={pending} onClick={() => void run(async () => { const { key } = await api<{ key: string }>("/settings/encryption-key", { method: "POST" }); downloadText("kymber-encryption-key.txt", `${key}\n`); })}>{t("Download recovery key")}</button>
         </div>
-        <p className="text-meta text-ink-soft">{t("The recovery key decrypts the passwords and variables inside every backup. It is never stored with them: keep it somewhere safe, away from this server. Restoring replaces every project, app, user and setting with the backup's; you may need to sign in again.")}</p>
+        <p className="text-meta text-ink-soft">{t("Keep the recovery key off this server: backups need it to open secrets.")}</p>
         <FormError message={error} />
       </div>
       {data.backups.length === 0 ? <p className="p-4 text-meta text-ink-soft">{t("No backups yet.")}</p> : <ul>{data.backups.map((backup) => <BackupRow backup={backup} url={url} restore={() => restore(backup)} onChanged={reload} key={backup.id} />)}</ul>}

@@ -53,9 +53,9 @@ export function BackupDestinationForm() {
   return (
     <form onSubmit={submit}>
       <div className="grid gap-4 p-4 sm:grid-cols-2">
-        <Field label={t("Endpoint")} required placeholder="s3.amazonaws.com" autoCapitalize="none" spellCheck={false} value={form.endpoint} onChange={set("endpoint")} hint={t("Any S3-compatible service: AWS, Cloudflare R2, Backblaze B2, MinIO.")} />
+        <Field label={t("Endpoint")} required placeholder="s3.amazonaws.com" autoCapitalize="none" spellCheck={false} value={form.endpoint} onChange={set("endpoint")} hint={t("AWS, R2, B2, MinIO…")} />
         <Field label={t("Bucket")} required placeholder="kymber-backups" autoCapitalize="none" spellCheck={false} value={form.bucket} onChange={set("bucket")} />
-        <Field label={t("Region")} placeholder="us-east-1" autoCapitalize="none" spellCheck={false} value={form.region} onChange={set("region")} hint={t("Leave empty when the provider does not use regions.")} />
+        <Field label={t("Region")} placeholder="us-east-1" autoCapitalize="none" spellCheck={false} value={form.region} onChange={set("region")} />
         <Field label={t("Folder in the bucket")} placeholder="kymber" autoCapitalize="none" spellCheck={false} value={form.prefix} onChange={set("prefix")} />
         <Field label={t("Access key")} required autoCapitalize="none" spellCheck={false} autoComplete="off" value={form.access_key} onChange={set("access_key")} />
         <Field label={t("Secret key")} type="password" required={!hasSecret} autoComplete="new-password" placeholder={hasSecret ? t("Unchanged") : ""} value={secretKey} onChange={(event) => setSecretKey(event.target.value)} />

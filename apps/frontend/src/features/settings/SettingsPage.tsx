@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { useCurrentUser } from "@/features/auth/AuthContext";
 import { AccountSettings } from "./components/AccountSettings";
 import { AppearanceSettings } from "./components/AppearanceSettings";
+import { BackupSettings } from "./components/BackupSettings";
 import { GitProvidersSettings } from "./components/GitProvidersSettings";
 import { SystemSettings } from "./components/SystemSettings";
 import { WorkspaceSettings } from "./components/WorkspaceSettings";
@@ -14,17 +15,18 @@ const descriptions: Partial<Record<string, string>> = {
   git: t("GitHub, GitLab, Bitbucket and SSH connections for app builds."),
   system: t("Options for everyone on this server."),
   users: t("Manage accounts on this server."),
+  backups: t("Kymber's backups and where they go."),
 };
 
-export function SettingsPage({ section }: { section: "account" | "appearance" | "workspace" | "git" | "system" | "users" }) {
+export function SettingsPage({ section }: { section: "account" | "appearance" | "workspace" | "git" | "system" | "users" | "backups" }) {
   const user = useCurrentUser();
-  if ((section === "system" || section === "users") && !user.is_root) return <Navigate to="/settings" replace />;
+  if ((section === "system" || section === "users" || section === "backups") && !user.is_root) return <Navigate to="/settings" replace />;
   const tabs = [
     { label: t("Account"), to: "/settings" },
     { label: t("Appearance"), to: "/settings/appearance" },
     { label: t("Workspace"), to: "/settings/workspace" },
     { label: "Git", to: "/settings/git" },
-    ...(user.is_root ? [{ label: t("System"), to: "/settings/system" }, { label: t("Users"), to: "/settings/users" }] : []),
+    ...(user.is_root ? [{ label: t("System"), to: "/settings/system" }, { label: t("Users"), to: "/settings/users" }, { label: t("Backups"), to: "/settings/backups" }] : []),
   ];
 
   return (
@@ -50,6 +52,7 @@ export function SettingsPage({ section }: { section: "account" | "appearance" | 
       {section === "git" && <GitProvidersSettings />}
       {section === "system" && <SystemSettings />}
       {section === "users" && <SystemSettings usersOnly />}
+      {section === "backups" && <BackupSettings />}
       <p className="px-4 pt-2 pb-8 text-xs text-ink-soft md:px-6">
         {t("Kymber is free software under the AGPL-3.0 license.")}{" "}
         <a className="text-button" href="https://github.com/argarian-group/Kymber" target="_blank" rel="noreferrer">

@@ -81,6 +81,7 @@ const router = createBrowserRouter(createRoutesFromElements(
     <Route path="settings/git" element={<SettingsPage section="git" />} />
     <Route path="settings/system" element={<SettingsPage section="system" />} />
     <Route path="settings/users" element={<SettingsPage section="users" />} />
+    <Route path="settings/backups" element={<SettingsPage section="backups" />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Route>,
 ));

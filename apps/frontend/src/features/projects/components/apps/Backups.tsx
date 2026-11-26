@@ -39,7 +39,7 @@ export function ScheduleForm({ settings, url, onSaved }: { settings: BackupSetti
   return (
     <form onSubmit={submit}>
       <div className="grid items-start gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_160px]">
-        <Field label={t("Schedule")} maxLength={100} className="field font-mono" placeholder="0 3 * * *" hint={settings.schedule && settings.next_run_at ? t("Next backup {date}.", { date: timeFormat.format(new Date(settings.next_run_at)) }) : t("Cron in UTC, such as 0 3 * * * for every day at 03:00. Empty turns scheduled backups off.")} value={schedule} onChange={(event) => setSchedule(event.target.value)} />
+        <Field label={t("Schedule")} maxLength={100} className="field font-mono" placeholder="0 3 * * *" hint={settings.schedule && settings.next_run_at ? t("Next backup {date}.", { date: timeFormat.format(new Date(settings.next_run_at)) }) : t("Cron in UTC. Empty turns it off.")} value={schedule} onChange={(event) => setSchedule(event.target.value)} />
         <Field label={t("Backups to keep")} type="number" required min={1} max={365} value={keep} onChange={(event) => setKeep(event.target.value)} />
       </div>
       <FormFooter error={error} saved={saved}>
@@ -68,7 +68,7 @@ export function BackupRow({ backup, url, restore, onChanged }: { backup: Backup;
         <div className="flex flex-wrap gap-2">
           {backup.status === "succeeded" && <a className="btn" href={`/api${url}/${backup.id}/download`} download>{t("Download")}</a>}
           {backup.status === "succeeded" && (
-            <button className="btn" type="button" disabled={pending} onClick={() => { if (window.confirm(t("Restore this backup? Current data is replaced by the backup's contents."))) void run(async () => { await (restore ? restore() : api(`${url}/${backup.id}/restore`, { method: "POST" })); onChanged(); }); }}>{t("Restore")}</button>
+            <button className="btn" type="button" disabled={pending} onClick={() => { if (window.confirm(t("Restore this backup? Current data is replaced."))) void run(async () => { await (restore ? restore() : api(`${url}/${backup.id}/restore`, { method: "POST" })); onChanged(); }); }}>{t("Restore")}</button>
           )}
           {!busy && <button className="btn" type="button" disabled={pending} onClick={() => { if (window.confirm(t("Delete this backup?"))) void run(async () => { await api(`${url}/${backup.id}`, { method: "DELETE" }); onChanged(); }); }}>{t("Delete")}</button>}
         </div>
