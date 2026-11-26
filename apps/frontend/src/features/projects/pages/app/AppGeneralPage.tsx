@@ -111,7 +111,7 @@ export function AppGeneralPage() {
           {canWrite && (
             <FormFooter error={error} saved={saved}>
               {draft && gitBuild && searchParams.has("build") && !githubBuildId && <button className="btn" type="button" disabled={pending} onClick={() => void queueGitBuild()}>{pending ? t("Creating build…") : t("Create build")}</button>}
-              {draft && gitBuild && !searchParams.has("build") && <Link className="btn" to="../source">{t("Configure GitHub build")}</Link>}
+              {draft && gitBuild && !searchParams.has("build") && <Link className="btn" to="source">{t("Configure GitHub build")}</Link>}
               <button className="btn btn-primary" type="submit" disabled={pending || busy || !changed || (gitBuild && !draft && !githubBuildId)}>
                 {pending ? t("Saving…") : draft && !githubBuildId ? t("Save") : gitBuild ? t("Deploy selected GitHub build") : t("Deploy this version")}
               </button>
