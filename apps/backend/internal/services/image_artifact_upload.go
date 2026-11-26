@@ -50,7 +50,7 @@ func (h *Handler) deployImageArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.ContentLength > artifacts.MaxOCIArchiveSize {
-		writeError(w, http.StatusRequestEntityTooLarge, "OCI archive exceeds 1 GiB")
+		writeError(w, http.StatusRequestEntityTooLarge, "OCI archive exceeds 4 GiB")
 		return
 	}
 	if !allowArtifactTransfer(w) {
@@ -61,7 +61,7 @@ func (h *Handler) deployImageArtifact(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		status := http.StatusBadRequest
 		var maxBytesError *http.MaxBytesError
-		if errors.As(err, &maxBytesError) || strings.Contains(err.Error(), "exceeds 1 GiB") {
+		if errors.As(err, &maxBytesError) || strings.Contains(err.Error(), "exceeds 4 GiB") {
 			status = http.StatusRequestEntityTooLarge
 		}
 		writeError(w, status, err.Error())

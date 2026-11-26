@@ -21,7 +21,7 @@ func (h *Handler) importOCIImage(ctx context.Context, serverID, deploymentID str
 		return "", err
 	}
 	if info.Size() > artifacts.MaxOCIArchiveSize {
-		return "", errors.New("OCI archive exceeds 1 GiB")
+		return "", errors.New("OCI archive exceeds 4 GiB")
 	}
 	tag := "docker.io/kymber/build-artifacts:" + deploymentID
 	dockerArchive, expected, err := artifacts.ConvertOCIToDockerArchive(source, tag)

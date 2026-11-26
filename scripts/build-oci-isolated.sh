@@ -41,8 +41,8 @@ if ! docker buildx build "$@" --file "$dockerfile" --output "type=oci,dest=$outp
 	exit 1
 fi
 size=$(wc -c < "$output")
-if [ "$size" -gt 1073741824 ]; then
-	printf 'OCI archive exceeds 1 GiB\n' >&2
+if [ "$size" -gt 4294967296 ]; then
+	printf 'OCI archive exceeds 4 GiB\n' >&2
 	exit 1
 fi
 success=1

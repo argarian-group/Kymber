@@ -21,6 +21,7 @@ import (
 	"kymber/backend/internal/artifacts"
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/logger"
 	"kymber/backend/internal/permissions"
 	"kymber/backend/internal/secrets"
 	"kymber/backend/internal/templates"
@@ -149,7 +150,7 @@ var gitHubOwnerPattern = regexp.MustCompile(`^[A-Za-z0-9-]{1,39}$`)
 var gitHubRepositoryPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,100}$`)
 var gitCommitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
-const maxBuildArtifactStorage int64 = 10 << 30
+const maxBuildArtifactStorage int64 = 20 << 30
 
 func gitBuildsEnabled() bool { return os.Getenv("KYMBER_GIT_BUILDS_ENABLED") == "true" }
 
@@ -523,7 +524,7 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		status := http.StatusBadRequest
 		var maxBytesError *http.MaxBytesError
-		if errors.As(err, &maxBytesError) || strings.Contains(err.Error(), "exceeds 1 GiB") {
+		if errors.As(err, &maxBytesError) || strings.Contains(err.Error(), "exceeds 4 GiB") {
 			status = http.StatusRequestEntityTooLarge
 		}
 		writeError(w, status, err.Error())
@@ -582,7 +583,7 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if info.Size() > artifacts.MaxOCIArchiveSize {
-		writeError(w, http.StatusRequestEntityTooLarge, "OCI artifact exceeds 1 GiB")
+		writeError(w, http.StatusRequestEntityTooLarge, "OCI artifact exceeds 4 GiB")
 		return
 	}
 	if err := h.expireGitBuildArtifacts(r.Context(), directory); err != nil {
@@ -605,14 +606,22 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var artifactBytes int64
-	rows, err := capacityTx.QueryContext(r.Context(), "SELECT artifact_size FROM git_build_jobs WHERE artifact_path IS NOT NULL AND artifact_expires_at > UTC_TIMESTAMP(6) AND id <> ? FOR UPDATE", jobID)
+	type storedArtifact struct {
+		id   string
+		size int64
+	}
+	var evictable []storedArtifact
+	rows, err := capacityTx.QueryContext(r.Context(), `SELECT id, artifact_size, id IN (SELECT image_version FROM database_services WHERE image = 'docker.io/kymber/build-artifacts') FROM git_build_jobs
+		WHERE artifact_path IS NOT NULL AND artifact_expires_at > UTC_TIMESTAMP(6) AND id <> ? ORDER BY finished_at FOR UPDATE`, jobID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not check artifact storage capacity")
 		return
 	}
 	for rows.Next() {
+		var id string
 		var size int64
-		if err := rows.Scan(&size); err != nil {
+		var inUse bool
+		if err := rows.Scan(&id, &size, &inUse); err != nil {
 			rows.Close()
 			writeError(w, http.StatusInternalServerError, "could not check artifact storage capacity")
 			return
@@ -623,6 +632,9 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		artifactBytes += size
+		if !inUse {
+			evictable = append(evictable, storedArtifact{id, size})
+		}
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
@@ -632,6 +644,14 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 	if err := rows.Close(); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not check artifact storage capacity")
 		return
+	}
+	for len(evictable) > 0 && info.Size() <= maxBuildArtifactStorage && artifactBytes > maxBuildArtifactStorage-info.Size() {
+		if _, err := capacityTx.ExecContext(r.Context(), "UPDATE git_build_jobs SET artifact_expires_at = UTC_TIMESTAMP(6) WHERE id = ?", evictable[0].id); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not free build artifact storage")
+			return
+		}
+		artifactBytes -= evictable[0].size
+		evictable = evictable[1:]
 	}
 	if info.Size() > maxBuildArtifactStorage || artifactBytes > maxBuildArtifactStorage-info.Size() {
 		writeError(w, http.StatusInsufficientStorage, "build artifact storage limit reached")
@@ -691,6 +711,9 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	keep = true
+	if err := h.expireGitBuildArtifacts(r.Context(), directory); err != nil {
+		logger.Warn("could not remove old build artifacts: %v", err)
+	}
 	if deployOnSuccess {
 		h.reportCommitStatus(jobID, "running", "Built, deploying")
 		go h.deployGitBuild(jobID)

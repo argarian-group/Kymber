@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-const MaxOCIArchiveSize int64 = 1 << 30
+const MaxOCIArchiveSize int64 = 4 << 30
 const maxOCIMetadataSize int64 = 4 << 20
 
 var sha256Digest = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -79,7 +79,7 @@ func SpoolOCI(r io.Reader) (*os.File, string, error) {
 		return remove(err)
 	}
 	if size > MaxOCIArchiveSize {
-		return remove(errors.New("OCI archive exceeds 1 GiB"))
+		return remove(errors.New("OCI archive exceeds 4 GiB"))
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return remove(err)
@@ -102,7 +102,7 @@ func ConvertOCIToDockerArchive(oci *os.File, tag string) (*os.File, OCIImage, er
 		return nil, OCIImage{}, err
 	}
 	if info.Size() > MaxOCIArchiveSize {
-		return nil, OCIImage{}, errors.New("OCI archive exceeds 1 GiB")
+		return nil, OCIImage{}, errors.New("OCI archive exceeds 4 GiB")
 	}
 	if err := validateOCI(oci, info.Size()); err != nil {
 		return nil, OCIImage{}, err
@@ -194,7 +194,7 @@ type limitedWriter struct {
 
 func (w *limitedWriter) Write(data []byte) (int, error) {
 	if int64(len(data)) > w.limit-w.written {
-		return 0, errors.New("Docker archive exceeds 1 GiB")
+		return 0, errors.New("Docker archive exceeds 4 GiB")
 	}
 	n, err := w.writer.Write(data)
 	w.written += int64(n)
