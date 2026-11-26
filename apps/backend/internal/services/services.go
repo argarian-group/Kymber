@@ -351,7 +351,6 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 	}
 	template := serviceTemplate(service)
 	if service.Status != "draft" {
-		// Custom apps keep their variables and port editable after the first deploy; changes apply on the next deploy.
 		renamed := input.Name != "" && strings.ToLower(strings.TrimSpace(input.Name)) != service.Name
 		retagged := input.ImageVersion != "" && input.ImageVersion != service.ImageVersion
 		if !template.Custom || renamed || retagged || input.DataPath != nil {
@@ -363,7 +362,11 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if service.Image == "docker.io/kymber/build-artifacts" && input.Port != nil && (*input.Port < 0 || *input.Port > 65535) {
+	if input.Port != nil && !template.Custom {
+		writeError(w, http.StatusBadRequest, "this app's port comes from its template")
+		return
+	}
+	if input.Port != nil && (*input.Port < 0 || *input.Port > 65535) {
 		writeError(w, http.StatusBadRequest, "port must be between 0 and 65535")
 		return
 	}
@@ -401,7 +404,7 @@ func (h *Handler) updateService(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "service encryption is not configured")
 		return
 	}
-	if input.Port != nil && service.Image == "docker.io/kymber/build-artifacts" {
+	if input.Port != nil {
 		service.Port = *input.Port
 	}
 	if input.DataPath != nil && service.Image == "docker.io/kymber/build-artifacts" {

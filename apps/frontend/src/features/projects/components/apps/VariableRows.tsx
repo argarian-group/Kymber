@@ -4,10 +4,12 @@ import { t } from "@/lib/i18n";
 
 export type Variable = { id: number; name: string; value: string };
 
+const dotEnvLine = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/;
+
 export function parseDotEnv(text: string) {
   const parsed: { name: string; value: string }[] = [];
   for (const line of text.split(/\r?\n/)) {
-    const match = line.trim().match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    const match = line.trim().match(dotEnvLine);
     if (!match) continue;
     const value = match[2].replace(/^(["'])(.*)\1$/, "$2");
     parsed.push({ name: match[1], value });
@@ -15,7 +17,22 @@ export function parseDotEnv(text: string) {
   return parsed;
 }
 
-export function VariableRows({ variables, onChange }: { variables: Variable[]; onChange: (variables: Variable[]) => void }) {
+export function invalidDotEnvLine(text: string) {
+  const index = text.split(/\r?\n/).findIndex((line) => line.trim() !== "" && !line.trim().startsWith("#") && !dotEnvLine.test(line.trim()));
+  return index === -1 ? null : index + 1;
+}
+
+export function formatDotEnv(variables: { name: string; value: string }[]) {
+  return variables
+    .filter(({ name }) => name)
+    .map(({ name, value }) => {
+      const quoted = value.match(/^(["']).*\1$/);
+      return `${name}=${quoted ? (quoted[1] === '"' ? `'${value}'` : `"${value}"`) : value}`;
+    })
+    .join("\n");
+}
+
+export function VariableRows({ variables, revealed = false, onChange }: { variables: Variable[]; revealed?: boolean; onChange: (variables: Variable[]) => void }) {
   function update(id: number, change: Partial<Variable>) {
     onChange(variables.map((variable) => (variable.id === id ? { ...variable, ...change } : variable)));
   }
@@ -38,7 +55,7 @@ export function VariableRows({ variables, onChange }: { variables: Variable[]; o
           <button className="btn order-none px-2 sm:order-last" type="button" aria-label={t("Remove {name}", { name: name || t("variable") })} onClick={() => onChange(variables.filter((variable) => variable.id !== id))}>
             <X aria-hidden="true" size={16} />
           </button>
-          <input className="field col-span-2 sm:col-span-1" type="password" aria-label={t("Value of {name}", { name: name || t("variable") })} autoComplete="off" placeholder={t("Value")} value={value} onChange={(event) => update(id, { value: event.target.value })} />
+          <input className="field col-span-2 font-mono sm:col-span-1" type={revealed ? "text" : "password"} aria-label={t("Value of {name}", { name: name || t("variable") })} autoComplete="off" placeholder={t("Value")} value={value} onChange={(event) => update(id, { value: event.target.value })} />
         </div>
       ))}
       <button className="btn w-fit" type="button" onClick={() => onChange([...variables, { id: Date.now(), name: "", value: "" }])}>
