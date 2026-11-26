@@ -417,7 +417,7 @@ func (h *Handler) serviceLogs(w http.ResponseWriter, r *http.Request) {
 			code = strings.TrimSpace(code)
 			if code == "0" {
 				status = "running"
-				h.finishDeploy(r.Context(), serviceID, true, "")
+				h.finishDeploy(r.Context(), serviceID, true, strings.TrimSpace(output))
 				if !service.Compose {
 					if _, container, found := strings.Cut(after, "__KYMBER_CONTAINER__"); found {
 						output = strings.TrimSpace(output) + "\n\n--- Container output ---\n" + strings.TrimSpace(container)

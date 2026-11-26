@@ -52,6 +52,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		{"GET /api/workspaces/{workspaceID}/git-providers/{providerID}/repositories", h.listGitProviderRepositories},
 		{"POST /api/workspaces/{workspaceID}/git-providers/{providerID}/sync", h.syncGitHubApp},
 		{"POST /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-builds/{jobID}/rebuild", h.rebuildGitCommit},
+		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-builds/{jobID}/log", h.getGitBuildLog},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-source", h.getGitSource},
 		{"PUT /api/workspaces/{workspaceID}/projects/{projectID}/services/{serviceID}/git-source", h.updateGitSource},
 		{"GET /api/workspaces/{workspaceID}/projects/{projectID}/git-builds/branches", h.listGitHubBranches},
@@ -99,6 +100,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /internal/build-worker/claim", h.claimGitBuild)
 	mux.HandleFunc("GET /internal/build-worker/server", h.buildWorkerServer)
 	mux.HandleFunc("POST /internal/build-worker/jobs/{jobID}/heartbeat", h.heartbeatGitBuild)
+	mux.HandleFunc("PUT /internal/build-worker/jobs/{jobID}/log", h.storeGitBuildLog)
 	mux.HandleFunc("POST /internal/build-worker/jobs/{jobID}/fail", h.failGitBuild)
 	mux.HandleFunc("POST /internal/build-worker/jobs/{jobID}/artifact", h.storeGitBuildArtifact)
 }

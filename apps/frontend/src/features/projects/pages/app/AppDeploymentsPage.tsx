@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FormError } from "@/components/ui/FormError";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
@@ -19,6 +19,13 @@ type Deployment = {
   finished_at: string | null;
 };
 
+type GitBuild = { id: string; ref: string; commit_sha?: string; status: string; result_message?: string; created_at: string; artifact_expires_at?: string; trigger: string };
+
+type Item = { key: string; time: string; active: boolean } & ({ kind: "deploy"; deployment: Deployment } | { kind: "build"; build: GitBuild });
+
+const pollMs = 2500;
+const idlePollMs = 5000;
+
 function deploymentTitle(deployment: Deployment) {
   const action = deployment.action === "deploy" ? t("Deploy") : deployment.action;
   const status = {
@@ -30,67 +37,157 @@ function deploymentTitle(deployment: Deployment) {
   return t("{action} · {status}", { action, status });
 }
 
-export function AppDeploymentsPage() {
-  const { service, path, canWrite, onChanged } = useAppOutlet();
-  const [deployments, setDeployments] = useState<Deployment[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<{ id: string; output: string } | null>(null);
-  const [revision, setRevision] = useState(0);
-  const { pending, error: actionError, run } = useAction();
+function buildTitle(build: GitBuild) {
+  const status = { queued: t("Queued"), running: t("Building…"), succeeded: t("Succeeded"), failed: t("Failed"), cancelled: t("Cancelled") }[build.status] ?? build.status;
+  const trigger = { manual: t("Manual"), push: t("Push"), rollback: t("Rollback"), pull_request: t("Pull request") }[build.trigger] ?? build.trigger;
+  return t("Build ({trigger}) · {status}", { trigger, status });
+}
 
-  useLoadEffect(
-    () => api<{ deployments: Deployment[] }>(`${path}/${service.id}/deployments`).then(({ deployments }) => deployments),
-    setDeployments,
-    setError,
-    [path, service.id, revision],
-  );
+function ItemLog({ item, path, serviceId }: { item: Item; path: string; serviceId: string }) {
+  const [log, setLog] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const bottom = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
-    if (!deployments?.some(({ status }) => status === "deploying")) return;
-    const timer = window.setInterval(() => setRevision((value) => value + 1), 3000);
+    let current = true;
+    const load = async () => {
+      try {
+        const text =
+          item.kind === "build"
+            ? (await api<{ log: string }>(`${path}/${serviceId}/git-builds/${item.build.id}/log`)).log
+            : item.active
+              ? (await api<{ logs: string }>(`${path}/${serviceId}/logs`)).logs
+              : (await api<{ output: string }>(`${path}/${serviceId}/deployments/${item.deployment.id}`)).output;
+        if (current) setLog(text);
+      } catch {
+        if (current) setError(t("Logs could not be loaded."));
+      }
+    };
+    void load();
+    if (!item.active) return () => { current = false; };
+    const timer = window.setInterval(load, pollMs);
+    return () => {
+      current = false;
+      window.clearInterval(timer);
+    };
+  }, [item.key, item.active, path, serviceId]);
+
+  useEffect(() => {
+    const element = bottom.current;
+    if (element && item.active) element.scrollTop = element.scrollHeight;
+  }, [log, item.active]);
+
+  if (error) return <FormError message={error} />;
+  return (
+    <pre ref={bottom} id={`log-${item.key}`} className="max-h-96 overflow-auto rounded-control bg-canvas p-4 font-mono text-xs whitespace-pre-wrap wrap-break-word text-ink-soft" aria-live={item.active ? "polite" : undefined}>
+      {log === null ? t("Loading logs…") : log || (item.active ? t("Waiting for output…") : t("No output was recorded."))}
+    </pre>
+  );
+}
+
+export function AppDeploymentsPage() {
+  const { service, path, canWrite, onChanged } = useAppOutlet();
+  const gitBuild = service.image === "docker.io/kymber/build-artifacts";
+  const [items, setItems] = useState<Item[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+  const { pending, error: actionError, run } = useAction();
+  const busy = isServiceBusy(service.status);
+
+  useLoadEffect(
+    async () => {
+      const [{ deployments }, builds] = await Promise.all([
+        api<{ deployments: Deployment[] }>(`${path}/${service.id}/deployments`),
+        gitBuild ? api<GitBuild[]>(`${path}/${service.id}/git-builds`) : Promise.resolve([]),
+      ]);
+      return [
+        ...deployments.map((deployment): Item => ({ kind: "deploy", deployment, key: `deploy-${deployment.id}`, time: deployment.started_at, active: deployment.status === "deploying" })),
+        ...builds.map((build): Item => ({ kind: "build", build, key: `build-${build.id}`, time: build.created_at, active: build.status === "queued" || build.status === "running" })),
+      ].sort((a, b) => Date.parse(b.time) - Date.parse(a.time));
+    },
+    (loaded) => {
+      setItems(loaded);
+      setError(null);
+    },
+    setError,
+    [path, service.id, gitBuild, revision, service.status],
+  );
+
+  const active = items?.find((item) => item.active)?.key;
+  // Keep the last followed item open after it finishes, so the final result stays on screen.
+  const [followed, setFollowed] = useState<string | undefined>();
+  useEffect(() => {
+    if (active) setFollowed(active);
+  }, [active]);
+  const shown = openKey ?? active ?? followed;
+
+  // Keep polling while idle too, so a build started from the header shows up here right away.
+  const anyActive = items?.some(({ active }) => active) ?? false;
+  useEffect(() => {
+    const timer = window.setInterval(() => setRevision((value) => value + 1), anyActive ? pollMs : idlePollMs);
     return () => window.clearInterval(timer);
-  }, [deployments]);
+  }, [anyActive]);
+
+  const reload = () => {
+    onChanged();
+    setRevision((value) => value + 1);
+  };
 
   return (
-    <AppSection title={t("Deployments")} description={t("History of deploy attempts for this app.")}>
+    <AppSection title={t("Deployments")} description={gitBuild ? t("Builds and deploys of this app, newest first. The one in progress opens with live logs.") : t("History of deploy attempts for this app.")}>
       <FormError message={error} />
       <FormError message={actionError} />
-      {deployments?.length === 0 && <EmptyState title={t("No deployments yet")} description={t("Deploy this app to start its history.")} />}
-      <div className="grid gap-3">
-        {deployments?.map((deployment) => (
-          <div className="grid gap-2" key={deployment.id}>
-            <article className="grid gap-2 rounded-control border border-line-subtle p-4 sm:grid-cols-[1fr_auto] sm:items-center">
-              <div className="min-w-0">
-                <p className="font-medium">{deploymentTitle(deployment)}</p>
-                <time className="text-meta text-ink-soft" dateTime={deployment.started_at}>
-                  {new Date(deployment.started_at).toLocaleString(language)}
-                </time>
-                {!service.compose && deployment.image_version && <p className="mt-1 font-mono text-xs text-ink-soft">{service.image}:{deployment.image_version}</p>}
-                {deployment.last_error && <p className="mt-2 text-meta wrap-break-word text-ember">{deployment.last_error}</p>}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {canWrite && service.category === "application" && !service.compose && deployment.status === "succeeded" && deployment.image_version !== service.image_version && <button className="btn" type="button" disabled={pending || isServiceBusy(service.status)} onClick={() => void run(async () => {
-                  await api(`${path}/${service.id}/deploy`, { method: "POST", body: { image_version: deployment.image_version } });
-                  onChanged();
-                  setRevision((value) => value + 1);
-                })}>{t("Deploy version {version}", { version: deployment.image_version })}</button>}
-                <button className="btn" type="button" aria-expanded={selected?.id === deployment.id} aria-controls={selected?.id === deployment.id ? `deployment-output-${deployment.id}` : undefined} onClick={async () => {
-                if (selected?.id === deployment.id) {
-                  setSelected(null);
-                  return;
-                }
-                try {
-                  const detail = await api<{ output: string }>(`${path}/${service.id}/deployments/${deployment.id}`);
-                  setSelected({ id: deployment.id, output: detail.output });
-                } catch {
-                  setError(t("Deployment logs could not be loaded."));
-                }
-                }}>{selected?.id === deployment.id ? t("Hide logs") : t("View logs")}</button>
-              </div>
-            </article>
-            {selected?.id === deployment.id && <pre id={`deployment-output-${deployment.id}`} className="max-h-96 overflow-auto rounded-control bg-canvas p-4 font-mono text-xs whitespace-pre-wrap wrap-break-word text-ink-soft">{selected.output || (deployment.status === "deploying" ? t("Deployment is still running.") : t("No output recorded."))}</pre>}
-          </div>
-        ))}
+      {items?.length === 0 && <EmptyState title={t("No deployments yet")} description={t("Deploy this app to start its history.")} />}
+      <div className="grid gap-3 p-4">
+        {items?.map((item) => {
+          const open = shown === item.key;
+          const build = item.kind === "build" ? item.build : null;
+          const deployment = item.kind === "deploy" ? item.deployment : null;
+          const available = build?.status === "succeeded" && build.artifact_expires_at && Date.parse(build.artifact_expires_at) > Date.now();
+          const finishedBuild = build && build.status !== "queued" && build.status !== "running";
+          return (
+            <div className="grid gap-2" key={item.key}>
+              <article className="grid gap-2 rounded-control border border-line-subtle p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    {build ? buildTitle(build) : deploymentTitle(deployment!)}
+                    {build?.id === service.image_version && <span className="ml-2 text-meta text-ink-soft">{t("current")}</span>}
+                  </p>
+                  <p className="text-meta text-ink-soft">
+                    <time dateTime={item.time}>{new Date(item.time).toLocaleString(language)}</time>
+                    {build && <> · {build.ref}{build.commit_sha && <span className="font-mono"> · {build.commit_sha.slice(0, 7)}</span>}</>}
+                  </p>
+                  {deployment && !service.compose && deployment.image_version && <p className="mt-1 font-mono text-xs text-ink-soft">{gitBuild ? t("Build {id}", { id: deployment.image_version }) : `${service.image}:${deployment.image_version}`}</p>}
+                  {(build?.result_message || deployment?.last_error) && <p className="mt-2 text-meta wrap-break-word text-ember">{build?.result_message || deployment?.last_error}</p>}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {canWrite && build && build.id !== service.image_version && service.status !== "draft" && (available ? (
+                    <button className="btn" type="button" disabled={pending || busy} onClick={() => void run(async () => {
+                      await api(`${path}/${service.id}/deploy`, { method: "POST", body: { image_version: build.id } });
+                      reload();
+                    })}>{t("Deploy this build")}</button>
+                  ) : finishedBuild && build.commit_sha && (
+                    <button className="btn" type="button" disabled={pending || busy} onClick={() => void run(async () => {
+                      await api(`${path}/${service.id}/git-builds/${build.id}/rebuild`, { method: "POST" });
+                      reload();
+                    })}>{t("Rebuild this commit")}</button>
+                  ))}
+                  {canWrite && deployment && !gitBuild && service.category === "application" && !service.compose && deployment.status === "succeeded" && deployment.image_version !== service.image_version && (
+                    <button className="btn" type="button" disabled={pending || busy} onClick={() => void run(async () => {
+                      await api(`${path}/${service.id}/deploy`, { method: "POST", body: { image_version: deployment.image_version } });
+                      reload();
+                    })}>{t("Deploy version {version}", { version: deployment.image_version })}</button>
+                  )}
+                  <button className="btn" type="button" aria-expanded={open} aria-controls={open ? `log-${item.key}` : undefined} onClick={() => setOpenKey(open ? "" : item.key)}>
+                    {open ? t("Hide logs") : t("View logs")}
+                  </button>
+                </div>
+              </article>
+              {open && <ItemLog item={item} path={path} serviceId={service.id} />}
+            </div>
+          );
+        })}
       </div>
     </AppSection>
   );

@@ -349,6 +349,71 @@ func (h *Handler) heartbeatGitBuild(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// maxBuildLogBytes bounds the stored log; the worker sends the tail of its log file.
+const maxBuildLogBytes = 256 << 10
+
+func (h *Handler) storeGitBuildLog(w http.ResponseWriter, r *http.Request) {
+	if !gitBuildsEnabled() {
+		writeError(w, http.StatusNotFound, "Git builds are disabled")
+		return
+	}
+	if !h.authenticateBuildWorker(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	jobID := r.PathValue("jobID")
+	attempt, ok := buildAttempt(w, r)
+	if !ok || !entityIDPattern.MatchString(jobID) {
+		if ok {
+			writeError(w, http.StatusBadRequest, "invalid job id")
+		}
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBuildLogBytes))
+	if err != nil {
+		writeError(w, http.StatusRequestEntityTooLarge, "build log is too large")
+		return
+	}
+	// The worker may finish the build before its last upload; keep accepting the final log once the job is done.
+	if _, err := h.db.ExecContext(r.Context(), "UPDATE git_build_jobs SET build_log = ? WHERE id = ? AND attempts = ?", strings.ToValidUTF8(string(body), "�"), jobID, attempt); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not store build log")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) getGitBuildLog(w http.ResponseWriter, r *http.Request) {
+	user, _ := auth.UserFromContext(r)
+	workspaceID, ok := pathID(w, r, "workspaceID")
+	if !ok || !h.authorize(w, r, user, workspaceID, "") {
+		return
+	}
+	projectID, ok := pathID(w, r, "projectID")
+	if !ok || !h.authorizeProject(w, r, workspaceID, projectID) {
+		return
+	}
+	serviceID, ok := pathID(w, r, "serviceID")
+	if !ok {
+		return
+	}
+	jobID, ok := pathID(w, r, "jobID")
+	if !ok {
+		return
+	}
+	var log string
+	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(b.build_log, '') FROM git_build_jobs b JOIN database_services s ON s.id = b.service_id
+		WHERE b.id = ? AND b.service_id = ? AND s.workspace_id = ? AND s.project_id = ?`, jobID, serviceID, workspaceID, projectID).Scan(&log)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "build not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read build log")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"log": log})
+}
+
 func (h *Handler) failGitBuild(w http.ResponseWriter, r *http.Request) {
 	if !gitBuildsEnabled() {
 		writeError(w, http.StatusNotFound, "Git builds are disabled")

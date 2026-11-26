@@ -107,6 +107,11 @@ report_failure() {
 		--data "$(jq -cn --arg message "$message" '{message:$message}')" >/dev/null || true
 }
 
+send_log() {
+	tail -c 262144 "$dir/build.log" 2>/dev/null | curl --connect-timeout 10 --max-time 30 --silent -o /dev/null -X PUT "$api/internal/build-worker/jobs/$job/log" \
+		-H "$headers" -H "X-Build-Attempt: $attempt" -H 'Content-Type: text/plain; charset=utf-8' --data-binary @- || true
+}
+
 active_dir=
 active_pid=
 cleanup() {
@@ -179,8 +184,9 @@ while :; do
 	failed=0
 	heartbeat_elapsed=0
 	while kill -0 "$build_pid" 2>/dev/null; do
-		sleep 15
-		heartbeat_elapsed=$((heartbeat_elapsed + 15))
+		sleep 3
+		send_log
+		heartbeat_elapsed=$((heartbeat_elapsed + 3))
 		kill -0 "$build_pid" 2>/dev/null || break
 		[ "$heartbeat_elapsed" -lt 240 ] && continue
 		heartbeat_elapsed=0
@@ -193,6 +199,7 @@ while :; do
 	if ! wait "$build_pid"; then
 		failed=1
 	fi
+	send_log
 	if [ "$failed" -ne 0 ]; then
 		tail -c 2048 "$dir/build.log" >&2 || true
 		report_failure "$job" "$attempt" 'Git checkout or host build failed.'

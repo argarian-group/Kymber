@@ -5,7 +5,6 @@ import { Modal } from "@/components/ui/Modal";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
 import { RuntimeSettings } from "@/features/projects/components/apps/RuntimeSettings";
 import { DeploymentDialog } from "@/features/projects/components/apps/DeploymentDialog";
-import { GitBuildHistory } from "@/features/projects/components/apps/GitBuildHistory";
 import { GitHubBuildForm } from "@/features/projects/components/apps/GitHubBuildForm";
 import { ProjectDetail } from "@/features/projects/components/overview/ProjectDetail";
 import { isServiceBusy } from "@/features/projects/services";
@@ -99,7 +98,6 @@ export function AppGeneralPage() {
       {gitBuild && canWrite && <AppSection title={t("Source")} description={t("Repository, branch and how to build it. Save and deploy builds the code and puts it live.")}>
         <GitHubBuildForm path={path} gitBuildsEnabled={gitBuildsEnabled} service={service} onSaved={onChanged} />
       </AppSection>}
-      {gitBuild && <GitBuildHistory path={path} service={service} canWrite={canWrite} onChanged={onChanged} />}
       {canWrite && detail && <RuntimeSettings key={detail.id} service={detail} path={path} onChanged={onChanged} />}
       <AppSection title={t("Details")}>
         <dl className="grid gap-4 p-4 sm:grid-cols-2">
