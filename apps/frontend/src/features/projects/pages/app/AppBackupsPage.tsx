@@ -108,7 +108,7 @@ export function AppBackupsPage() {
     <div className="grid gap-6">
       <AppSection
         title={t("Backups")}
-        description={settings.logical ? t("A database dump, compressed and kept on the app's server.") : t("A copy of the app's data directory, kept on the app's server. Extra volumes and mounts are not included.")}
+        description={settings.logical ? t("A database dump, compressed and kept on the app's server.") : service.compose ? t("A copy of every named volume in the stack, taken while it runs, kept on the app's server. Databases inside the stack may need their own dump to be consistent.") : t("A copy of the app's volumes, kept on the app's server. Server folders mounted into the app are not included.")}
       >
         {!settings.supported && <p className="p-4 text-meta text-ink-soft">{settings.reason}</p>}
         {settings.supported && (

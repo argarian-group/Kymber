@@ -24,6 +24,7 @@ type serviceBackup struct {
 	Error      string     `json:"error,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
 	FinishedAt *time.Time `json:"finished_at"`
+	format     string
 }
 
 // backupMethod says how an engine is dumped and restored. Engines without one fall back to copying the data directory.
@@ -45,24 +46,40 @@ type backupTarget struct {
 	service   databaseService
 	container string
 	dataPath  string
+	paths     []string
 }
+
+const backupImage = "busybox:1.37.0"
 
 func (h *Handler) loadBackupTarget(ctx context.Context, serviceID string) (backupTarget, error) {
 	var target backupTarget
 	s := &target.service
 	var compose bool
-	err := h.db.QueryRowContext(ctx, "SELECT id, engine, name, image, port, data_path, COALESCE(server_id, ''), status, compose_file IS NOT NULL FROM database_services WHERE id = ?", serviceID).Scan(&s.ID, &s.Engine, &s.Name, &s.Image, &s.Port, &s.DataPath, &s.ServerID, &s.Status, &compose)
+	err := h.db.QueryRowContext(ctx, "SELECT id, engine, name, image, port, data_path, COALESCE(server_id, ''), status, compose_file IS NOT NULL, COALESCE(compose_project, name) FROM database_services WHERE id = ?", serviceID).Scan(&s.ID, &s.Engine, &s.Name, &s.Image, &s.Port, &s.DataPath, &s.ServerID, &s.Status, &compose, &s.ComposeProject)
 	if err != nil {
 		return target, err
 	}
+	s.Compose = compose
 	template := serviceTemplate(*s)
 	target.container, target.dataPath = template.ContainerName(s.Name, s.ID), template.DataPath
+	if !compose {
+		if target.dataPath != "" {
+			target.paths = append(target.paths, target.dataPath)
+		}
+		storages, err := h.readStorages(ctx, serviceID, false)
+		if err != nil {
+			return target, err
+		}
+		for _, storage := range storages {
+			if storage.Kind == "volume" && storage.MountPath != target.dataPath {
+				target.paths = append(target.paths, storage.MountPath)
+			}
+		}
+	}
 	_, logical := backupMethods[s.Engine]
 	switch {
-	case compose:
-		return target, errors.New("Compose stacks cannot be backed up yet")
-	case !logical && target.dataPath == "":
-		return target, errors.New("this app has no data directory to back up")
+	case !compose && !logical && len(target.paths) == 0:
+		return target, errors.New("this app has no volumes to back up; add one in Storage")
 	case s.ServerID == "":
 		return target, errors.New("deploy the app before backing it up")
 	}
@@ -73,25 +90,50 @@ func backupFile(serviceID, backupID string) string {
 	return backupDir + serviceID + "/" + backupID + ".gz"
 }
 
+// Compose volume names come from Docker and only use [a-zA-Z0-9_.-], so they are safe unquoted.
+func composeVolumeMounts(project string) string {
+	return "vols=$(docker volume ls -q --filter label=com.docker.compose.project=" + shellQuote(project) + "); [ -n \"$vols\" ] || { echo 'this stack has no named volumes to back up' >&2; exit 1; }; mounts=; for v in $vols; do mounts=\"$mounts -v $v:/v/$v\"; done; "
+}
+
+func volumePaths(paths []string) string {
+	quoted := make([]string, len(paths))
+	for i, p := range paths {
+		quoted[i] = shellQuote(strings.TrimPrefix(p, "/"))
+	}
+	return strings.Join(quoted, " ")
+}
+
 func backupCommand(t backupTarget, backupID string) string {
-	source := "docker cp " + shellQuote(t.container+":"+t.dataPath) + " -"
+	prepare := ""
+	source := "docker run --rm --volumes-from " + shellQuote(t.container) + ":ro " + backupImage + " tar -cf - -C / " + volumePaths(t.paths)
 	if method, ok := backupMethods[t.service.Engine]; ok {
 		source = "docker exec " + shellQuote(t.container) + " sh -c " + shellQuote(method.dump)
+	} else if t.service.Compose {
+		prepare = composeVolumeMounts(t.service.ComposeProject)
+		source = "docker run --rm $mounts " + backupImage + " tar -cf - -C /v ."
 	}
 	base := backupDir + t.service.ID + "/" + backupID
 	part, code, stderr := base+".part", base+".code", base+".err"
-	return "set -u; mkdir -p " + backupDir + t.service.ID + " || exit 1; { " + source + " 2>" + stderr + "; echo $? >" + code + "; } | gzip >" + part +
+	return "set -u; " + prepare + "mkdir -p " + backupDir + t.service.ID + " || exit 1; { " + source + " 2>" + stderr + "; echo $? >" + code + "; } | gzip >" + part +
 		"; if [ \"$(cat " + code + " 2>/dev/null)\" != 0 ]; then cat " + stderr + " >&2; rm -f " + part + " " + code + " " + stderr + "; exit 1; fi; rm -f " + code + " " + stderr +
 		"; mv " + part + " " + backupFile(t.service.ID, backupID) + " && wc -c <" + backupFile(t.service.ID, backupID)
 }
 
-func restoreCommand(t backupTarget, backupID string) string {
+func restoreCommand(t backupTarget, backupID, format string) string {
 	file := backupFile(t.service.ID, backupID)
 	if method, ok := backupMethods[t.service.Engine]; ok {
 		return "set -eu; test -f " + file + "; gunzip -c " + file + " | docker exec -i " + shellQuote(t.container) + " sh -c " + shellQuote(method.restore)
 	}
+	if t.service.Compose {
+		project := "label=com.docker.compose.project=" + shellQuote(t.service.ComposeProject)
+		return "set -eu; test -f " + file + "; " + composeVolumeMounts(t.service.ComposeProject) + "running=$(docker ps -q --filter " + project + "); [ -z \"$running\" ] || docker stop $running >/dev/null; status=0; gunzip -c " + file + " | docker run --rm -i $mounts " + backupImage + " tar -xf - -C /v || status=$?; [ -z \"$running\" ] || docker start $running >/dev/null; exit $status"
+	}
 	container := shellQuote(t.container)
-	return "set -eu; test -f " + file + "; docker stop " + container + " >/dev/null; status=0; gunzip -c " + file + " | docker cp - " + shellQuote(t.container+":"+path.Dir(t.dataPath)) + " || status=$?; docker start " + container + " >/dev/null; exit $status"
+	extract := "docker run --rm -i --volumes-from " + container + " " + backupImage + " tar -xf - -C /"
+	if format == "cp" {
+		extract = "docker cp - " + shellQuote(t.container+":"+path.Dir(t.dataPath))
+	}
+	return "set -eu; test -f " + file + "; docker stop " + container + " >/dev/null; status=0; gunzip -c " + file + " | " + extract + " || status=$?; docker start " + container + " >/dev/null; exit $status"
 }
 
 func (h *Handler) backupService(w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -297,7 +339,7 @@ func (h *Handler) removeBackup(ctx context.Context, serviceID, serverID, backupI
 func (h *Handler) readBackup(w http.ResponseWriter, r *http.Request, serviceID string) (serviceBackup, string, bool) {
 	var backup serviceBackup
 	var serverID string
-	err := h.db.QueryRowContext(r.Context(), "SELECT id, status, server_id FROM service_backups WHERE id = ? AND service_id = ?", r.PathValue("backupID"), serviceID).Scan(&backup.ID, &backup.Status, &serverID)
+	err := h.db.QueryRowContext(r.Context(), "SELECT id, status, server_id, format FROM service_backups WHERE id = ? AND service_id = ?", r.PathValue("backupID"), serviceID).Scan(&backup.ID, &backup.Status, &serverID, &backup.format)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "backup not found")
 		return backup, "", false
@@ -365,7 +407,7 @@ func (h *Handler) restoreBackup(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), backupTimeout)
 		defer cancel()
 		message := ""
-		if _, err := h.executeSSH(ctx, serverID, restoreCommand(target, backup.ID)); err != nil {
+		if _, err := h.executeSSH(ctx, serverID, restoreCommand(target, backup.ID, backup.format)); err != nil {
 			message = "Restore failed: " + err.Error()
 		}
 		var errorText any
