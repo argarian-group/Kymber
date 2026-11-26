@@ -201,17 +201,21 @@ func (h *Handler) dockerImageDetails(w http.ResponseWriter, r *http.Request) {
 			tags = append([]string{"latest"}, tags...)
 		}
 	}
-	port, dataPath, _ := inspectImage(r.Context(), repository, version)
+	port, volumes, _ := inspectImage(r.Context(), repository, version)
+	dataPath := ""
+	if len(volumes) > 0 {
+		dataPath = volumes[0]
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"tags": tags, "default_version": version, "port": port, "data_path": dataPath})
 }
 
-func inspectImage(ctx context.Context, repository, tag string) (int, string, error) {
+func inspectImage(ctx context.Context, repository, tag string) (int, []string, error) {
 	var auth struct {
 		Token string `json:"token"`
 	}
 	target := registryAuthURL + "?service=registry.docker.io&scope=" + url.QueryEscape("repository:"+repository+":pull")
 	if err := fetchJSON(ctx, target, "", &auth); err != nil {
-		return 0, "", err
+		return 0, nil, err
 	}
 	var manifest struct {
 		Config struct {
@@ -227,7 +231,7 @@ func inspectImage(ctx context.Context, repository, tag string) (int, string, err
 	}
 	manifestURL := fmt.Sprintf("%s/v2/%s/manifests/", registryBaseURL, repository)
 	if err := fetchJSON(ctx, manifestURL+url.PathEscape(tag), auth.Token, &manifest); err != nil {
-		return 0, "", err
+		return 0, nil, err
 	}
 	if len(manifest.Manifests) > 0 {
 		digest := ""
@@ -240,10 +244,10 @@ func inspectImage(ctx context.Context, repository, tag string) (int, string, err
 			}
 		}
 		if digest == "" {
-			return 0, "", fmt.Errorf("%s has no linux image", repository)
+			return 0, nil, fmt.Errorf("%s has no linux image", repository)
 		}
 		if err := fetchJSON(ctx, manifestURL+digest, auth.Token, &manifest); err != nil {
-			return 0, "", err
+			return 0, nil, err
 		}
 	}
 	var image struct {
@@ -253,7 +257,7 @@ func inspectImage(ctx context.Context, repository, tag string) (int, string, err
 		} `json:"config"`
 	}
 	if err := fetchJSON(ctx, fmt.Sprintf("%s/v2/%s/blobs/%s", registryBaseURL, repository, manifest.Config.Digest), auth.Token, &image); err != nil {
-		return 0, "", err
+		return 0, nil, err
 	}
 	port := 0
 	for exposed := range image.Config.ExposedPorts {
@@ -264,15 +268,12 @@ func inspectImage(ctx context.Context, repository, tag string) (int, string, err
 	}
 	volumes := make([]string, 0, len(image.Config.Volumes))
 	for volume := range image.Config.Volumes {
-		if templates.ValidDataPath(volume) {
+		if volume != "/" && templates.ValidDataPath(volume) {
 			volumes = append(volumes, volume)
 		}
 	}
 	sort.Strings(volumes)
-	if len(volumes) == 0 {
-		return port, "", nil
-	}
-	return port, volumes[0], nil
+	return port, volumes, nil
 }
 
 func fetchJSON(ctx context.Context, target, token string, output any) error {

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -9,9 +10,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"kymber/backend/internal/auth"
 	"kymber/backend/internal/database"
+	"kymber/backend/internal/logger"
 	"kymber/backend/internal/permissions"
 	"kymber/backend/internal/secrets"
 	"kymber/backend/internal/templates"
@@ -537,6 +540,9 @@ func (h *Handler) startServiceDeploySSH(r *http.Request, serverID, serviceID, im
 	if err != nil {
 		return err
 	}
+	if service.Image != "docker.io/kymber/build-artifacts" {
+		h.addRegistryImageVolumes(r.Context(), serviceID, template.DataPath, image)
+	}
 	storages, err := h.readStorages(r.Context(), serviceID, true)
 	if err != nil {
 		return err
@@ -673,4 +679,21 @@ func (h *Handler) sshDockerCommand(s databaseService, t templates.Template, imag
 		command += "; i=0; while test \"$i\" -lt 90; do state=$(docker inspect --format '{{.State.Health.Status}}' \"$n\"); if test \"$state\" = healthy; then break; fi; if test \"$state\" = unhealthy; then docker rm -f \"$n\" >/dev/null 2>&1 || true; echo 'Container health check failed.' >&2; exit 1; fi; i=$((i+1)); sleep 2; done; test \"$(docker inspect --format '{{.State.Health.Status}}' \"$n\")\" = healthy || { docker rm -f \"$n\" >/dev/null 2>&1 || true; echo 'Container did not become healthy within 3 minutes.' >&2; exit 1; }"
 	}
 	return command, nil
+}
+
+func (h *Handler) addRegistryImageVolumes(ctx context.Context, serviceID, dataPath, image string) {
+	reference := strings.TrimPrefix(image, "docker.io/")
+	separator := strings.LastIndex(reference, ":")
+	if separator < 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	_, volumes, err := inspectImage(ctx, reference[:separator], reference[separator+1:])
+	if err == nil {
+		err = addImageVolumes(ctx, h.db, serviceID, dataPath, volumes)
+	}
+	if err != nil {
+		logger.Warn("could not add image volumes for service %s: %v", serviceID, err)
+	}
 }

@@ -337,3 +337,29 @@ func (h *Handler) deleteStorage(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+const maxImageVolumes = 20
+
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// addImageVolumes persists the image's declared VOLUMEs, which Docker would otherwise recreate empty on every deploy.
+func addImageVolumes(ctx context.Context, db execer, serviceID, dataPath string, paths []string) error {
+	if len(paths) > maxImageVolumes {
+		paths = paths[:maxImageVolumes]
+	}
+	for _, mountPath := range paths {
+		if mountPath == dataPath {
+			continue
+		}
+		id, err := database.NewShortID()
+		if err != nil {
+			return err
+		}
+		if _, err := db.ExecContext(ctx, "INSERT IGNORE INTO service_storages (id, service_id, kind, mount_path) VALUES (?, ?, 'volume', ?)", id, serviceID, mountPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -22,6 +23,7 @@ import (
 	"kymber/backend/internal/database"
 	"kymber/backend/internal/permissions"
 	"kymber/backend/internal/secrets"
+	"kymber/backend/internal/templates"
 )
 
 func (h *Handler) createGitBuildDraft(w http.ResponseWriter, r *http.Request) {
@@ -529,7 +531,7 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 	}
 	defer os.Remove(archive.Name())
 	defer archive.Close()
-	converted, _, err := artifacts.ConvertOCIToDockerArchive(archive, "docker.io/kymber/build-artifacts:"+jobID)
+	converted, image, err := artifacts.ConvertOCIToDockerArchive(archive, "docker.io/kymber/build-artifacts:"+jobID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "OCI artifact must contain exactly one valid image: "+err.Error())
 		return
@@ -672,6 +674,17 @@ func (h *Handler) storeGitBuildArtifact(w http.ResponseWriter, r *http.Request) 
 			writeError(w, http.StatusConflict, "application changed while the build was running")
 			return
 		}
+	}
+	var builtServiceID, builtDataPath string
+	if err := capacityTx.QueryRowContext(r.Context(), "SELECT s.id, s.data_path FROM git_build_jobs j JOIN database_services s ON s.id = j.service_id WHERE j.id = ?", jobID).Scan(&builtServiceID, &builtDataPath); err != nil {
+		os.Remove(finalPath)
+		writeError(w, http.StatusInternalServerError, "could not read the built application")
+		return
+	}
+	if err := addImageVolumes(r.Context(), capacityTx, builtServiceID, builtDataPath, imageVolumes(image.Config)); err != nil {
+		os.Remove(finalPath)
+		writeError(w, http.StatusInternalServerError, "could not add the image's volumes")
+		return
 	}
 	if err := capacityTx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not commit build completion")
@@ -936,4 +949,21 @@ func (h *Handler) listGitBuilds(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, jobs)
+}
+
+func imageVolumes(config json.RawMessage) []string {
+	var parsed struct {
+		Volumes map[string]struct{} `json:"Volumes"`
+	}
+	if json.Unmarshal(config, &parsed) != nil {
+		return nil
+	}
+	var paths []string
+	for path := range parsed.Volumes {
+		if path != "/" && templates.ValidDataPath(path) {
+			paths = append(paths, path)
+		}
+	}
+	sort.Strings(paths)
+	return paths
 }
