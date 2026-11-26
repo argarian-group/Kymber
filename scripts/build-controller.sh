@@ -61,7 +61,7 @@ if [ "${1:-}" = --run-job ]; then
 				set -- "$@" --env "$arg"
 			done < "$dir/build-args"
 			rm -rf "$context/.nixpacks"
-			nixpacks build "$context" --out "$context" "$@" || exit 1
+			(umask 022 && nixpacks build "$context" --out "$context" "$@") || exit 1
 			file="$context/.nixpacks/Dockerfile"
 			;;
 		static)
