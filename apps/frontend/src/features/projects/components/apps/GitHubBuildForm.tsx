@@ -36,6 +36,7 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
   const [installationId, setInstallationId] = useState(0);
   const [repositories, setRepositories] = useState<{ name: string; url: string }[]>([]);
   const [repositoryURL, setRepositoryURL] = useState("");
+  const listedRepository = repositories.some(({ url }) => url === repositoryURL);
   const [ref, setRef] = useState("");
   const [baseDirectory, setBaseDirectory] = useState("");
   const [dockerfilePath, setDockerfilePath] = useState("Dockerfile");
@@ -228,11 +229,11 @@ export function GitHubBuildForm({ path, gitBuildsEnabled, service: existingServi
             {provider.installations?.map((installation) => <option key={installation.id} value={installation.id}>{installation.account_login}</option>)}
           </SelectField>}
         </div>
-        {repositories.length > 0 && <SelectField label={t("Repository")} value={repositories.some(({ url }) => url === repositoryURL) ? repositoryURL : ""} onChange={(event) => { setRepositoryURL(event.target.value); setBranches([]); setJob(null); setError(null); }}>
+        {repositories.length > 0 && <SelectField label={t("Repository")} value={listedRepository ? repositoryURL : ""} onChange={(event) => { setRepositoryURL(event.target.value); setBranches([]); setJob(null); setError(null); }}>
           <option value="">{t("Select a repository")}</option>
           {repositories.map((repository) => <option key={repository.url} value={repository.url}>{repository.name}</option>)}
         </SelectField>}
-        <Field label={provider ? t("Repository URL") : t("Public GitHub repository URL")} type={manualRef ? "text" : "url"} required maxLength={512} placeholder={manualRef ? `ssh://git@${providerHost(provider)}/team/repository.git` : `https://${providerHost(provider)}/owner/repository`} hint={repositories.length ? t("Or paste the repository URL.") : undefined} value={repositoryURL} onChange={(event) => { setRepositoryURL(event.target.value); setBranches([]); setJob(null); setError(null); }} />
+        {!listedRepository && <Field label={provider ? t("Repository URL") : t("Public GitHub repository URL")} type={manualRef ? "text" : "url"} required maxLength={512} placeholder={manualRef ? `ssh://git@${providerHost(provider)}/team/repository.git` : `https://${providerHost(provider)}/owner/repository`} hint={repositories.length ? t("Or paste the repository URL.") : undefined} value={repositoryURL} onChange={(event) => { setRepositoryURL(event.target.value); setBranches([]); setJob(null); setError(null); }} />}
         {manualRef ? <Field label={t("Branch")} required maxLength={128} placeholder="main" value={ref} onChange={(event) => setRef(event.target.value)} /> : <label className="block"><span className="mb-1 block text-meta font-medium">{t("Branch")}</span><select className="field" required disabled={branchesLoading || branches.length === 0} value={ref} onChange={(event) => setRef(event.target.value)}><option value="">{branchesLoading ? t("Loading branches…") : t("Select a branch")}</option>{branches.map(({ name }) => <option key={name} value={name}>{name}</option>)}</select></label>}
         {branchesError && <div><FormError message={branchesError} /><button className="text-button text-meta" type="button" disabled={branchesLoading} onClick={() => setBranchRequest((value) => value + 1)}>{t("Retry loading branches")}</button></div>}
         <div className="grid gap-4 sm:grid-cols-2">
