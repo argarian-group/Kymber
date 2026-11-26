@@ -518,8 +518,6 @@ export const ptBR = {
   "Build ({trigger}) · {status}": "Build ({trigger}) · {status}",
   "Build and deploy ({trigger}) · {status}": "Build e deploy ({trigger}) · {status}",
   "Builds and deploys of this app, newest first. The one in progress opens with live logs.": "Builds e deploys deste app, do mais recente ao mais antigo. O que está em andamento abre com os logs ao vivo.",
-  "No output was recorded.": "Nenhuma saída foi registrada.",
-  "Waiting for output…": "Aguardando saída…",
   "Build finished. Deploying…": "Build concluído. Fazendo deploy…",
   "Building. It deploys when the build finishes.": "Fazendo build. O deploy acontece quando ele terminar.",
   "Changes apply on the next deploy.": "As mudanças valem a partir do próximo deploy.",

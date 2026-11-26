@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FormError } from "@/components/ui/FormError";
 import { AppSection } from "@/features/projects/components/apps/AppSection";
+import { LogViewer } from "@/features/projects/components/apps/LogViewer";
 import { isServiceBusy } from "@/features/projects/services";
 import { useAppOutlet } from "@/features/projects/useAppOutlet";
 import { api } from "@/lib/api";
@@ -47,10 +48,10 @@ function deployOutput(path: string, serviceId: string, deployment: Deployment) {
     : api<{ output: string }>(`${path}/${serviceId}/deployments/${deployment.id}`).then(({ output }) => output);
 }
 
-function ItemLog({ item, path, serviceId }: { item: Item; path: string; serviceId: string }) {
+function ItemLog({ item, path, serviceId, serviceName }: { item: Item; path: string; serviceId: string; serviceName: string }) {
   const [log, setLog] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const bottom = useRef<HTMLPreElement>(null);
+  const [wrap, setWrap] = useState(true);
 
   useEffect(() => {
     let current = true;
@@ -76,16 +77,10 @@ function ItemLog({ item, path, serviceId }: { item: Item; path: string; serviceI
     };
   }, [item.key, item.active, item.kind === "build" && item.deployment?.id, path, serviceId]);
 
-  useEffect(() => {
-    const element = bottom.current;
-    if (element && item.active) element.scrollTop = element.scrollHeight;
-  }, [log, item.active]);
-
-  if (error) return <FormError message={error} />;
   return (
-    <pre ref={bottom} id={`log-${item.key}`} className="max-h-96 overflow-auto rounded-control bg-canvas p-4 font-mono text-xs whitespace-pre-wrap wrap-break-word text-ink-soft" aria-live={item.active ? "polite" : undefined}>
-      {log === null ? t("Loading logs…") : log || (item.active ? t("Waiting for output…") : t("No output was recorded."))}
-    </pre>
+    <div className="overflow-hidden rounded-control" id={`log-${item.key}`}>
+      <LogViewer logs={log} error={error} loadingText={t("Loading logs…")} fileName={`${serviceName}-${item.key}.txt`} wrap={wrap} onWrapChange={setWrap} />
+    </div>
   );
 }
 
@@ -196,7 +191,7 @@ export function AppDeploymentsPage() {
                   </button>
                 </div>
               </article>
-              {open && <ItemLog item={item} path={path} serviceId={service.id} />}
+              {open && <ItemLog item={item} path={path} serviceId={service.id} serviceName={service.name} />}
             </div>
           );
         })}
