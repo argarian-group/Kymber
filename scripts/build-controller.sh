@@ -41,7 +41,8 @@ if [ "${1:-}" = --run-job ]; then
 	rm -f "$dir/ssh_key"
 	case "$commit" in *[!0-9a-f]*|'') exit 1 ;; esac
 	[ "${#commit}" -eq 40 ] || exit 1
-	git -C "$dir/source" -c core.hooksPath=/dev/null checkout --detach --force "$commit" || exit 1
+	# The script's umask 077 would make every source file 0600, unreadable to non-root users in the image.
+	(umask 022 && git -C "$dir/source" -c core.hooksPath=/dev/null checkout --detach --force "$commit") || exit 1
 	rm -rf "$dir/source/.git"
 	printf '%s' "$commit" > "$dir/commit"
 	root=$(readlink -f "$dir/source") || exit 1
