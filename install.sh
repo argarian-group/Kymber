@@ -315,7 +315,8 @@ cd "$install_dir"
 run_step "Gerando configuração segura" prepare_configuration
 run_step "Verificando portas HTTP/HTTPS" check_ports
 run_step "Configurando SSH local" env -u SUDO_UID -u SUDO_GID ./scripts/setup-local-ssh.sh
-run_step "Construindo e iniciando os containers" docker compose up -d --build --wait --wait-timeout 180
+run_step "Baixando containers" docker compose pull
+run_step "Iniciando os containers" docker compose up -d --wait --wait-timeout 180
 run_step "Instalando Nixpacks" install_nixpacks
 run_step "Iniciando controlador de builds Git" start_build_controller
 printf '\nAcesse o Kymber pelos endereços detectados:\n'

@@ -65,10 +65,7 @@ services:
       - data
 
   backend:
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
-      target: api
+    image: ghcr.io/argarian-group/kymber:latest
     ports:
       - "127.0.0.1:${KYMBER_BUILD_API_PORT:-8081}:8080"
     restart: unless-stopped
@@ -112,9 +109,7 @@ services:
       - build_artifacts:/var/lib/kymber/build-artifacts
 
   frontend:
-    build:
-      context: .
-      dockerfile: apps/frontend/Dockerfile
+    image: ghcr.io/argarian-group/kymber-frontend:latest
     restart: unless-stopped
     depends_on:
       - backend
@@ -146,10 +141,7 @@ services:
 
   server:
     profiles: [monitoring]
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
-      target: server
+    image: ghcr.io/argarian-group/kymber:latest
     restart: unless-stopped
     environment:
       KYMBER_API_URL: http://backend:8080
