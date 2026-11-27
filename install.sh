@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo="https://github.com/argarian-group/Kymber.git"
 install_dir="${KYMBER_INSTALL_DIR:-/opt/kymber}"
 logfile=$(mktemp /tmp/kymber-install.XXXXXX)
 step_number=0
@@ -122,14 +121,9 @@ start_services() {
 }
 
 prepare_checkout() {
-	if [[ -d "$install_dir/.git" ]]; then
-		git -C "$install_dir" pull --ff-only
-	elif [[ -e "$install_dir" ]]; then
-		printf 'Install directory already exists and is not a Git checkout: %s\n' "$install_dir" >&2
-		return 1
-	else
-		git clone --depth 1 "$repo" "$install_dir"
-	fi
+	mkdir -p "$install_dir"
+	curl -fsSL https://github.com/argarian-group/Kymber/raw/refs/heads/main/docker-compose.yml -o "$install_dir/docker-compose.yml.tmp" || return
+	mv "$install_dir/docker-compose.yml.tmp" "$install_dir/docker-compose.yml"
 }
 
 prepare_configuration() {
@@ -194,6 +188,8 @@ install_nixpacks() {
 
 start_build_controller() {
 	local port
+	curl -fsSL https://github.com/argarian-group/Kymber/raw/refs/heads/main/scripts/build-controller.sh -o "$install_dir/scripts/build-controller.sh" || return
+	chmod 755 "$install_dir/scripts/build-controller.sh" || return
 	port=$(compose_port KYMBER_BUILD_API_PORT 8081)
 	if [[ ! "$port" =~ ^[0-9]{1,5}$ ]] || ((port < 1 || port > 65535)); then
 		printf 'Invalid build API port: %s\n' "$port" >&2
@@ -303,8 +299,8 @@ case "$os_id" in
 		;;
 esac
 
-if [[ -d "$install_dir/.git" ]]; then
-	printf '\nO Kymber será reiniciado para aplicar a atualização.\n\n'
+if [[ -f "$install_dir/docker-compose.yml" ]]; then
+	printf '\nO Kymber será iniciado/atualizado.\n\n'
 else
 	printf '\nO Kymber será instalado e iniciado.\n\n'
 fi
